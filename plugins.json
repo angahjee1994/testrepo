@@ -1,0 +1,86 @@
+[
+    {
+        "iconUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/MovieBoxProvider/logo.png",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/angahjee1994/testrepo",
+        "fileSize": 41026,
+        "status": 1,
+        "language": "en",
+        "authors": [
+            "NivinCNC,Phisher98"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 5,
+        "internalName": "MovieBoxProvider",
+        "description": "Multi Language Movies and Series Provider",
+        "url": "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds/MovieBoxProvider.cs3",
+        "name": "MovieBoxProvider"
+    },
+    {
+        "iconUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/Netmirror/logo.png",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/angahjee1994/testrepo",
+        "fileSize": 31867,
+        "status": 1,
+        "language": "en",
+        "authors": [
+            "Sushan64"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 42,
+        "internalName": "Netmirror",
+        "description": "Netflix Contents in Multiple Languages",
+        "url": "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds/Netmirror.cs3",
+        "name": "Netmirror"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=onetouchtv.xyz/&sz=%size%",
+        "jarFileSize": 166211,
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/angahjee1994/testrepo",
+        "fileSize": 35604,
+        "status": 1,
+        "language": "en",
+        "authors": [
+            "Phisher98"
+        ],
+        "tvTypes": [
+            "AsianDrama",
+            "TvSeries"
+        ],
+        "version": 1,
+        "internalName": "OneTouchTV",
+        "jarUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds/OneTouchTV.jar",
+        "description": "Asian Dramas",
+        "url": "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds/OneTouchTV.cs3",
+        "name": "OneTouchTV"
+    },
+    {
+        "iconUrl": "https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://ww03.pencurimovie.bond&size=%size%",
+        "jarFileSize": 48746,
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/angahjee1994/testrepo",
+        "fileSize": 12773,
+        "status": 1,
+        "language": "ms",
+        "authors": [
+            "Phisher98"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 4,
+        "internalName": "Pencurimovie",
+        "jarUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds/Pencurimovie.jar",
+        "description": "Pencurimovie ",
+        "url": "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds/Pencurimovie.cs3",
+        "name": "Pencurimovie"
+    }
+]
