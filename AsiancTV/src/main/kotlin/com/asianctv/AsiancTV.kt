@@ -50,14 +50,12 @@ class AsiancTV : MainAPI() {
         val document = app.get(url).document
 
         val title = document.selectFirst("h1")?.text()?.trim() ?: "Unknown"
-        val poster = document.selectFirst(".info-left img")?.attr("src")
+        val poster = document.selectFirst(".info img")?.attr("src")
         
-        // Description is often in a p tag with a span "Description:"
-        val description = document.select(".info-right p").find { 
-            it.text().contains("Description:", ignoreCase = true) 
-        }?.ownText() ?: document.selectFirst(".info-right p")?.text()?.trim()
+        // Description
+        val description = document.select(".info").text().substringAfter("Description:").substringBefore("Country:").trim()
 
-        val episodes = document.select("ul.list-episode-item li").mapNotNull {
+        val episodes = document.select("ul.list-episode-item-2 li").mapNotNull {
              val a = it.selectFirst("a") ?: return@mapNotNull null
              val epUrl = a.attr("href")
              val epName = it.selectFirst("h3.title")?.text() ?: "Episode"
