@@ -1,9 +1,0 @@
-# Remove the old connection to the original author's repo
-git remote remove origin
-
-# Add your new repository as the origin
-git remote add origin https://github.com/angahjee1994/repo.git
-
-# Push both branches to your new repository
-git push -u origin master
-git push -u origin builds
