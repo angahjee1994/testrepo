@@ -50,7 +50,7 @@ class AsiancTV : MainAPI() {
         val document = app.get(url).document
 
         val title = document.selectFirst("h1")?.text()?.trim() ?: "Unknown"
-        val poster = document.selectFirst(".info img")?.attr("src")
+        val poster = document.selectFirst(".img img")?.attr("src")
         
         // Description
         val description = document.select(".info").text().substringAfter("Description:").substringBefore("Country:").trim()
@@ -87,11 +87,33 @@ class AsiancTV : MainAPI() {
              // Basic handling - often these sites use XStream, Gogo, or similar
              // For now, load it directly if it's a known extractor or try to find one
              if (iframeSrc.contains("streaming.php")) {
-                 val streamingPage = app.get(fixUrl(iframeSrc)).document
-                 val serverList = streamingPage.select("li.linkserver") // Adjust selector based on actual site
+                 val streamingUrl = fixUrl(iframeSrc)
+                 val streamingPage = app.get(streamingUrl).document
+                 val serverList = streamingPage.select("ul.list-server-items li.linkserver") // Adjust selector based on actual site
                  
                  // Fallback to simpler extraction for now, will need refining
                  // Usually these sites hide the real video link inside the streaming.php page
+                 
+                 serverList.forEach { server ->
+                     val videoUrl = server.attr("data-video")
+                     if (videoUrl.isNotEmpty()) {
+                        loadExtractor(videoUrl, data, subtitleCallback, callback)
+                     }
+                 }
+                 
+                 // Also extract typical "anime_muti_link" if present
+                 streamingPage.select(".anime_muti_link ul li").forEach { server ->
+                     val videoUrl = server.attr("data-video")
+                     if (videoUrl.isNotEmpty()) {
+                         loadExtractor(videoUrl, data, subtitleCallback, callback)
+                     }
+                 }
+                 
+                 // Also load the main iframe src itself (often contains the default server)
+                 val internalIframe = streamingPage.select("iframe").attr("src")
+                 if (internalIframe.isNotEmpty() && !internalIframe.startsWith("//")) { // Filter out ads
+                     loadExtractor(internalIframe, data, subtitleCallback, callback)
+                 }
              }
              
              loadExtractor(iframeSrc, data, subtitleCallback, callback)
