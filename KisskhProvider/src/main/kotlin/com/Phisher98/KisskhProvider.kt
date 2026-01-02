@@ -35,7 +35,7 @@ class KisskhProvider : MainAPI() {
 		"&order=2&country=8&status=0&type=0&sub=0" to "Philippine",
 		"&order=2&country=4&status=0&type=0&sub=0" to "Hong Kong",
 		"&order=2&country=7&status=0&type=0&sub=0" to "Taiwan",
-		"&order=2&country=6&status=0&type=0&sub=0" to "TUnited States",
+		"&order=2&country=6&status=0&type=0&sub=0" to "United States",
     )
 
     override suspend fun getMainPage(
