@@ -6,7 +6,7 @@ cloudstream {
     // All of these properties are optional, you can safely remove them
 
     description = "Pencurimovie "
-    language    = "id"
+    language    = "ms"
     authors = listOf("Phisher98")
 
     /**

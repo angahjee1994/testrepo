@@ -76,7 +76,7 @@ jobs:
           # Fix casing in plugins.json because actual branch is 'Builds' but gradle generates 'builds'
           sed -i 's|/builds/|/Builds/|g' build/plugins.json
           cp build/plugins.json $GITHUB_WORKSPACE/builds
-          echo '{ "name": "Angahjee Repo", "iconUrl": "", "description": "My Custom Repository", "manifestVersion": 1, "pluginLists": [ "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/Builds/plugins.json" ] }' > $GITHUB_WORKSPACE/builds/repo.json
+          echo '{ "name": "botol", "iconUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/icon.png", "description": "Repository", "manifestVersion": 1, "pluginLists": [ "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/Builds/plugins.json" ] }' > $GITHUB_WORKSPACE/builds/repo.json
       - name: Push builds
         run: |
           cd $GITHUB_WORKSPACE/builds
