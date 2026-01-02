@@ -79,46 +79,52 @@ class AsiancTV : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-
         val document = app.get(data).document
-        val iframeSrc = document.select("iframe").attr("src")
         
-        if (iframeSrc.isNotEmpty()) {
-             // Basic handling - often these sites use XStream, Gogo, or similar
-             // For now, load it directly if it's a known extractor or try to find one
-             if (iframeSrc.contains("streaming.php")) {
-                 val streamingUrl = fixUrl(iframeSrc)
-                 val streamingPage = app.get(streamingUrl).document
-                 val serverList = streamingPage.select("ul.list-server-items li.linkserver") // Adjust selector based on actual site
-                 
-                 // Fallback to simpler extraction for now, will need refining
-                 // Usually these sites hide the real video link inside the streaming.php page
-                 
-                 serverList.forEach { server ->
-                     val videoUrl = server.attr("data-video")
-                     if (videoUrl.isNotEmpty()) {
-                        loadExtractor(videoUrl, data, subtitleCallback, callback)
-                     }
-                 }
-                 
-                 // Also extract typical "anime_muti_link" if present
-                 streamingPage.select(".anime_muti_link ul li").forEach { server ->
-                     val videoUrl = server.attr("data-video")
-                     if (videoUrl.isNotEmpty()) {
-                         loadExtractor(videoUrl, data, subtitleCallback, callback)
-                     }
-                 }
-                 
-                 // Also load the main iframe src itself (often contains the default server)
-                 val internalIframe = streamingPage.select("iframe").attr("src")
-                 if (internalIframe.isNotEmpty() && !internalIframe.startsWith("//")) { // Filter out ads
-                     loadExtractor(internalIframe, data, subtitleCallback, callback)
-                 }
-             }
-             
-             loadExtractor(iframeSrc, data, subtitleCallback, callback)
+        // 1. Scrape server lists from the EPISODE page (data)
+        // Selectors found: .muti_link li, ul.list-server-items li, .anime_muti_link li
+        val serverList = document.select(".muti_link li, ul.list-server-items li, .anime_muti_link li")
+        
+        serverList.forEach { server ->
+            val videoUrl = server.attr("data-video")
+            if (videoUrl.isNotEmpty()) {
+                resolveServerLink(videoUrl, data, subtitleCallback, callback)
+            }
+        }
+        
+        // 2. Also handle the default iframe (often duplicates one of the servers)
+        val defaultIframe = document.select("iframe").attr("src")
+        if (defaultIframe.isNotEmpty()) {
+             resolveServerLink(defaultIframe, data, subtitleCallback, callback)
         }
 
         return true
+    }
+
+    private suspend fun resolveServerLink(
+        url: String,
+        referer: String,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        val fixedUrl = fixUrl(url)
+        
+        // If it's an internal streaming.php link, we MUST fetch it with Referer to get the real source
+        if (fixedUrl.contains("streaming.php")) {
+            try {
+                // Fetch with Referer to bypass "Direct access is not allowed"
+                val response = app.get(fixedUrl, headers = mapOf("Referer" to referer)).document
+                val innerIframeSrc = response.select("iframe").attr("src")
+                
+                if (innerIframeSrc.isNotEmpty()) {
+                     loadExtractor(fixUrl(innerIframeSrc), referer, subtitleCallback, callback)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        } else {
+            // Direct external link (rare, but possible)
+            loadExtractor(fixedUrl, referer, subtitleCallback, callback)
+        }
     }
 }
