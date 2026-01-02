@@ -133,8 +133,8 @@ class MovieBoxProvider : MainAPI() {
     }
 
     override val mainPage = mainPageOf(
-        "6766346312503248424" to "Trending Drama",
         "4123278689004061520" to "Trending Movies",
+		"6766346312503248424" to "Trending Series",
         "1|1" to "Movies",
         "1|2" to "Series",
         "1|1006" to "Anime",
@@ -154,6 +154,8 @@ class MovieBoxProvider : MainAPI() {
         "1|2;country=Japan" to "Japan (Series)",
         "1|1;country=China" to "China (Movies)",
         "1|2;country=China" to "China (Series)",
+        "1|1;country=Malaysia" to "Malaysia (Movies)",
+        "1|2;country=Malaysia" to "Malaysia (Series)",
 		"1|1;country=Indonesia" to "Indonesia (Movies)",
         "1|2;country=Indonesia" to "Indonesia (Series)",
         "1|1;country=Philippines" to "Philippines (Movies)",
