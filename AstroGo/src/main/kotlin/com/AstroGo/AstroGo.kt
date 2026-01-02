@@ -23,6 +23,9 @@ import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.newEpisode
 import com.lagradost.cloudstream3.utils.newExtractorLink
 import com.lagradost.cloudstream3.utils.INFER_TYPE
+import com.lagradost.api.Log
+import java.util.UUID
+import org.json.JSONObject
 
 class AstroGo : MainAPI() {
     override var mainUrl = "https://astrogo.astro.com.my"
@@ -40,6 +43,7 @@ class AstroGo : MainAPI() {
         if (isLoggedIn) return
 
         try {
+            Log.d("AstroGo", "Starting login process...")
             // 1. Go to homepage to find the login link/redirect
             val home = app.get("$mainUrl/hubHome").document
             
@@ -54,6 +58,7 @@ class AstroGo : MainAPI() {
             }
 
             // 2. Fetch the login page to get CSRF token and flow ID
+            Log.d("AstroGo", "Fetching login page: $loginUrl")
             val loginPage = app.get(loginUrl).document
             // The action URL usually contains the ?flow=... parameter
             val form = loginPage.selectFirst("form")
@@ -86,37 +91,104 @@ class AstroGo : MainAPI() {
                 )
             )
 
+            Log.d("AstroGo", "Login response code: ${response.code}")
             if (response.isSuccessful && !response.text.contains("Invalid credentials")) {
                 isLoggedIn = true
+                Log.d("AstroGo", "Login successful!")
+            } else {
+                Log.d("AstroGo", "Login failed: ${response.text}")
             }
         } catch (e: Exception) {
+            Log.e("AstroGo", "Login error: ${e.message}")
             e.printStackTrace()
             // Continue as guest if login fails, but playback might fail
         }
     }
 
+    // Captured from browser inspector
+    private val CLIENT_TOKEN = "v:1!r:80800!ur:GUEST_REGION!community:Malaysia%20Live!t:k!dt:PC!f:Astro_unmanaged!pd:CHROME-FF!pt:Adults"
+    private val CTAP_URL = "https://sg-sg-sg.astro.com.my:9443/ctap/r1.6.0"
+
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         login() // Ensure we attempt login first
 
-        val document = app.get("$mainUrl/hubHome").document
-        val homePageList = ArrayList<HomePageList>()
+        Log.d("AstroGo", "Fetching main page via API...")
+        // Generate a random device ID if one isn't stored, but for now a random UUID works for guest access usually
+        val deviceId = UUID.randomUUID().toString()
+        
+        val url = "$CTAP_URL/shared/bulkContent/node:IVP:Home?clientToken=$CLIENT_TOKEN"
+        val response = app.get(
+            url,
+            headers = mapOf(
+                "X-Device-Id" to deviceId,
+                "Accept" to "application/json"
+            )
+        )
 
-        // Scraping logic for Astro Go homepage
-        // This is generic scraping, checking for rails of content
-        document.select("div.rail-container, div.carousel").forEach { rail ->
-            val title = rail.selectFirst("h2, h3")?.text() ?: "Featured"
-            val items = rail.select("div.tile, div.card").mapNotNull { item ->
-                val link = item.selectFirst("a")?.attr("href") ?: return@mapNotNull null
-                val name = item.selectFirst("div.title, h4")?.text() ?: "Unknown"
-                val img = item.selectFirst("img")?.attr("src")
-                
-                newMovieSearchResponse(name, "$mainUrl$link", TvType.Movie) {
-                    this.posterUrl = img
+        val homePageList = ArrayList<HomePageList>()
+        
+        try {
+            val json = JSONObject(response.text)
+            val responseNode = json.optJSONObject("response") ?: json
+            
+            // The structure is likely: response -> [results] -> [containers/swimlanes]
+            // We need to iterate through the keys or a specific list
+            // Based on generic CTAP structure, usually there's a list of items
+            
+            // Let's try to find a list of containers. 
+            // Since we don't have exact schema, we'll look for "containers" or iterate results if it's an array
+            
+            // MOCKED PARSING BASED ON COMMON STRUCTURE:
+            // "containers": [ { "layout": "row", "assets": [...] } ]
+            // OR "results": [ ... ]
+            
+            // Given I can't run the parser on real data yet, I'll log the specific keys to help debug if this fails,
+            // but I'll write a best-guess parser for "assets" or "items".
+            
+            val containers = responseNode.optJSONArray("containers") 
+                ?: responseNode.optJSONArray("results")
+                ?: responseNode.optJSONArray("assets")
+
+            if (containers != null) {
+                for (i in 0 until containers.length()) {
+                    val container = containers.getJSONObject(i)
+                    val title = container.optString("title", container.optString("name", "Featured"))
+                    val assets = container.optJSONArray("assets") ?: container.optJSONArray("items")
+                    
+                    if (assets != null && assets.length() > 0) {
+                        val innerItems = ArrayList<SearchResponse>()
+                        for (j in 0 until assets.length()) {
+                            val asset = assets.getJSONObject(j)
+                            val assetTitle = asset.optString("title", asset.optString("name", "Unknown"))
+                            val assetId = asset.optString("id")
+                            val images = asset.optJSONObject("images")
+                            val poster = images?.optString("poster") ?: images?.optString("landscape")
+                            
+                            // We need a smart way to pass ID to load(). 
+                            // API usually gives details by ID.
+                            // Let's use the API detail URL as the 'url' param.
+                            // Detail URL: $CTAP_URL/shared/content/$id
+                            
+                            if (assetId.isNotEmpty()) {
+                                innerItems.add(
+                                    newMovieSearchResponse(assetTitle, "$CTAP_URL/shared/content/$assetId", TvType.Movie) {
+                                        this.posterUrl = poster
+                                    }
+                                )
+                            }
+                        }
+                        if (innerItems.isNotEmpty()) {
+                            homePageList.add(HomePageList(title, innerItems))
+                        }
+                    }
                 }
+            } else {
+                 Log.d("AstroGo", "No containers found in JSON keys: ${responseNode.keys().asSequence().toList()}")
             }
-             if (items.isNotEmpty()) {
-                homePageList.add(HomePageList(title, items))
-            }
+
+        } catch (e: Exception) {
+            Log.e("AstroGo", "Error parsing API JSON: ${e.message}")
+            e.printStackTrace()
         }
 
         return newHomePageResponse(homePageList)
@@ -124,35 +196,36 @@ class AstroGo : MainAPI() {
 
     override suspend fun load(url: String): LoadResponse {
         login()
-        val doc = app.get(url).document
-        val title = doc.selectFirst("h1.title, h1")?.text() ?: "Unknown"
-        val plot = doc.selectFirst("p.description, div.synopsis")?.text()
-        val poster = doc.selectFirst("img.poster, img.hero-image")?.attr("src")
+        // URL should now be the API url or we handle the old mainUrl style
+        // If it starts with http/https and contains 'ctap', it's our API url
         
-        // Check if it's a series or movie
-        val isSeries = url.contains("show") || doc.select("div.episodes").isNotEmpty()
-
-        if (isSeries) {
-            val episodes = doc.select("div.episode-tile").mapNotNull { ep ->
-                val epTitle = ep.selectFirst("div.title")?.text() ?: "Episode"
-                val epLink = ep.selectFirst("a")?.attr("href") ?: return@mapNotNull null
-                // Parse "Episode 1" etc
-                val epNum = Regex("Episode (\\d+)").find(epTitle)?.groupValues?.get(1)?.toIntOrNull()
-                
-                newEpisode(epLink) {
-                    this.name = epTitle
-                    this.episode = epNum
-                }
-            }
-            return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
-                this.plot = plot
-                this.posterUrl = poster
-            }
-        } else {
+        val docUrl = if (url.contains("ctap")) "$url?clientToken=$CLIENT_TOKEN" else url
+        
+        Log.d("AstroGo", "Loading detail: $docUrl")
+        
+        if (docUrl.contains("ctap")) {
+            val response = app.get(docUrl).text
+            val json = JSONObject(response)
+            val data = json.optJSONObject("response") ?: json
+            
+            val title = data.optString("title", "Unknown")
+            val plot = data.optString("longDescription") ?: data.optString("shortDescription")
+            val images = data.optJSONObject("images")
+            val poster = images?.optString("poster")
+            
+            // Check for episodes or video URL
+            // This part is speculative without seeing the detail JSON.
+            // But usually 'assets' inside a detail might mean episodes for a show.
+            
             return newMovieLoadResponse(title, url, TvType.Movie, url) {
                 this.plot = plot
                 this.posterUrl = poster
             }
+        } else {
+             // Fallback to old scraping if somehow we get a web URL
+            val doc = app.get(url).document
+            val title = doc.selectFirst("h1.title, h1")?.text() ?: "Unknown"
+            return newMovieLoadResponse(title, url, TvType.Movie, url)
         }
     }
 
