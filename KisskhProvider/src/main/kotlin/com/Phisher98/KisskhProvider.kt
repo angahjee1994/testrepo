@@ -28,18 +28,13 @@ class KisskhProvider : MainAPI() {
     )
 
     override val mainPage = mainPageOf(
-        "&type=1&sub=0&country=2&status=1&order=2" to "Latest K-Drama",
-		"&order=2&country=2&status=0&type=2&sub=0" to "Latest K-Movies",
-        "&type=0&sub=0&country=1&status=0&order=1" to "Top C-Drama",
-        "&type=2&sub=0&country=2&status=0&order=1" to "Movie Popular",
-        "&type=2&sub=0&country=2&status=0&order=2" to "Movie Last Update",
-        "&type=1&sub=0&country=2&status=0&order=1" to "TVSeries Popular",
-        "&type=1&sub=0&country=2&status=0&order=2" to "TVSeries Last Update",
-        "&type=3&sub=0&country=0&status=0&order=1" to "Anime Popular",
-        "&type=3&sub=0&country=0&status=0&order=2" to "Anime Latest Update",
-        "&type=4&sub=0&country=0&status=0&order=1" to "Hollywood Popular",
-        "&type=4&sub=0&country=0&status=0&order=2" to "Hollywood Last Update",
-        "&type=0&sub=0&country=0&status=3&order=2" to "Upcoming"
+        "&order=2&country=2&status=0&type=0&sub=0" to "Korean",
+        "&order=2&country=1&status=0&type=0&sub=0" to "Chinese",
+		"&order=2&country=3&status=0&type=0&sub=0" to "Japan",
+		"&order=2&country=5&status=0&type=0&sub=0" to "Thailand",
+		"&order=2&country=8&status=0&type=0&sub=0" to "Philippine",
+		"&order=2&country=4&status=0&type=0&sub=0" to "Hong Kong",
+		"&order=2&country=7&status=0&type=0&sub=0" to "Taiwan",
     )
 
     override suspend fun getMainPage(
