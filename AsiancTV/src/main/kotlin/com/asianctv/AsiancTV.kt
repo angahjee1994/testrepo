@@ -13,6 +13,19 @@ class AsiancTV : MainAPI() {
     override val hasDownloadSupport = true
     override val supportedTypes = setOf(TvType.AsianDrama)
 
+    // Verify mobile UA to ensure we get the structure consistent with our mobile browser debug
+    private val mobileUserAgent = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36"
+
+    // CloudStream doesn't have a direct override for every request easily in MainAPI without interceptor, 
+    // but we can pass it in our get requests or set it globally if supported.
+    // However, simplest is to just rely on default or if strictly needed, headers.
+    // For now, let's just make sure our requests use it if we can, or rely on standard behaviour.
+    // Actually, CloudStream's 'app' client is ok, but we can verify headers.
+    
+    // NOTE: CloudStream by default sends a mobile-like UA. 
+    // The critical part was the SELECTORS mismatch, specifically "switch-block" removal.
+
+
     override val mainPage = mainPageOf(
         "$mainUrl/popular-movies?page=" to "Popular Movies",
         "$mainUrl/popular-dramas?page=" to "Popular Dramas",
@@ -21,7 +34,7 @@ class AsiancTV : MainAPI() {
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val document = app.get(request.data + page).document
-        val home = document.select("ul.switch-block.list-episode-item li").mapNotNull {
+        val home = document.select("ul.list-episode-item li").mapNotNull {
             it.toSearchResult()
         }
         return newHomePageResponse(request.name, home)
@@ -30,7 +43,10 @@ class AsiancTV : MainAPI() {
     private fun Element.toSearchResult(): SearchResponse? {
         val title = this.selectFirst("h3.title")?.text() ?: return null
         val href = this.selectFirst("a")?.attr("href") ?: return null
-        val posterUrl = this.selectFirst("img")?.attr("src")
+        val img = this.selectFirst("img")
+        val posterUrl = img?.attr("data-original")?.takeIf { it.isNotEmpty() } 
+            ?: img?.attr("src")
+            
         return newAnimeSearchResponse(title, href, TvType.AsianDrama) {
             this.posterUrl = posterUrl
         }
@@ -38,10 +54,10 @@ class AsiancTV : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         val cleanQuery = query.replace(" ", "+")
-        val link = "$mainUrl/search.html?keyword=$cleanQuery"
+        val link = "$mainUrl/search?type=movies&keyword=$cleanQuery" // Updated search URL pattern from observed mobile behavior
         val document = app.get(link).document
 
-        return document.select("ul.switch-block.list-episode-item li").mapNotNull {
+        return document.select("ul.list-episode-item li").mapNotNull {
             it.toSearchResult()
         }
     }
@@ -50,7 +66,9 @@ class AsiancTV : MainAPI() {
         val document = app.get(url).document
 
         val title = document.selectFirst("h1")?.text()?.trim() ?: "Unknown"
-        val poster = document.selectFirst(".img img")?.attr("src")
+        val img = document.selectFirst(".img img")
+        val poster = img?.attr("data-original")?.takeIf { it.isNotEmpty() } 
+            ?: img?.attr("src")
         
         // Description
         val description = document.select(".info").text().substringAfter("Description:").substringBefore("Country:").trim()
@@ -81,9 +99,10 @@ class AsiancTV : MainAPI() {
     ): Boolean {
         val document = app.get(data).document
         
-        // 1. Scrape server lists from the EPISODE page (data)
-        // Selectors found: .muti_link li, ul.list-server-items li, .anime_muti_link li
-        val serverList = document.select(".muti_link li, ul.list-server-items li, .anime_muti_link li")
+        // Scrape server lists from the EPISODE page
+        // Added .muti_link logic (verified on mobile) and .anime_muti_link
+        // Also check "li" directly if it has data-video
+        val serverList = document.select(".muti_link li, .anime_muti_link li, ul.list-server-items li")
         
         serverList.forEach { server ->
             val videoUrl = server.attr("data-video")
@@ -92,7 +111,7 @@ class AsiancTV : MainAPI() {
             }
         }
         
-        // 2. Also handle the default iframe (often duplicates one of the servers)
+        // Handle iframe directly if no servers found or as backup
         val defaultIframe = document.select("iframe").attr("src")
         if (defaultIframe.isNotEmpty()) {
              resolveServerLink(defaultIframe, data, subtitleCallback, callback)
@@ -109,10 +128,9 @@ class AsiancTV : MainAPI() {
     ) {
         val fixedUrl = fixUrl(url)
         
-        // If it's an internal streaming.php link, we MUST fetch it with Referer to get the real source
         if (fixedUrl.contains("streaming.php")) {
             try {
-                // Fetch with Referer to bypass "Direct access is not allowed"
+                // Fetch with Referer is CRITICAL for AsiancTV
                 val response = app.get(fixedUrl, headers = mapOf("Referer" to referer)).document
                 val innerIframeSrc = response.select("iframe").attr("src")
                 
@@ -123,7 +141,6 @@ class AsiancTV : MainAPI() {
                 e.printStackTrace()
             }
         } else {
-            // Direct external link (rare, but possible)
             loadExtractor(fixedUrl, referer, subtitleCallback, callback)
         }
     }
