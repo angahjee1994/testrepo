@@ -3,7 +3,7 @@ cloudstream {
     authors = listOf("Antigravity")
     language = "en"
     tvTypes = listOf("TvSeries", "Movie")
-    isCrossPlatform = true
+    isCrossPlatform = false
 }
 
 version = 1
