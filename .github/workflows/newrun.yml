@@ -26,7 +26,7 @@ jobs:
       - name: Checkout builds
         uses: actions/checkout@v5
         with:
-          ref: "builds"
+          ref: "Builds"
           path: "builds"
 
       - name: Clean old builds
