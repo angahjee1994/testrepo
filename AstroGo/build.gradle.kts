@@ -1,15 +1,14 @@
-import com.lagradost.cloudstream3.gradle.CloudstreamExtension 
-
 cloudstream {
-    // set your extensions information here
-    name = "Astro Go"
-    label = "Astro Go"
-    description = "Astro Go Extension with hardcoded credentials"
+    description = "Astro Go Extension"
     authors = listOf("Antigravity")
-    recommends = listOf("com.lagradost.cloudstream3")
-    
-    // minimal version code
-    versionCode = 1
-    // version name
-    versionName = "1.0.0"
+    language = "en"
+    tvTypes = listOf("TvSeries", "Movie")
+    isCrossPlatform = true
+}
+
+version = 1
+
+dependencies {
+    val cloudstream by configurations
+    cloudstream("com.lagradost:cloudstream3:pre-release")
 }

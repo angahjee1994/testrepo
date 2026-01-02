@@ -1,3 +1,4 @@
+@file:Suppress("DEPRECATION")
 package com.AstroGo
 
 import com.lagradost.cloudstream3.MainAPI
@@ -18,6 +19,10 @@ import com.lagradost.cloudstream3.utils.Qualities
 import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import okhttp3.FormBody
+import com.lagradost.cloudstream3.MainPageRequest
+import com.lagradost.cloudstream3.newEpisode
+import com.lagradost.cloudstream3.utils.newExtractorLink
+import com.lagradost.cloudstream3.utils.INFER_TYPE
 
 class AstroGo : MainAPI() {
     override var mainUrl = "https://astrogo.astro.com.my"
@@ -151,6 +156,7 @@ class AstroGo : MainAPI() {
         }
     }
 
+    @Suppress("DEPRECATION")
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
@@ -178,15 +184,14 @@ class AstroGo : MainAPI() {
 
         if (mpdUrl != null) {
             callback.invoke(
-                ExtractorLink(
+                newExtractorLink(
                     this.name,
                     "Astro Go (Dash)",
                     mpdUrl,
-                    "",
-                    Qualities.Unknown.value,
-                    isM3u8 = false,
-                    isDash = true
-                )
+                    INFER_TYPE
+                ) {
+                    this.quality = Qualities.Unknown.value
+                }
             )
             // Note: Cloudstream ExtractorLink doesn't easily support passing custom DRM license URLs 
             // without using a wrapper or specific headers. 
