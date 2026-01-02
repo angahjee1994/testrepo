@@ -11,7 +11,7 @@ class Pencurimovie : MainAPI() {
     override var mainUrl = "https://ww73.pencurimovie.bond"
     override var name = "Pencurimovie"
     override val hasMainPage = true
-    override var lang = "id"
+    override var lang = "ms"
     override val hasDownloadSupport = true
     override val supportedTypes = setOf(TvType.Movie, TvType.Anime, TvType.Cartoon)
 
