@@ -11,8 +11,7 @@ on:
       # choose your default branch
       - master
       - main
-    paths-ignore:
-      - '*.md'
+
 
 jobs:
   build:
