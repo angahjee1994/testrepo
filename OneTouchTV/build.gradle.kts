@@ -22,7 +22,7 @@ cloudstream {
         "TvSeries",
     )
 
-    iconUrl = "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/onetouchtv/logo.png"
+    iconUrl = "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/OneTouchTV/logo.png"
 
     isCrossPlatform = true
 }
