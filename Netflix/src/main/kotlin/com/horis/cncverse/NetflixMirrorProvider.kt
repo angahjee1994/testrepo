@@ -1,4 +1,6 @@
 package com.horis.cncverse
+ 
+import android.content.Context
 
 import com.horis.cncverse.entities.EpisodesData
 import com.horis.cncverse.entities.PlayList
@@ -19,6 +21,10 @@ import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.APIHolder.unixTime
 
 class NetflixMirrorProvider : MainAPI() {
+    companion object {
+        var context: Context? = null
+    }
+
     override val supportedTypes = setOf(
         TvType.Movie,
         TvType.TvSeries,
