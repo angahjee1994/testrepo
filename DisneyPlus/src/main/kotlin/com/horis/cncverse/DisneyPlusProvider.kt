@@ -30,7 +30,7 @@ class DisneyPlusProvider : MainAPI() {
         TvType.Anime,
         TvType.AsianDrama
     )
-    override var lang = "ta"
+    override var lang = "en"
 
     override var mainUrl = "https://net20.cc"
     private var newUrl = "https://net51.cc"
