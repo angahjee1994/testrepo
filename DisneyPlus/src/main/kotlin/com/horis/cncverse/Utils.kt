@@ -79,15 +79,7 @@ fun convertRuntimeToMinutes(runtime: String): Int {
 }
 
 suspend fun bypass(mainUrl: String): String {
-    // Check persistent storage first
-    val (savedCookie, savedTimestamp) = NetflixMirrorStorage.getCookie()
-
-    // Return cached cookie if valid (≤15 hours old)
-    if (!savedCookie.isNullOrEmpty() && System.currentTimeMillis() - savedTimestamp < 54_000_000) {
-        return savedCookie
-    }
-
-    val newCookie = try {
+    return try {
         var verifyCheck: String
         var verifyResponse: NiceResponse
         do {
@@ -96,14 +88,6 @@ suspend fun bypass(mainUrl: String): String {
         } while (!verifyCheck.contains("\"r\":\"n\""))
         verifyResponse.cookies["t_hash_t"].orEmpty()
     } catch (e: Exception) {
-        // Clear invalid cookie on failure
-        NetflixMirrorStorage.clearCookie()
         throw e
     }
-
-    // Persist the new cookie
-    if (newCookie.isNotEmpty()) {
-        NetflixMirrorStorage.saveCookie(newCookie)
-    }
-    return newCookie
 }
