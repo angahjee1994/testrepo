@@ -45,7 +45,7 @@ class NetflixMirrorProvider : MainAPI() {
         "Sec-Fetch-User" to "?1",
         "Upgrade-Insecure-Requests" to "1",
         "User-Agent" to "Mozilla/5.0 (Linux; Android 13; Pixel 5 Build/TQ3A.230901.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/139.0.7258.158 Safari/537.36 /OS.Gatu v3.0",
-        "X-Requested-With" to ""
+        "X-Requested-With" to "XMLHttpRequest"
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
@@ -233,7 +233,7 @@ class NetflixMirrorProvider : MainAPI() {
         val playlist = app.get(
             "https://net51.cc/tv/playlist.php?id=$id&t=$title&tm=${APIHolder.unixTime}",
             headers,
-            referer = "$mainUrl/tv/home",
+            referer = "$newUrl/home",
             cookies = cookies
         ).parsed<PlayList>()
 
@@ -254,7 +254,7 @@ class NetflixMirrorProvider : MainAPI() {
 
             item.tracks?.filter { it.kind == "captions" }?.map { track ->
                 subtitleCallback.invoke(
-                    SubtitleFile(
+                    newSubtitleFile(
                         track.label.toString(),
                         httpsify(track.file.toString())
                     )
