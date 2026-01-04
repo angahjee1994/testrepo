@@ -147,10 +147,11 @@ class PrimeVideoMirrorProvider : MainAPI() {
             data.episodes.filterNotNull().mapTo(episodes) {
                 newEpisode(LoadData(title, it.id)) {
                     name = it.t
-                    episode = it.ep.replace("E", "").toIntOrNull()
-                    season = it.s.replace("S", "").toIntOrNull()
+                    episode = it.ep?.replace("E", "")?.toIntOrNull()
+                    season = it.s?.replace("S", "")?.toIntOrNull()
                     this.posterUrl = "https://imgcdn.kim/pvepimg/150/${it.id}.jpg"
-                    this.runTime = it.time.replace("m", "").toIntOrNull()
+                    this.runTime = it.time?.replace("m", "")?.toIntOrNull()
+                    this.description = it.desc ?: it.description ?: it.overview
                 }
             }
 
@@ -200,10 +201,11 @@ class PrimeVideoMirrorProvider : MainAPI() {
             data.episodes?.mapTo(episodes) {
                 newEpisode(LoadData(title, it.id)) {
                     name = it.t
-                    episode = it.ep.replace("E", "").toIntOrNull()
-                    season = it.s.replace("S", "").toIntOrNull()
+                    episode = it.ep?.replace("E", "")?.toIntOrNull()
+                    season = it.s?.replace("S", "")?.toIntOrNull()
                     this.posterUrl = "https://img.nfmirrorcdn.top/pvepimg/${it.id}.jpg"
-                    this.runTime = it.time.replace("m", "").toIntOrNull()
+                    this.runTime = it.time?.replace("m", "")?.toIntOrNull()
+                    this.description = it.desc ?: it.description ?: it.overview
                 }
             }
             if (data.nextPageShow == 0) break
