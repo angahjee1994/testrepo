@@ -167,7 +167,7 @@ class NetflixMirrorProvider : MainAPI() {
             })
         } else {
             data.episodes.filterNotNull().mapTo(episodes) {
-                newEpisode(LoadData(title, it.id)) {
+                newEpisode(LoadData(title, it.id.orEmpty())) {
                     this.name = it.t
                     this.episode = it.ep?.replace("E", "")?.toIntOrNull()
                     this.season = it.s?.replace("S", "")?.toIntOrNull()
@@ -221,7 +221,7 @@ class NetflixMirrorProvider : MainAPI() {
                 cookies = cookies
             ).parsed<EpisodesData>()
             data.episodes?.mapTo(episodes) {
-                newEpisode(LoadData(title, it.id)) {
+                newEpisode(LoadData(title, it.id.orEmpty())) {
                     name = it.t
                     episode = it.ep?.replace("E", "")?.toIntOrNull()
                     season = it.s?.replace("S", "")?.toIntOrNull()
