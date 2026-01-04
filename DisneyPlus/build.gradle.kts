@@ -1,5 +1,5 @@
 // use an integer for version numbers
-version = 42
+version = 1
 
 android {
     buildFeatures {
@@ -8,12 +8,11 @@ android {
 }
 
 cloudstream {
-    
     language = "en"
     // All of these properties are optional, you can safely remove them
 
-    description = "Netflix Contents in Multiple Languages"
-    authors = listOf("Sushan64")
+    description = "Disney+ Hotstar Contents in Multiple Languages"
+    authors = listOf("botol")
 
     /**
      * Status int as the following:
@@ -28,5 +27,5 @@ cloudstream {
         "TvSeries"
     )
 
-    iconUrl = "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/Netmirror/logo.png"
+    iconUrl = "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/DisneyPlus/logo.png"
 }
