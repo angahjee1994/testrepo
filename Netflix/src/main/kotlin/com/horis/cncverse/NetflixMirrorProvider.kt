@@ -1,7 +1,6 @@
 package com.horis.cncverse
- 
-import android.content.Context
 
+import android.content.Context
 import com.horis.cncverse.entities.EpisodesData
 import com.horis.cncverse.entities.PlayList
 import com.horis.cncverse.entities.PostData
@@ -24,7 +23,7 @@ class NetflixMirrorProvider : MainAPI() {
     companion object {
         var context: Context? = null
     }
-
+    
     override val supportedTypes = setOf(
         TvType.Movie,
         TvType.TvSeries,
@@ -37,6 +36,7 @@ class NetflixMirrorProvider : MainAPI() {
 
     override val hasMainPage = true
     private var cookie_value = ""
+    
     private val headers = mapOf(
         "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
         "Accept-Language" to "en-IN,en-US;q=0.9,en;q=0.8",
@@ -51,6 +51,10 @@ class NetflixMirrorProvider : MainAPI() {
         "Sec-Fetch-User" to "?1",
         "Upgrade-Insecure-Requests" to "1",
         "User-Agent" to "Mozilla/5.0 (Linux; Android 13; Pixel 5 Build/TQ3A.230901.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/139.0.7258.158 Safari/537.36 /OS.Gatu v3.0",
+        "X-Requested-With" to "XMLHttpRequest"
+    )
+
+    private val apiHeaders = mapOf(
         "X-Requested-With" to "XMLHttpRequest"
     )
 
@@ -130,9 +134,9 @@ class NetflixMirrorProvider : MainAPI() {
             "hd" to "on"
         )
         val data = app.get(
-            "https://net51.cc/post.php?id=$id&t=${APIHolder.unixTime}",
-            headers,
-            referer = "https://net51.cc",
+            "$mainUrl/post.php?id=$id&t=${APIHolder.unixTime}",
+            apiHeaders,
+            referer = "$mainUrl/tv/home",
             cookies = cookies
         ).parsed<PostData>()
 
@@ -145,13 +149,17 @@ class NetflixMirrorProvider : MainAPI() {
                 Actor(it),
             )
         }
-        val genre = listOf(data.ua.toString()) + (data.genre?.split(",")
+        val genre = data.genre?.split(",")
             ?.map { it.trim() }
             ?.filter { it.isNotEmpty() }
-            ?: emptyList())
-        
-        // FIXED: Use new score API instead of deprecated toRatingInt()
+        val rating = data.match?.replace("IMDb ", "")
         val runTime = convertRuntimeToMinutes(data.runtime.toString())
+        val suggest = data.suggest?.map {
+            newAnimeSearchResponse("", Id(it.id).toJson()) {
+                this.posterUrl = "https://imgcdn.kim/poster/v/${it.id}.jpg"
+                posterHeaders = mapOf("Referer" to "$mainUrl/home")
+            }
+        }
 
         if (data.episodes.first() == null) {
             episodes.add(newEpisode(LoadData(title, id)) {
@@ -163,7 +171,7 @@ class NetflixMirrorProvider : MainAPI() {
                     this.name = it.t
                     this.episode = it.ep.replace("E", "").toIntOrNull()
                     this.season = it.s.replace("S", "").toIntOrNull()
-                    this.posterUrl = "https://img.nfmirrorcdn.top/epimg/150/${it.id}.jpg"
+                    this.posterUrl = "https://imgcdn.kim/epimg/150/${it.id}.jpg"
                     this.runTime = it.time.replace("m", "").toIntOrNull()
                 }
             }
@@ -180,15 +188,17 @@ class NetflixMirrorProvider : MainAPI() {
         val type = if (data.episodes.first() == null) TvType.Movie else TvType.TvSeries
 
         return newTvSeriesLoadResponse(title, url, type, episodes) {
-            posterUrl = "https://img.nfmirrorcdn.top/poster/v/$id.jpg"
-            backgroundPosterUrl ="https://img.nfmirrorcdn.top/poster/h/$id.jpg"
-            posterHeaders = mapOf("Referer" to "$mainUrl/tv/home")
+            posterUrl = "https://imgcdn.kim/poster/v/$id.jpg"
+            backgroundPosterUrl ="https://imgcdn.kim/poster/h/$id.jpg"
+            posterHeaders = mapOf("Referer" to "$mainUrl/home")
             plot = data.desc
             year = data.year.toIntOrNull()
             tags = genre
             actors = cast
-            // FIXED: Use new score property instead of deprecated rating
+            this.score =  Score.from10(rating)
             this.duration = runTime
+            this.contentRating = data.ua
+            this.recommendations = suggest
         }
     }
 
@@ -204,9 +214,9 @@ class NetflixMirrorProvider : MainAPI() {
         var pg = page
         while (true) {
             val data = app.get(
-                "https://net51.cc/episodes.php?s=$sid&series=$eid&t=${APIHolder.unixTime}&page=$pg",
-                headers,
-                referer = "https://net51.cc/tv/home",
+                "$mainUrl/episodes.php?s=$sid&series=$eid&t=${APIHolder.unixTime}&page=$pg",
+                apiHeaders,
+                referer = "$mainUrl/tv/home",
                 cookies = cookies
             ).parsed<EpisodesData>()
             data.episodes?.mapTo(episodes) {
@@ -214,7 +224,7 @@ class NetflixMirrorProvider : MainAPI() {
                     name = it.t
                     episode = it.ep.replace("E", "").toIntOrNull()
                     season = it.s.replace("S", "").toIntOrNull()
-                    this.posterUrl = "https://img.nfmirrorcdn.top/epimg/150/${it.id}.jpg"
+                    this.posterUrl = "https://imgcdn.kim/epimg/150/${it.id}.jpg"
                     this.runTime = it.time.replace("m", "").toIntOrNull()
                 }
             }
@@ -237,9 +247,9 @@ class NetflixMirrorProvider : MainAPI() {
             "hd" to "on"
         )
         val playlist = app.get(
-            "https://net51.cc/tv/playlist.php?id=$id&t=$title&tm=${APIHolder.unixTime}",
-            headers,
-            referer = "$newUrl/home",
+            "$newUrl/tv/playlist.php?id=$id&t=$title&tm=${APIHolder.unixTime}",
+            apiHeaders,
+            referer = "$mainUrl/home",
             cookies = cookies
         ).parsed<PlayList>()
 
@@ -249,10 +259,10 @@ class NetflixMirrorProvider : MainAPI() {
                     newExtractorLink(
                         name,
                         it.label,
-                        "https://net51.cc${it.file.replace("/tv/", "/")}",
+                        """$newUrl${it.file.replace("/tv/", "/")}""",
                         type = ExtractorLinkType.M3U8
                     ) {
-                        this.referer = "https://net51.cc/"
+                        this.referer = "$newUrl/"
                         this.quality = getQualityFromName(it.file.substringAfter("q=", ""))
                     }
                 )
