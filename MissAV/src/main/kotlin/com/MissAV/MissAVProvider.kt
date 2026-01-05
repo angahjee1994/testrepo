@@ -22,10 +22,17 @@ class MissAVProvider : MainAPI() {
             "/dm291/en/today-hot" to "Most Viewed Today",
             "/dm169/en/weekly-hot" to "Most Viewed by Week",
             "/dm263/en/monthly-hot" to "Most Viewed by Month",
+            "/dm628/en/uncensored-leak" to "Uncensored Leak",
+            "/dm150/en/fc2" to "Uncensored FC2",
+            "/dm1037028/en/heyzo" to "Uncensored HEYZO",
+            "/dm29/en/tokyohot" to "Uncensored Tokyo Hot",
+            "/dm24/en/marriedslash" to "Uncensored Married Slash",
             "/dm66/en/makers/Prestige" to "Prestige AV",
             "/dm863/en/maan" to "Amateur PRESTIGE PREMIUM",
-            "/dm628/en/uncensored-leak" to "Uncensored Leak",
-            "/en/makers" to "Makers",
+            "/dm820/en/makers/Moody%27s" to "Moody's AV",
+            "/dm265/en/makers/Madonna" to "Madonna AV",
+            "/dm737/en/makers/Premium" to "Premium AV",
+            "/dm21/en/luxu" to "Amateur LUXU AV",
             "/dm35/en/madou" to "Madou"
         )
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
