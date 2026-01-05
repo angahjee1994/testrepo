@@ -13,6 +13,7 @@ class MissAVProvider : MainAPI() {
     override val hasChromecastSupport = true
     override val supportedTypes       = setOf(TvType.NSFW)
     override val vpnStatus            = VPNStatus.MightBeNeeded
+    override val searchIsHorizontalImages = true
     val subtitleCatUrl = "https://www.subtitlecat.com"
 
     override val mainPage = mainPageOf(
