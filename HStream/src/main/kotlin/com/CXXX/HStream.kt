@@ -21,6 +21,8 @@ class HStream : MainAPI() {
     override val mainPage = mainPageOf(
         "${mainUrl}/search?order=recently-uploaded&page=" to "Latest",
         "${mainUrl}/search?order=view-count&page=" to "Popular",
+        "${mainUrl}/search?order=recently-released&page=" to "Trending",
+        "${mainUrl}/search?order=az&page=" to "A to Z",
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
@@ -145,3 +147,4 @@ class HStream : MainAPI() {
     )
 
 }
+

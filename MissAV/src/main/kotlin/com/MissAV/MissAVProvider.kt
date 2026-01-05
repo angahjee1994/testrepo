@@ -16,15 +16,24 @@ class MissAVProvider : MainAPI() {
     val subtitleCatUrl = "https://www.subtitlecat.com"
 
     override val mainPage = mainPageOf(
-            "/dm514/en/new" to "Recent Update",
+            "/dm515/en/new" to "Recent update",
             "/dm588/en/release" to "New Release",
+            "/dm1/en/english-subtitle" to "English subtitle",
             "/dm291/en/today-hot" to "Most Viewed Today",
             "/dm169/en/weekly-hot" to "Most Viewed by Week",
-            "/dm256/en/monthly-hot" to "Most Viewed by Month",
-            "/dm97/en/fc2" to "Uncensored FC2 AV",
-            "/dm34/en/madou" to "Madou AV",
-            "/dm620/en/uncensored-leak" to "Uncensored Leak",
-            "/en/klive" to "Korean Live AV"
+            "/dm263/en/monthly-hot" to "Most Viewed by Month",
+            "/dm628/en/uncensored-leak" to "Uncensored Leak",
+            "/dm150/en/fc2" to "Uncensored FC2",
+            "/dm1037028/en/heyzo" to "Uncensored HEYZO",
+            "/dm29/en/tokyohot" to "Uncensored Tokyo Hot",
+            "/dm24/en/marriedslash" to "Uncensored Married Slash",
+            "/dm66/en/makers/Prestige" to "Prestige AV",
+            "/dm863/en/maan" to "Amateur PRESTIGE PREMIUM",
+            "/dm820/en/makers/Moody%27s" to "Moody's AV",
+            "/dm265/en/makers/Madonna" to "Madonna AV",
+            "/dm737/en/makers/Premium" to "Premium AV",
+            "/dm21/en/luxu" to "Amateur LUXU AV",
+            "/dm35/en/madou" to "Madou"
         )
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
             val document = app.get("$mainUrl${request.data}?page=$page").document
@@ -158,3 +167,4 @@ class MissAVProvider : MainAPI() {
         return true
     }
 }
+
