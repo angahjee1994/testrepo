@@ -50,7 +50,7 @@ class AnimeIdHentai : MainAPI() {
             list = HomePageList(
                 name = request.name,
                 list = list,
-                isHorizontalImages = False
+                isHorizontalImages = false
             ),
             hasNext = true
         )
