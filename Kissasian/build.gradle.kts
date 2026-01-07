@@ -2,7 +2,7 @@ version = 4
 
 cloudstream {
     description = "Kissasian"
-    language = "id"
+    language = "en"
     authors = listOf("Duro92")
 
     /**
@@ -19,5 +19,5 @@ cloudstream {
         "Movie",
     )
 
-    iconUrl = "https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://kissasian.cam&size=%size%"
+    iconUrl = "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/Kissasian/logo.png"
 }

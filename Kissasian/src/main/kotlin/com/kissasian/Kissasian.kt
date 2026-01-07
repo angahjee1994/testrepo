@@ -20,9 +20,9 @@ import org.jsoup.Jsoup
 
 class Kissasian : MainAPI() {
     override var mainUrl = "https://kissasian.cam"
-    override var name = "Kissasian🥯"
+    override var name = "Kissasian"
     override val hasMainPage = true
-    override var lang = "id"
+    override var lang = "en"
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
 
     companion object {
@@ -40,10 +40,10 @@ class Kissasian : MainAPI() {
 
 
     override val mainPage = mainPageOf(
-        "series/?order=latest" to "Baru ditambahkan",
-        "series/?status=&type=&order=update" to "Update Terbaru",
-        "series/?status=&type=Movie&order=latest" to "Movie Terbaru",
-        "series/?status=&type=&order=popular" to "Terpopuler",
+        "series/?order=latest" to "Hot Series Update",
+        "series/?status=&type=&order=update" to "Latest Release",
+        "series/?status=&type=Movie&order=latest" to "Latest Movies",
+        "series/?status=&type=&order=popular" to "popular",
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {

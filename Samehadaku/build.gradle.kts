@@ -23,5 +23,5 @@ cloudstream {
         "Anime",
     )
 
-    iconUrl = "https://www.google.com/s2/favicons?domain=https://samehadaku.world&sz=%size%"
+    iconUrl = "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/Samehadaku/logo.png"
 }
