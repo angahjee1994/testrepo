@@ -1411,12 +1411,11 @@ object XX1Extractor : XX1() {
             // Movie logic
             callback.invoke(
                 newExtractorLink(
-                    "Cinemacity",
-                    "Cinemacity",
-                    rawFile,
-                    mainUrl,
-                    Qualities.Unknown.value,
+                    source = "Cinemacity",
+                    name = "Cinemacity",
+                    url = rawFile,
                 ) {
+                    this.referer = mainUrl
                     this.quality = getQualityFromName(rawFile)
                 }
             )
@@ -1442,12 +1441,11 @@ object XX1Extractor : XX1() {
                     if (fileUrl.isNotBlank()) {
                         callback.invoke(
                             newExtractorLink(
-                                "Cinemacity",
-                                "Cinemacity",
-                                fileUrl,
-                                mainUrl,
-                                Qualities.Unknown.value,
+                                source = "Cinemacity",
+                                name = "Cinemacity",
+                                url = fileUrl,
                             ) {
+                                this.referer = mainUrl
                                 this.quality = getQualityFromName(fileUrl)
                             }
                         )
@@ -1463,7 +1461,8 @@ object XX1Extractor : XX1() {
     private suspend fun parseCinemacitySubtitles(raw: String?): List<SubtitleFile> {
         val subs = mutableListOf<SubtitleFile>()
         if (raw.isNullOrBlank()) return subs
-        raw.split(",").forEach { entry ->
+        val entries = raw.split(",")
+        for (entry in entries) {
             val match = Regex("""\[(.+?)](https?://.+)""").find(entry.trim())
             if (match != null) {
                 subs.add(newSubtitleFile(match.groupValues[1], match.groupValues[2]))
