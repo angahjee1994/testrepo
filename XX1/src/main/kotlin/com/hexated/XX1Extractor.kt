@@ -1149,13 +1149,13 @@ object XX1Extractor : XX1() {
             "$mainUrl/wefeed-mobile-bff/subject-api/play-info?subjectId=$subjectId&se=${season ?: 0}&ep=${episode ?: 0}"
         val xClientToken = MovieBoxHelper.generateXClientToken()
         val xTrSignature =
-            MovieBoxHelper.generateXTrSignature("GET", "application/json", "application/json", playUrl)
+            MovieBoxHelper.generateXTrSignature("GET", "application/json", null, playUrl)
 
         val playHeaders = baseHeaders.toMutableMap().apply {
             put("x-client-token", xClientToken)
             put("x-tr-signature", xTrSignature)
             put("accept", "application/json")
-            put("content-type", "application/json")
+            remove("content-type")
         }
 
         val playRes = app.get(playUrl, headers = playHeaders).parsedSafe<MovieBoxPlayInfoResponse>()
@@ -1228,7 +1228,7 @@ object XX1Extractor : XX1() {
         val subUrl =
             "$mainUrl/wefeed-mobile-bff/subject-api/get-stream-captions?subjectId=$subjectId&streamId=$streamId"
         val xClientToken = MovieBoxHelper.generateXClientToken()
-        val xTrSignature = MovieBoxHelper.generateXTrSignature("GET", "", "", subUrl)
+        val xTrSignature = MovieBoxHelper.generateXTrSignature("GET", null, null, subUrl)
 
         val subHeaders = baseHeaders.toMutableMap().apply {
             put("x-client-token", xClientToken)
@@ -1270,7 +1270,7 @@ object XX1Extractor : XX1() {
         val cookie = CNCVerseHelper.bypass(mainUrl)
         if (cookie.isEmpty()) return
 
-        val encodedTitle = java.net.URLEncoder.encode(title ?: "", "utf-8")
+        val encodedTitle = java.net.URLEncoder.encode(title ?: "", "utf-8").replace("+", "%20")
 
         mirrors.amap { (mirrorName, ott) ->
             try {
@@ -1283,7 +1283,7 @@ object XX1Extractor : XX1() {
                 val searchUrl = "$mainUrl/$ott/search.php?s=$encodedTitle&t=${System.currentTimeMillis() / 1000}"
                 val searchRes = app.get(
                     searchUrl,
-                    referer = "$mainUrl/home",
+                    referer = "$mainUrl/$ott/",
                     cookies = cookies
                 ).parsedSafe<CNCVerseSearchData>()
 
@@ -1294,7 +1294,7 @@ object XX1Extractor : XX1() {
                 val postUrl = "$mainUrl/$ott/post.php?id=$id&t=${System.currentTimeMillis() / 1000}"
                 val postRes = app.get(
                     postUrl,
-                    referer = "$mainUrl/home",
+                    referer = "$mainUrl/$ott/",
                     cookies = cookies,
                     headers = mapOf("X-Requested-With" to "XMLHttpRequest")
                 ).parsedSafe<CNCVersePostData>() ?: return@amap
@@ -1303,8 +1303,8 @@ object XX1Extractor : XX1() {
                     id
                 } else {
                     val ep = postRes.episodes.filterNotNull().find {
-                        it.s?.replace("S", "")?.toIntOrNull() == season &&
-                                it.ep?.replace("E", "")?.toIntOrNull() == episode
+                        it.s?.filter { it.isDigit() }?.toIntOrNull() == season &&
+                                it.ep?.filter { it.isDigit() }?.toIntOrNull() == episode
                     }
                     ep?.id ?: return@amap
                 }
@@ -1313,7 +1313,7 @@ object XX1Extractor : XX1() {
                 val playlistUrl = "$newUrl/$playlistPath/playlist.php?id=$playId&t=$encodedTitle&tm=${System.currentTimeMillis() / 1000}"
                 val playlistRes = app.get(
                     playlistUrl,
-                    referer = "$mainUrl/home",
+                    referer = "$mainUrl/$ott/",
                     cookies = cookies,
                     headers = mapOf("X-Requested-With" to "XMLHttpRequest")
                 ).parsedSafe<List<CNCVersePlayListItem>>() ?: return@amap
@@ -1324,7 +1324,7 @@ object XX1Extractor : XX1() {
                             newExtractorLink(
                                 mirrorName,
                                 source.label ?: mirrorName,
-                                "${newUrl}${source.file?.replace("/tv/", "/$playlistPath/")}",
+                                "$newUrl/$playlistPath/${source.file?.substringAfterLast("/")}",
                                 type = ExtractorLinkType.M3U8
                             ) {
                                 this.referer = "$newUrl/"
@@ -1337,7 +1337,7 @@ object XX1Extractor : XX1() {
                         subtitleCallback.invoke(
                             newSubtitleFile(
                                 track.label ?: "Unknown",
-                                httpsify(track.file ?: "")
+                                httpsify("$newUrl/$playlistPath/${track.file?.substringAfterLast("/")}")
                             )
                         )
                     }

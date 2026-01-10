@@ -540,7 +540,7 @@ object MovieBoxHelper {
             md5(trimmed)
         } else ""
 
-        val bodyLength = bodyBytes?.size?.toString() ?: ""
+        val bodyLength = bodyBytes?.size?.toString() ?: "0"
         return "${method.uppercase()}\n" +
                 "${accept ?: ""}\n" +
                 "${contentType ?: ""}\n" +
@@ -592,10 +592,12 @@ object CNCVerseHelper {
         val newCookie = try {
             var verifyCheck: String
             var verifyResponse: com.lagradost.nicehttp.NiceResponse
+            var retries = 0
             do {
-                verifyResponse = app.post("$mainUrl/tv/p.php")
+                verifyResponse = app.post("$mainUrl/tv/p.php", referer = "$mainUrl/home")
                 verifyCheck = verifyResponse.text
-            } while (!verifyCheck.contains("\"r\":\"n\""))
+                retries++
+            } while (!verifyCheck.contains("\"r\":\"n\"") && retries < 5)
             verifyResponse.cookies["t_hash_t"].orEmpty()
         } catch (e: Exception) {
             prefs.edit().remove(COOKIE_KEY).remove(TIMESTAMP_KEY).apply()
