@@ -1414,9 +1414,11 @@ object XX1Extractor : XX1() {
                     "Cinemacity",
                     "Cinemacity",
                     rawFile,
-                    INFER_TYPE,
-                    getQualityFromName(rawFile)
-                )
+                    mainUrl,
+                    Qualities.Unknown.value,
+                ) {
+                    this.quality = getQualityFromName(rawFile)
+                }
             )
             parseCinemacitySubtitles(subtitleTracks).forEach(subtitleCallback)
         } else {
@@ -1443,9 +1445,11 @@ object XX1Extractor : XX1() {
                                 "Cinemacity",
                                 "Cinemacity",
                                 fileUrl,
-                                INFER_TYPE,
-                                getQualityFromName(fileUrl)
-                            )
+                                mainUrl,
+                                Qualities.Unknown.value,
+                            ) {
+                                this.quality = getQualityFromName(fileUrl)
+                            }
                         )
                         parseCinemacitySubtitles(eJson.optString("subtitle")).forEach(subtitleCallback)
                     }
@@ -1456,7 +1460,7 @@ object XX1Extractor : XX1() {
         }
     }
 
-    private fun parseCinemacitySubtitles(raw: String?): List<SubtitleFile> {
+    private suspend fun parseCinemacitySubtitles(raw: String?): List<SubtitleFile> {
         val subs = mutableListOf<SubtitleFile>()
         if (raw.isNullOrBlank()) return subs
         raw.split(",").forEach { entry ->
