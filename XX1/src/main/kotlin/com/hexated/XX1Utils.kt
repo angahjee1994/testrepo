@@ -496,8 +496,8 @@ object VidsrcHelper {
 }
 
 object MovieBoxHelper {
-    private val secretKeyDefault = "NzZpUmwwN3MweFNOOWpxbUVXQXQ3OUVCSlp1bElRSXNWNjRGWnIyTw=="
-    private val secretKeyAlt = "WHFuMm5uTzQxL0w5Mm8xaXVYaFNMSFRiWHZZNFo1Wlo2Mm04bVNMQQ=="
+    private val secretKeyDefault = base64Decode("NzZpUmwwN3MweFNOOWpxbUVXQXQ3OUVCSlp1bElRSXNWNjRGWnIyTw==")
+    private val secretKeyAlt = base64Decode("WHFuMm5uTzQxL0w5Mm8xaXVYaFNMSFRiWHZZNFo1Wlo2Mm04bVNMQQ==")
 
     fun md5(input: ByteArray): String {
         return MessageDigest.getInstance("MD5").digest(input)
@@ -541,7 +541,7 @@ object MovieBoxHelper {
             md5(trimmed)
         } else ""
 
-        val bodyLength = if (method.uppercase() == "GET") "" else (bodyBytes?.size?.toString() ?: "")
+        val bodyLength = bodyBytes?.size?.toString() ?: ""
         return "${method.uppercase()}\n" +
                 "${accept ?: ""}\n" +
                 "${contentType ?: ""}\n" +
@@ -563,7 +563,7 @@ object MovieBoxHelper {
         val timestamp = hardcodedTimestamp ?: System.currentTimeMillis()
         val canonical = buildCanonicalString(method, accept, contentType, url, body, timestamp)
         val secret = if (useAltKey) secretKeyAlt else secretKeyDefault
-        val secretBytes = base64DecodeArray(base64Decode(secret)) // Double decode as in original
+        val secretBytes = base64DecodeArray(secret)
 
         val mac = Mac.getInstance("HmacMD5")
         mac.init(SecretKeySpec(secretBytes, "HmacMD5"))

@@ -1093,7 +1093,7 @@ object XX1Extractor : XX1() {
         val searchXTrSignature = MovieBoxHelper.generateXTrSignature(
             "POST",
             "application/json",
-            "application/json",
+            "application/json; charset=utf-8",
             searchUrl,
             searchBody
         )
@@ -1173,7 +1173,7 @@ object XX1Extractor : XX1() {
                 "$mainUrl/wefeed-mobile-bff/subject-api/play-info?subjectId=$subjectId&se=${season ?: 0}&ep=${episode ?: 0}"
             val xClientToken = MovieBoxHelper.generateXClientToken()
             val xTrSignature =
-                MovieBoxHelper.generateXTrSignature("GET", "application/json", null, playUrl)
+                MovieBoxHelper.generateXTrSignature("GET", "application/json", "application/json", playUrl)
 
             val playHeaders = baseHeaders.toMutableMap().apply {
                 put("x-client-token", xClientToken)
@@ -1251,13 +1251,13 @@ object XX1Extractor : XX1() {
 
         subUrls.forEach { subUrl ->
             val xClientToken = MovieBoxHelper.generateXClientToken()
-            val xTrSignature = MovieBoxHelper.generateXTrSignature("GET", null, null, subUrl)
+            val xTrSignature = MovieBoxHelper.generateXTrSignature("GET", "", "", subUrl)
 
             val subHeaders = baseHeaders.toMutableMap().apply {
                 put("x-client-token", xClientToken)
                 put("x-tr-signature", xTrSignature)
-                remove("content-type")
-                remove("accept")
+                put("Accept", "")
+                put("Content-Type", "")
             }
 
             app.get(subUrl, headers = subHeaders)
