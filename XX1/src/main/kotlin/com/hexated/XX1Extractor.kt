@@ -1294,10 +1294,16 @@ object XX1Extractor : XX1() {
 
         playlist.forEach { item ->
             item.sources.forEach { source ->
+                val name = when (source.label?.lowercase()) {
+                    "full hd" -> "Netflix HD"
+                    "mid hd" -> "Netflix Mid"
+                    "low hd" -> "Netflix Low"
+                    else -> "Netflix ${source.label ?: ""}".trim()
+                }
                 callback.invoke(
                     newExtractorLink(
                         "Netflix",
-                        source.label ?: "Netflix",
+                        name,
                         "$newUrl${source.file?.replace("/tv/", "/")}",
                         type = ExtractorLinkType.M3U8
                     ) {
