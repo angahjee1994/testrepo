@@ -17,8 +17,6 @@ import com.hexated.XX1Extractor.invokeWatchsomuch
 import com.hexated.XX1Extractor.invokeWyzie
 import com.hexated.XX1Extractor.invokeXprime
 import com.hexated.XX1Extractor.invokeRiveStream
-import com.hexated.XX1Extractor.invokeMovieBox
-import com.hexated.XX1Extractor.invokeCNCVerse
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.metaproviders.TmdbProvider
