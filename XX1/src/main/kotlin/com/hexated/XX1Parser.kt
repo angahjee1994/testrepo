@@ -457,6 +457,10 @@ data class MovieBoxSubject(
     @JsonProperty("cover") val cover: MovieBoxCover? = null
 )
 
+data class MovieBoxCover(
+    @JsonProperty("url") val url: String? = null
+)
+
 data class MovieBoxDetailResponse(
     @JsonProperty("data") val data: MovieBoxDetailData? = null
 )
