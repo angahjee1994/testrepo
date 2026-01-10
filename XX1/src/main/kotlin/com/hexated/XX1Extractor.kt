@@ -12,6 +12,7 @@ import com.lagradost.nicehttp.RequestBodyTypes
 import com.lagradost.nicehttp.Requests
 import com.lagradost.nicehttp.Session
 import org.json.JSONObject
+import org.json.JSONArray
 import java.net.URLDecoder
 import com.fasterxml.jackson.annotation.JsonProperty
 import okhttp3.Interceptor
@@ -1363,9 +1364,107 @@ object XX1Extractor : XX1() {
                 )
             }
         }
+    suspend fun invokeCinemacity(
+        title: String?,
+        year: Int?,
+        season: Int?,
+        episode: Int?,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        val mainUrl = "https://cinemacity.cc"
+        val cookies = mapOf(
+            "Cookie" to base64Decode("ZGxlX3VzZXJfaWQ9MzI3Mjk7IGRsZV9wYXNzd29yZD04OTQxNzFjNmE4ZGFiMThlZTU5NGQ1YzY1MjAwOWEzNTs=")
+        )
+        
+        val searchRes = app.get(
+            "$mainUrl/index.php",
+            params = mapOf(
+                "do" to "search",
+                "subaction" to "search",
+                "full_search" to "0",
+                "story" to (title ?: "")
+            ),
+            cookies = cookies
+        ).document
+        
+        val matchingResult = searchRes.select("div.dar-short_item").find { 
+            it.selectFirst("a")?.ownText()?.contains(title ?: "", true) == true
+        } ?: return
+        
+        val url = matchingResult.selectFirst("a")?.attr("href") ?: return
+        val page = app.get(url, cookies = cookies).document
+        
+        val playerScript = page.select("script:containsData(atob)").getOrNull(1)?.data() ?: return
+        val decodedPlayer = base64Decode(playerScript.substringAfter("atob(\"").substringBefore("\")"))
+        val playerJsonStr = decodedPlayer.substringAfter("new Playerjs(").substringBeforeLast(");")
+        val playerJson = JSONObject(playerJsonStr)
+        
+        val rawFile = playerJson.optString("file", "")
+        if (rawFile.isEmpty()) return
+        
+        val subtitleTracks = playerJson.optString("subtitle", "")
+
+        if (season == null && episode == null) {
+            // Movie logic
+            callback.invoke(
+                newExtractorLink(
+                    "Cinemacity",
+                    "Cinemacity",
+                    rawFile,
+                    mainUrl,
+                    getQualityFromName(rawFile)
+                )
+            )
+            parseCinemacitySubtitles(subtitleTracks).forEach(subtitleCallback)
+        } else {
+            // TV Series logic
+            val fileArray = JSONArray(rawFile)
+            val seasonRegex = Regex("Season\\s*(\\d+)", RegexOption.IGNORE_CASE)
+            val episodeRegex = Regex("Episode\\s*(\\d+)", RegexOption.IGNORE_CASE)
+            
+            for (i in 0 until fileArray.length()) {
+                val sJson = fileArray.getJSONObject(i)
+                val sNum = seasonRegex.find(sJson.optString("title"))?.groupValues?.get(1)?.toIntOrNull()
+                if (sNum != season) continue
+                
+                val episodes = sJson.optJSONArray("folder") ?: continue
+                for (j in 0 until episodes.length()) {
+                    val eJson = episodes.getJSONObject(j)
+                    val eNum = episodeRegex.find(eJson.optString("title"))?.groupValues?.get(1)?.toIntOrNull()
+                    if (eNum != episode) continue
+                    
+                    val fileUrl = eJson.optString("file")
+                    if (fileUrl.isNotBlank()) {
+                        callback.invoke(
+                            newExtractorLink(
+                                "Cinemacity",
+                                "Cinemacity",
+                                fileUrl,
+                                mainUrl,
+                                getQualityFromName(fileUrl)
+                            )
+                        )
+                        parseCinemacitySubtitles(eJson.optString("subtitle")).forEach(subtitleCallback)
+                    }
+                    break
+                }
+                break
+            }
+        }
     }
 
-}
+    private fun parseCinemacitySubtitles(raw: String?): List<SubtitleFile> {
+        val subs = mutableListOf<SubtitleFile>()
+        if (raw.isNullOrBlank()) return subs
+        raw.split(",").forEach { entry ->
+            val match = Regex("""\[(.+?)](https?://.+)""").find(entry.trim())
+            if (match != null) {
+                subs.add(newSubtitleFile(match.groupValues[1], match.groupValues[2]))
+            }
+        }
+        return subs
+    }
 
 
 data class RiveStreamSource(

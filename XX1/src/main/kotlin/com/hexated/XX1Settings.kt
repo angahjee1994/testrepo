@@ -26,7 +26,7 @@ class XX1Settings(private val plugin: XX1Plugin) : BottomSheetDialogFragment() {
     private val providers = listOf(
         "Idlix", "Kisskh", "Vidsrccc", "Vidsrc", "RiveStream", "Watchsomuch", 
         "Vixsrc", "Vidlink", "Vidfast", "Mapple", "Wyzie", "Vidsrccx", 
-        "Superembed", "Vidrock", "MovieBox", "Netflix"
+        "Superembed", "Vidrock", "MovieBox", "Netflix", "Cinemacity"
     ).sorted()
 
     private fun <T : View> View.findView(name: String): T {

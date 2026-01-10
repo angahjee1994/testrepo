@@ -1,5 +1,7 @@
 package com.hexated
 
+import org.json.JSONObject
+import org.json.JSONArray
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.hexated.XX1Extractor.invokeGomovies
 import com.hexated.XX1Extractor.invokeKisskh
@@ -19,6 +21,7 @@ import com.hexated.XX1Extractor.invokeXprime
 import com.hexated.XX1Extractor.invokeRiveStream
 import com.hexated.XX1Extractor.invokeMovieBox
 import com.hexated.XX1Extractor.invokeNetflix
+import com.hexated.XX1Extractor.invokeCinemacity
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.AcraApplication
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
@@ -443,6 +446,16 @@ open class XX1 : TmdbProvider() {
             },
             {
                 if (isEnabled("Netflix")) invokeNetflix(
+                    res.title,
+                    res.year,
+                    res.season,
+                    res.episode,
+                    subtitleCallback,
+                    callback
+                )
+            },
+            {
+                if (isEnabled("Cinemacity")) invokeCinemacity(
                     res.title,
                     res.year,
                     res.season,
