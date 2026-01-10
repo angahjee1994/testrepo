@@ -410,6 +410,18 @@ fun fixUrl(url: String, domain: String): String {
     }
 }
 
+fun base64Decode(text: String): String {
+    return Base64.decode(text, Base64.DEFAULT).toString(Charsets.UTF_8)
+}
+
+fun base64DecodeArray(text: String): ByteArray {
+    return Base64.decode(text, Base64.DEFAULT)
+}
+
+fun base64Encode(array: ByteArray): String {
+    return Base64.encodeToString(array, Base64.NO_WRAP)
+}
+
 fun base64UrlEncode(input: ByteArray): String {
     return base64Encode(input)
         .replace("+", "-")
@@ -484,8 +496,8 @@ object VidsrcHelper {
 }
 
 object MovieBoxHelper {
-    private val secretKeyDefault = base64Decode("NzZpUmwwN3MweFNOOWpxbUVXQXQ3OUVCSlp1bElRSXNWNjRGWnIyTw==")
-    private val secretKeyAlt = base64Decode("WHFuMm5uTzQxL0w5Mm8xaXVYaFNMSFRiWHZZNFo1Wlo2Mm04bVNMQQ==")
+    private val secretKeyDefault = "NzZpUmwwN3MweFNOOWpxbUVXQXQ3OUVCSlp1bElRSXNWNjRGWnIyTw=="
+    private val secretKeyAlt = "WHFuMm5uTzQxL0w5Mm8xaXVYaFNMSFRiWHZZNFo1Wlo2Mm04bVNMQQ=="
 
     fun md5(input: ByteArray): String {
         return MessageDigest.getInstance("MD5").digest(input)
