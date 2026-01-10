@@ -457,8 +457,17 @@ data class MovieBoxSubject(
     @JsonProperty("cover") val cover: MovieBoxCover? = null
 )
 
-data class MovieBoxCover(
-    @JsonProperty("url") val url: String? = null
+data class MovieBoxDetailResponse(
+    @JsonProperty("data") val data: MovieBoxDetailData? = null
+)
+
+data class MovieBoxDetailData(
+    @JsonProperty("dubs") val dubs: List<MovieBoxDub>? = null
+)
+
+data class MovieBoxDub(
+    @JsonProperty("subjectId") val subjectId: String? = null,
+    @JsonProperty("lanName") val lanName: String? = null
 )
 
 data class MovieBoxPlayInfoResponse(

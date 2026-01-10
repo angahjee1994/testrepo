@@ -1123,16 +1123,39 @@ object XX1Extractor : XX1() {
 
         val subjectId = matchingSubject.subjectId ?: return
 
-        fetchMovieBoxLinks(
-            mainUrl,
-            subjectId,
-            "Original",
-            season,
-            episode,
-            searchHeaders,
-            subtitleCallback,
-            callback
-        )
+        val detailUrl = "$mainUrl/wefeed-mobile-bff/subject-api/get?subjectId=$subjectId"
+        val detailXTrSignature = MovieBoxHelper.generateXTrSignature("GET", "application/json", "application/json", detailUrl)
+        val detailHeaders = searchHeaders.toMutableMap().apply {
+            put("x-tr-signature", detailXTrSignature)
+        }
+
+        val subjectIds = mutableListOf<Pair<String, String>>()
+        var originalLanguage = "Original"
+
+        val detailRes = app.get(detailUrl, headers = detailHeaders).parsedSafe<MovieBoxDetailResponse>()
+        detailRes?.data?.dubs?.forEach { dub ->
+            val dubId = dub.subjectId ?: return@forEach
+            val lan = dub.lanName ?: "Unknown"
+            if (dubId == subjectId) {
+                originalLanguage = lan
+            } else {
+                subjectIds.add(dubId to lan)
+            }
+        }
+        subjectIds.add(0, subjectId to originalLanguage)
+
+        subjectIds.forEach { (sId, lang) ->
+            fetchMovieBoxLinks(
+                mainUrl,
+                sId,
+                lang,
+                season,
+                episode,
+                searchHeaders,
+                subtitleCallback,
+                callback
+            )
+        }
     }
 
     private suspend fun fetchMovieBoxLinks(
@@ -1145,63 +1168,59 @@ object XX1Extractor : XX1() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
-        val playUrl =
-            "$mainUrl/wefeed-mobile-bff/subject-api/play-info?subjectId=$subjectId&se=${season ?: 0}&ep=${episode ?: 0}"
-        val xClientToken = MovieBoxHelper.generateXClientToken()
-        val xTrSignature =
-            MovieBoxHelper.generateXTrSignature("GET", "application/json", null, playUrl)
+        try {
+            val playUrl =
+                "$mainUrl/wefeed-mobile-bff/subject-api/play-info?subjectId=$subjectId&se=${season ?: 0}&ep=${episode ?: 0}"
+            val xClientToken = MovieBoxHelper.generateXClientToken()
+            val xTrSignature =
+                MovieBoxHelper.generateXTrSignature("GET", "application/json", null, playUrl)
 
-        val playHeaders = baseHeaders.toMutableMap().apply {
-            put("x-client-token", xClientToken)
-            put("x-tr-signature", xTrSignature)
-            put("accept", "application/json")
-            remove("content-type")
-        }
+            val playHeaders = baseHeaders.toMutableMap().apply {
+                put("x-client-token", xClientToken)
+                put("x-tr-signature", xTrSignature)
+                put("accept", "application/json")
+                remove("content-type")
+            }
 
-        val playRes = app.get(playUrl, headers = playHeaders).parsedSafe<MovieBoxPlayInfoResponse>()
-        playRes?.data?.streams?.forEach { stream ->
-            val streamUrl = stream.url ?: return@forEach
-            val format = stream.format ?: ""
-            val resolutions = stream.resolutions ?: ""
-            val signCookie = stream.signCookie
-            val quality = getMovieBoxQuality(resolutions)
+            val playRes = app.get(playUrl, headers = playHeaders).parsedSafe<MovieBoxPlayInfoResponse>()
+            playRes?.data?.streams?.forEach { stream ->
+                val streamUrl = stream.url ?: return@forEach
+                val format = stream.format ?: ""
+                val resolutions = stream.resolutions ?: ""
+                val signCookie = stream.signCookie
+                val quality = getMovieBoxQuality(resolutions)
 
-            callback.invoke(
-                newExtractorLink(
-                    source = "MovieBox $language",
-                    name = "MovieBox ($language)",
-                    url = streamUrl,
-                    type = when {
-                        streamUrl.contains(".mpd", ignoreCase = true) -> ExtractorLinkType.DASH
-                        format.equals(
-                            "HLS",
-                            ignoreCase = true
-                        ) || streamUrl.contains(".m3u8", ignoreCase = true) -> ExtractorLinkType.M3U8
-
-                        streamUrl.contains(".mp4", ignoreCase = true) || streamUrl.contains(
-                            ".mkv",
-                            ignoreCase = true
-                        ) -> ExtractorLinkType.VIDEO
-
-                        else -> INFER_TYPE
+                callback.invoke(
+                    newExtractorLink(
+                        source = "MovieBox $language",
+                        name = "MovieBox ($language)",
+                        url = streamUrl,
+                        type = when {
+                            streamUrl.contains(".mpd", ignoreCase = true) -> ExtractorLinkType.DASH
+                            format.equals("HLS", ignoreCase = true) || streamUrl.contains(".m3u8", ignoreCase = true) -> ExtractorLinkType.M3U8
+                            streamUrl.contains(".mp4", ignoreCase = true) || streamUrl.contains(".mkv", ignoreCase = true) -> ExtractorLinkType.VIDEO
+                            else -> INFER_TYPE
+                        }
+                    ) {
+                        this.headers = mapOf("Referer" to mainUrl)
+                        if (quality != null) this.quality = quality
+                        if (!signCookie.isNullOrEmpty()) {
+                            this.headers = this.headers!! + mapOf("Cookie" to signCookie)
+                        }
                     }
-                ) {
-                    this.headers = mapOf("Referer" to "$mainUrl/")
-                    if (quality != null) this.quality = quality
-                    if (!signCookie.isNullOrEmpty()) {
-                        this.headers = this.headers!! + mapOf("Cookie" to signCookie)
-                    }
-                }
-            )
+                )
 
-            fetchMovieBoxSubtitles(
-                mainUrl,
-                subjectId,
-                stream.id ?: "",
-                language,
-                baseHeaders,
-                subtitleCallback
-            )
+                fetchMovieBoxSubtitles(
+                    mainUrl,
+                    subjectId,
+                    stream.id ?: "",
+                    language,
+                    baseHeaders,
+                    subtitleCallback
+                )
+            }
+        } catch (e: Exception) {
+            // Ignore error for specific subject ID
         }
     }
 
@@ -1225,29 +1244,34 @@ object XX1Extractor : XX1() {
         baseHeaders: Map<String, String>,
         subtitleCallback: (SubtitleFile) -> Unit
     ) {
-        val subUrl =
-            "$mainUrl/wefeed-mobile-bff/subject-api/get-stream-captions?subjectId=$subjectId&streamId=$streamId"
-        val xClientToken = MovieBoxHelper.generateXClientToken()
-        val xTrSignature = MovieBoxHelper.generateXTrSignature("GET", null, null, subUrl)
+        val subUrls = listOf(
+            "$mainUrl/wefeed-mobile-bff/subject-api/get-stream-captions?subjectId=$subjectId&streamId=$streamId",
+            "$mainUrl/wefeed-mobile-bff/subject-api/get-ext-captions?subjectId=$subjectId&resourceId=$streamId&episode=0"
+        )
 
-        val subHeaders = baseHeaders.toMutableMap().apply {
-            put("x-client-token", xClientToken)
-            put("x-tr-signature", xTrSignature)
-            remove("content-type")
-            remove("accept")
-        }
+        subUrls.forEach { subUrl ->
+            val xClientToken = MovieBoxHelper.generateXClientToken()
+            val xTrSignature = MovieBoxHelper.generateXTrSignature("GET", null, null, subUrl)
 
-        app.get(subUrl, headers = subHeaders)
-            .parsedSafe<MovieBoxSubtitleResponse>()?.data?.extCaptions?.forEach { caption ->
-                val captionUrl = caption.url ?: return@forEach
-                val lang = caption.language ?: caption.lanName ?: caption.lan ?: "Unknown"
-                subtitleCallback.invoke(
-                    SubtitleFile(
-                        "$lang ($language)",
-                        captionUrl
-                    )
-                )
+            val subHeaders = baseHeaders.toMutableMap().apply {
+                put("x-client-token", xClientToken)
+                put("x-tr-signature", xTrSignature)
+                remove("content-type")
+                remove("accept")
             }
+
+            app.get(subUrl, headers = subHeaders)
+                .parsedSafe<MovieBoxSubtitleResponse>()?.data?.extCaptions?.forEach { caption ->
+                    val captionUrl = caption.url ?: return@forEach
+                    val lang = caption.language ?: caption.lanName ?: caption.lan ?: "Unknown"
+                    subtitleCallback.invoke(
+                        SubtitleFile(
+                            "$lang ($language)",
+                            captionUrl
+                        )
+                    )
+                }
+        }
     }
 
     suspend fun invokeCNCVerse(
@@ -1324,10 +1348,11 @@ object XX1Extractor : XX1() {
                             newExtractorLink(
                                 mirrorName,
                                 source.label ?: mirrorName,
-                                "$newUrl/$playlistPath/${source.file?.substringAfterLast("/")}",
+                                "$newUrl${source.file?.replace("/tv/", "/")}",
                                 type = ExtractorLinkType.M3U8
                             ) {
                                 this.referer = "$newUrl/"
+                                this.headers = mapOf("Cookie" to "hd=on")
                                 this.quality = getQualityFromName(source.file?.substringAfter("q=", "") ?: "")
                             }
                         )
@@ -1337,7 +1362,7 @@ object XX1Extractor : XX1() {
                         subtitleCallback.invoke(
                             newSubtitleFile(
                                 track.label ?: "Unknown",
-                                httpsify("$newUrl/$playlistPath/${track.file?.substringAfterLast("/")}")
+                                httpsify(track.file ?: "")
                             )
                         )
                     }

@@ -524,10 +524,11 @@ object MovieBoxHelper {
         val parsed = Uri.parse(url)
         val path = parsed.path ?: ""
 
+        // Build query string with sorted parameters (if any)
         val query = if (parsed.queryParameterNames.isNotEmpty()) {
             parsed.queryParameterNames.sorted().joinToString("&") { key ->
-                parsed.getQueryParameters(key).sorted().joinToString("&") { value ->
-                    "$key=$value"
+                parsed.getQueryParameters(key).joinToString("&") { value ->
+                    "$key=$value"  // Don't URL encode here - Original doesn't do it
                 }
             }
         } else ""
@@ -540,7 +541,7 @@ object MovieBoxHelper {
             md5(trimmed)
         } else ""
 
-        val bodyLength = bodyBytes?.size?.toString() ?: "0"
+        val bodyLength = if (method.uppercase() == "GET") "" else (bodyBytes?.size?.toString() ?: "")
         return "${method.uppercase()}\n" +
                 "${accept ?: ""}\n" +
                 "${contentType ?: ""}\n" +
@@ -562,7 +563,7 @@ object MovieBoxHelper {
         val timestamp = hardcodedTimestamp ?: System.currentTimeMillis()
         val canonical = buildCanonicalString(method, accept, contentType, url, body, timestamp)
         val secret = if (useAltKey) secretKeyAlt else secretKeyDefault
-        val secretBytes = base64DecodeArray(secret)
+        val secretBytes = base64DecodeArray(base64Decode(secret)) // Double decode as in original
 
         val mac = Mac.getInstance("HmacMD5")
         mac.init(SecretKeySpec(secretBytes, "HmacMD5"))
