@@ -502,7 +502,9 @@ data class MovieBoxCaption(
 )
 
 data class NetflixSearchData(
-    @JsonProperty("search_result") val searchResult: List<NetflixSearchResult>? = null
+    @JsonProperty("searchResult") val searchResult: List<NetflixSearchResult>? = null,
+    @JsonProperty("results") val results: List<NetflixSearchResult>? = null,
+    @JsonProperty("data") val data: NetflixSearchData? = null
 )
 
 data class NetflixSearchResult(
@@ -512,14 +514,20 @@ data class NetflixSearchResult(
 
 data class NetflixPostData(
     @JsonProperty("title") val title: String? = null,
-    @JsonProperty("episodes") val episodes: List<NetflixEpisode?> = emptyList()
+    @JsonProperty("episodes") val episodes: List<NetflixEpisode?> = emptyList(),
+    @JsonProperty("data") val data: NetflixPostData? = null
 )
 
 data class NetflixEpisode(
     @JsonProperty("t") val t: String? = null,
     @JsonProperty("id") val id: String? = null,
     @JsonProperty("ep") val ep: String? = null,
-    @JsonProperty("s") val s: String? = null
+    @JsonProperty("s") val s: String? = null,
+    @JsonProperty("complate") val complate: String? = null
+)
+
+data class NetflixPlayList(
+    @JsonProperty("data") val data: List<NetflixPlayListItem>? = null
 )
 
 data class NetflixPlayListItem(

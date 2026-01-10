@@ -1230,6 +1230,7 @@ object XX1Extractor : XX1() {
     ) {
         val mainUrl = "https://net20.cc"
         val newUrl = "https://net51.cc"
+        val ua = "Mozilla/5.0 (Linux; Android 13; Pixel 5 Build/TQ3A.230901.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/139.0.7258.158 Safari/537.36 /OS.Gatu v3.0"
 
         val cookie = NetflixHelper.bypass(mainUrl)
         if (cookie.isEmpty()) return
@@ -1239,48 +1240,57 @@ object XX1Extractor : XX1() {
             "ott" to "nf",
             "hd" to "on"
         )
-
-        val encodedTitle = java.net.URLEncoder.encode(title ?: "", "utf-8").replace("+", "%20")
-        val searchUrl = "$mainUrl/search.php?s=$encodedTitle&t=${System.currentTimeMillis() / 1000}"
+        val commonHeaders = mapOf("User-Agent" to ua)
 
         val searchRes = app.get(
-            searchUrl,
+            "$mainUrl/search.php",
+            params = mapOf(
+                "s" to (title ?: ""),
+                "t" to (System.currentTimeMillis() / 1000).toString()
+            ),
             referer = "$mainUrl/tv/home",
-            cookies = cookies
+            cookies = cookies,
+            headers = commonHeaders
         ).text
 
         val searchJson = tryParseJson<NetflixSearchData>(searchRes)
-        val results = searchJson?.searchResult ?: return
+        val searchData = searchJson?.data ?: searchJson
+        val results = searchData?.searchResult ?: searchData?.results ?: return
         val matchingResult = results.find { it.t?.equals(title, true) == true } ?: results.firstOrNull() ?: return
         val id = matchingResult.id ?: return
 
         val playId = if (season == null && episode == null) {
             id
         } else {
-            val postUrl = "$mainUrl/post.php?id=$id&t=${System.currentTimeMillis() / 1000}"
             val postRes = app.get(
-                postUrl,
+                "$mainUrl/post.php",
+                params = mapOf(
+                    "id" to id,
+                    "t" to (System.currentTimeMillis() / 1000).toString()
+                ),
                 referer = "$mainUrl/tv/home",
                 cookies = cookies,
-                headers = mapOf("X-Requested-With" to "XMLHttpRequest")
+                headers = commonHeaders.plus("X-Requested-With" to "XMLHttpRequest")
             ).text
-            val postJson = tryParseJson<NetflixPostData>(postRes) ?: return
-            val ep = postJson.episodes.filterNotNull().find {
+            val postJson = tryParseJson<NetflixPostData>(postRes)
+            val postData = postJson?.data ?: postJson ?: return
+            val ep = postData.episodes.filterNotNull().find {
                 it.s?.filter { c -> c.isDigit() }?.toIntOrNull() == season &&
                         it.ep?.filter { c -> c.isDigit() }?.toIntOrNull() == episode
             }
             ep?.id ?: return
         }
 
-        val playlistUrl = "$newUrl/tv/playlist.php?id=$playId&t=$encodedTitle&tm=${System.currentTimeMillis() / 1000}"
+        val playlistUrl = "$newUrl/tv/playlist.php?id=$playId&t=$title&tm=${System.currentTimeMillis() / 1000}"
         val playlistRes = app.get(
             playlistUrl,
             referer = "$mainUrl/home",
             cookies = cookies,
-            headers = mapOf("X-Requested-With" to "XMLHttpRequest")
+            headers = commonHeaders.plus("X-Requested-With" to "XMLHttpRequest")
         ).text
 
-        val playlist = tryParseJson<List<NetflixPlayListItem>>(playlistRes) ?: return
+        val playlist = tryParseJson<List<NetflixPlayListItem>>(playlistRes) 
+            ?: tryParseJson<NetflixPlayList>(playlistRes)?.data ?: return
 
         playlist.forEach { item ->
             item.sources.forEach { source ->

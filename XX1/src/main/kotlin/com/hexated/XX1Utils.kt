@@ -596,6 +596,7 @@ object NetflixHelper {
     private var cookieTimestamp: Long = 0L
 
     suspend fun bypass(mainUrl: String): String {
+        val ua = "Mozilla/5.0 (Linux; Android 13; Pixel 5 Build/TQ3A.230901.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/139.0.7258.158 Safari/537.36 /OS.Gatu v3.0"
         if (!cachedCookie.isNullOrEmpty() && System.currentTimeMillis() - cookieTimestamp < 54_000_000) {
             return cachedCookie!!
         }
@@ -605,7 +606,7 @@ object NetflixHelper {
             var verifyResponse: com.lagradost.nicehttp.NiceResponse
             var retries = 0
             do {
-                verifyResponse = app.post("$mainUrl/tv/p.php", referer = "$mainUrl/home")
+                verifyResponse = app.post("$mainUrl/tv/p.php", headers = mapOf("User-Agent" to ua))
                 verifyCheck = verifyResponse.text
                 retries++
             } while (!verifyCheck.contains("\"r\":\"n\"") && retries < 5)
