@@ -19,7 +19,6 @@ class AnimeIdHentai : MainAPI() {
     override val mainPage =
         mainPageOf(
             "trending" to "Trending Hentai",
-            "s=" to "Latest Hentai",
             "genre/censored" to "Censored Hentai",
             "genre/hentai-uncensored" to "Uncensored Hentai",
             "genre/incest" to "Incest Hentai",

@@ -8,7 +8,6 @@ import com.lagradost.cloudstream3.plugins.Plugin
 @CloudstreamPlugin
 class KissasianPlugin : Plugin() {
     override fun load(context: Context) {
-        Kissasian.context = context
         registerMainAPI(Kissasian())
         registerExtractorAPI(Strcloud())
         registerExtractorAPI(Myvidplay()) 
