@@ -20,6 +20,7 @@ import com.hexated.XX1Extractor.invokeRiveStream
 import com.hexated.XX1Extractor.invokeMovieBox
 import com.hexated.XX1Extractor.invokeNetflix
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.AcraApplication
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.metaproviders.TmdbProvider
 import com.lagradost.cloudstream3.LoadResponse.Companion.addImdbId

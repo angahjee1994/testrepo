@@ -11,9 +11,10 @@ import android.widget.LinearLayout
 import android.widget.SearchView
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.lagradost.cloudstream3.AcraApplication.Companion.getKey
 import com.lagradost.cloudstream3.AcraApplication.Companion.setKey
-import com.phisher98.BuildConfig
+import com.hexated.BuildConfig
 
 class XX1Settings(private val plugin: XX1Plugin) : BottomSheetDialogFragment() {
 
@@ -108,6 +109,6 @@ class XX1Settings(private val plugin: XX1Plugin) : BottomSheetDialogFragment() {
 
     override fun onStart() {
         super.onStart()
-        (dialog as? com.google.android.material.bottomsheet.BottomSheetDialog)?.behavior?.state = BottomSheetBehavior.STATE_EXPANDED
+        (dialog as? BottomSheetDialog)?.behavior?.state = BottomSheetBehavior.STATE_EXPANDED
     }
 }
