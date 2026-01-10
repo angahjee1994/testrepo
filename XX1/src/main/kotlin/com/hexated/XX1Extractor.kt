@@ -1077,304 +1077,44 @@ object XX1Extractor : XX1() {
         }
     }
 
-    suspend fun invokeMovieBox(
-        title: String? = null,
-        year: Int? = null,
-        season: Int? = null,
-        episode: Int? = null,
-        subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
-    ) {
-        val mainUrl = "https://api.inmoviebox.com"
-        val searchUrl = "$mainUrl/wefeed-mobile-bff/subject-api/search/v2"
-        val searchBody = mapOf("page" to 1, "perPage" to 10, "keyword" to (title ?: "")).toJson()
-
-        val searchXClientToken = MovieBoxHelper.generateXClientToken()
-        val searchXTrSignature = MovieBoxHelper.generateXTrSignature(
-            "POST",
-            "application/json",
-            "application/json; charset=utf-8",
-            searchUrl,
-            searchBody
-        )
-
-        val searchHeaders = mapOf(
-            "user-agent" to "com.community.mbox.in/50020042 (Linux; U; Android 16; en_IN; sdk_gphone64_x86_64; Build/BP22.250325.006; Cronet/133.0.6876.3)",
-            "accept" to "application/json",
-            "content-type" to "application/json",
-            "x-client-token" to searchXClientToken,
-            "x-tr-signature" to searchXTrSignature,
-            "x-client-info" to """{"package_name":"com.community.mbox.in","version_name":"3.0.03.0529.03","version_code":50020042,"os":"android","os_version":"16","device_id":"da2b99c821e6ea023e4be55b54d5f7d8","install_store":"ps","gaid":"d7578036d13336cc","brand":"google","model":"sdk_gphone64_x86_64","system_language":"en","net":"NETWORK_WIFI","region":"IN","timezone":"Asia/Calcutta","sp_code":""}""",
-            "x-client-status" to "0"
-        )
-
-        val searchRes = app.post(
-            searchUrl,
-            headers = searchHeaders,
-            requestBody = searchBody.toRequestBody("application/json".toMediaTypeOrNull())
-        ).parsedSafe<MovieBoxSearchResponse>()
-
-        val results = searchRes?.data?.results?.flatMap { it.subjects ?: emptyList() } ?: emptyList()
-        val matchingSubject = results.find { subject ->
-            subject.title?.equals(title, true) == true && (year == null || subject.releaseDate?.startsWith(
-                year.toString()
-            ) == true)
-        } ?: results.firstOrNull { it.title?.contains(title ?: "", true) == true } ?: return
-
-        val subjectId = matchingSubject.subjectId ?: return
-
-        val detailUrl = "$mainUrl/wefeed-mobile-bff/subject-api/get?subjectId=$subjectId"
-        val detailXTrSignature = MovieBoxHelper.generateXTrSignature("GET", "application/json", "application/json", detailUrl)
-        val detailHeaders = searchHeaders.toMutableMap().apply {
-            put("x-tr-signature", detailXTrSignature)
-        }
-
-        val subjectIds = mutableListOf<Pair<String, String>>()
-        var originalLanguage = "Original"
-
-        val detailRes = app.get(detailUrl, headers = detailHeaders).parsedSafe<MovieBoxDetailResponse>()
-        detailRes?.data?.dubs?.forEach { dub ->
-            val dubId = dub.subjectId ?: return@forEach
-            val lan = dub.lanName ?: "Unknown"
-            if (dubId == subjectId) {
-                originalLanguage = lan
-            } else {
-                subjectIds.add(dubId to lan)
-            }
-        }
-        subjectIds.add(0, subjectId to originalLanguage)
-
-        subjectIds.forEach { (sId, lang) ->
-            fetchMovieBoxLinks(
-                mainUrl,
-                sId,
-                lang,
-                season,
-                episode,
-                searchHeaders,
-                subtitleCallback,
-                callback
-            )
-        }
-    }
-
-    private suspend fun fetchMovieBoxLinks(
-        mainUrl: String,
-        subjectId: String,
-        language: String,
-        season: Int?,
-        episode: Int?,
-        baseHeaders: Map<String, String>,
-        subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
-    ) {
-        try {
-            val playUrl =
-                "$mainUrl/wefeed-mobile-bff/subject-api/play-info?subjectId=$subjectId&se=${season ?: 0}&ep=${episode ?: 0}"
-            val xClientToken = MovieBoxHelper.generateXClientToken()
-            val xTrSignature =
-                MovieBoxHelper.generateXTrSignature("GET", "application/json", "application/json", playUrl)
-
-            val playHeaders = baseHeaders.toMutableMap().apply {
-                put("x-client-token", xClientToken)
-                put("x-tr-signature", xTrSignature)
-                put("accept", "application/json")
-                remove("content-type")
-            }
-
-            val playRes = app.get(playUrl, headers = playHeaders).parsedSafe<MovieBoxPlayInfoResponse>()
-            playRes?.data?.streams?.forEach { stream ->
-                val streamUrl = stream.url ?: return@forEach
-                val format = stream.format ?: ""
-                val resolutions = stream.resolutions ?: ""
-                val signCookie = stream.signCookie
-                val quality = getMovieBoxQuality(resolutions)
-
-                callback.invoke(
-                    newExtractorLink(
-                        source = "MovieBox $language",
-                        name = "MovieBox ($language)",
-                        url = streamUrl,
-                        type = when {
-                            streamUrl.contains(".mpd", ignoreCase = true) -> ExtractorLinkType.DASH
-                            format.equals("HLS", ignoreCase = true) || streamUrl.contains(".m3u8", ignoreCase = true) -> ExtractorLinkType.M3U8
-                            streamUrl.contains(".mp4", ignoreCase = true) || streamUrl.contains(".mkv", ignoreCase = true) -> ExtractorLinkType.VIDEO
-                            else -> INFER_TYPE
-                        }
-                    ) {
-                        this.headers = mapOf("Referer" to mainUrl)
-                        if (quality != null) this.quality = quality
-                        if (!signCookie.isNullOrEmpty()) {
-                            this.headers = this.headers!! + mapOf("Cookie" to signCookie)
-                        }
-                    }
-                )
-
-                fetchMovieBoxSubtitles(
-                    mainUrl,
-                    subjectId,
-                    stream.id ?: "",
-                    language,
-                    baseHeaders,
-                    subtitleCallback
-                )
-            }
-        } catch (e: Exception) {
-            // Ignore error for specific subject ID
-        }
-    }
-
-    private fun getMovieBoxQuality(input: String): Int? {
-        return when {
-            input.contains("2160") -> Qualities.P2160.value
-            input.contains("1440") -> Qualities.P1440.value
-            input.contains("1080") -> Qualities.P1080.value
-            input.contains("720") -> Qualities.P720.value
-            input.contains("480") -> Qualities.P480.value
-            input.contains("360") -> Qualities.P360.value
-            else -> null
-        }
-    }
-
-    private suspend fun fetchMovieBoxSubtitles(
-        mainUrl: String,
-        subjectId: String,
-        streamId: String,
-        language: String,
-        baseHeaders: Map<String, String>,
-        subtitleCallback: (SubtitleFile) -> Unit
-    ) {
-        val subUrls = listOf(
-            "$mainUrl/wefeed-mobile-bff/subject-api/get-stream-captions?subjectId=$subjectId&streamId=$streamId",
-            "$mainUrl/wefeed-mobile-bff/subject-api/get-ext-captions?subjectId=$subjectId&resourceId=$streamId&episode=0"
-        )
-
-        subUrls.forEach { subUrl ->
-            val xClientToken = MovieBoxHelper.generateXClientToken()
-            val xTrSignature = MovieBoxHelper.generateXTrSignature("GET", "", "", subUrl)
-
-            val subHeaders = baseHeaders.toMutableMap().apply {
-                put("x-client-token", xClientToken)
-                put("x-tr-signature", xTrSignature)
-                put("Accept", "")
-                put("Content-Type", "")
-            }
-
-            app.get(subUrl, headers = subHeaders)
-                .parsedSafe<MovieBoxSubtitleResponse>()?.data?.extCaptions?.forEach { caption ->
-                    val captionUrl = caption.url ?: return@forEach
-                    val lang = caption.language ?: caption.lanName ?: caption.lan ?: "Unknown"
-                    subtitleCallback.invoke(
-                        SubtitleFile(
-                            "$lang ($language)",
-                            captionUrl
-                        )
-                    )
-                }
-        }
-    }
-
-    suspend fun invokeCNCVerse(
-        title: String? = null,
-        year: Int? = null,
-        season: Int? = null,
-        episode: Int? = null,
-        subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
-    ) {
-        val mirrors = listOf(
-            "Netflix" to "nf",
-            "Disney Plus" to "dp",
-            "Hotstar" to "hs",
-            "PrimeVideo" to "pv"
-        )
-
-        val mainUrl = "https://net20.cc"
-        val newUrl = "https://net51.cc"
-        val cookie = CNCVerseHelper.bypass(mainUrl)
-        if (cookie.isEmpty()) return
-
-        val encodedTitle = java.net.URLEncoder.encode(title ?: "", "utf-8").replace("+", "%20")
-
-        mirrors.amap { (mirrorName, ott) ->
-            try {
-                val cookies = mapOf(
-                    "t_hash_t" to cookie,
-                    "ott" to ott,
-                    "hd" to "on"
-                )
-
-                val searchUrl = "$mainUrl/$ott/search.php?s=$encodedTitle&t=${System.currentTimeMillis() / 1000}"
-                val searchRes = app.get(
-                    searchUrl,
-                    referer = "$mainUrl/$ott/",
-                    cookies = cookies
-                ).parsedSafe<CNCVerseSearchData>()
-
-                val results = searchRes?.searchResult ?: return@amap
-                val matchingResult = results.find { it.t?.equals(title, true) == true } ?: results.firstOrNull() ?: return@amap
-                val id = matchingResult.id ?: return@amap
-
-                val postUrl = "$mainUrl/$ott/post.php?id=$id&t=${System.currentTimeMillis() / 1000}"
-                val postRes = app.get(
-                    postUrl,
-                    referer = "$mainUrl/$ott/",
-                    cookies = cookies,
-                    headers = mapOf("X-Requested-With" to "XMLHttpRequest")
-                ).parsedSafe<CNCVersePostData>() ?: return@amap
-
-                val playId = if (season == null && episode == null) {
-                    id
-                } else {
-                    val ep = postRes.episodes.filterNotNull().find {
-                        it.s?.filter { it.isDigit() }?.toIntOrNull() == season &&
-                                it.ep?.filter { it.isDigit() }?.toIntOrNull() == episode
-                    }
-                    ep?.id ?: return@amap
-                }
-
-                val playlistPath = if (ott == "pv") "pv" else "tv"
-                val playlistUrl = "$newUrl/$playlistPath/playlist.php?id=$playId&t=$encodedTitle&tm=${System.currentTimeMillis() / 1000}"
-                val playlistRes = app.get(
-                    playlistUrl,
-                    referer = "$mainUrl/$ott/",
-                    cookies = cookies,
-                    headers = mapOf("X-Requested-With" to "XMLHttpRequest")
-                ).parsedSafe<List<CNCVersePlayListItem>>() ?: return@amap
-
-                playlistRes.forEach { item ->
-                    item.sources.forEach { source ->
-                        callback.invoke(
-                            newExtractorLink(
-                                mirrorName,
-                                source.label ?: mirrorName,
-                                "$newUrl${source.file?.replace("/tv/", "/")}",
-                                type = ExtractorLinkType.M3U8
-                            ) {
-                                this.referer = "$newUrl/"
-                                this.headers = mapOf("Cookie" to "hd=on")
-                                this.quality = getQualityFromName(source.file?.substringAfter("q=", "") ?: "")
-                            }
-                        )
-                    }
-
-                    item.tracks?.filter { it.kind == "captions" }?.forEach { track ->
-                        subtitleCallback.invoke(
-                            newSubtitleFile(
-                                track.label ?: "Unknown",
-                                httpsify(track.file ?: "")
-                            )
-                        )
-                    }
-                }
-            } catch (e: Exception) {
-                // Ignore individual mirror errors
-            }
-        }
-    }
 
 }
-    data class RiveStreamSource(
+
+
+data class RiveStreamSource(
     @JsonProperty("data")
     val data: List<String>?
 )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

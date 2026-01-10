@@ -495,121 +495,12 @@ object VidsrcHelper {
 
 }
 
-object MovieBoxHelper {
-    private val secretKeyDefault = base64Decode("NzZpUmwwN3MweFNOOWpxbUVXQXQ3OUVCSlp1bElRSXNWNjRGWnIyTw==")
-    private val secretKeyAlt = base64Decode("WHFuMm5uTzQxL0w5Mm8xaXVYaFNMSFRiWHZZNFo1Wlo2Mm04bVNMQQ==")
 
-    fun md5(input: ByteArray): String {
-        return MessageDigest.getInstance("MD5").digest(input)
-            .joinToString("") { "%02x".format(it) }
-    }
 
-    private fun reverseString(input: String): String = input.reversed()
 
-    fun generateXClientToken(hardcodedTimestamp: Long? = null): String {
-        val timestamp = (hardcodedTimestamp ?: System.currentTimeMillis()).toString()
-        val reversed = reverseString(timestamp)
-        val hash = md5(reversed.toByteArray())
-        return "$timestamp,$hash"
-    }
 
-    private fun buildCanonicalString(
-        method: String,
-        accept: String?,
-        contentType: String?,
-        url: String,
-        body: String?,
-        timestamp: Long
-    ): String {
-        val parsed = Uri.parse(url)
-        val path = parsed.path ?: ""
 
-        // Build query string with sorted parameters (if any)
-        val query = if (parsed.queryParameterNames.isNotEmpty()) {
-            parsed.queryParameterNames.sorted().joinToString("&") { key ->
-                parsed.getQueryParameters(key).joinToString("&") { value ->
-                    "$key=$value"  // Don't URL encode here - Original doesn't do it
-                }
-            }
-        } else ""
 
-        val canonicalUrl = if (query.isNotEmpty()) "$path?$query" else path
 
-        val bodyBytes = body?.toByteArray(Charsets.UTF_8)
-        val bodyHash = if (bodyBytes != null) {
-            val trimmed = if (bodyBytes.size > 102400) bodyBytes.copyOfRange(0, 102400) else bodyBytes
-            md5(trimmed)
-        } else ""
 
-        val bodyLength = bodyBytes?.size?.toString() ?: ""
-        return "${method.uppercase()}\n" +
-                "${accept ?: ""}\n" +
-                "${contentType ?: ""}\n" +
-                "$bodyLength\n" +
-                "$timestamp\n" +
-                "$bodyHash\n" +
-                canonicalUrl
-    }
 
-    fun generateXTrSignature(
-        method: String,
-        accept: String?,
-        contentType: String?,
-        url: String,
-        body: String? = null,
-        useAltKey: Boolean = false,
-        hardcodedTimestamp: Long? = null
-    ): String {
-        val timestamp = hardcodedTimestamp ?: System.currentTimeMillis()
-        val canonical = buildCanonicalString(method, accept, contentType, url, body, timestamp)
-        val secret = if (useAltKey) secretKeyAlt else secretKeyDefault
-        val secretBytes = base64DecodeArray(secret)
-
-        val mac = Mac.getInstance("HmacMD5")
-        mac.init(SecretKeySpec(secretBytes, "HmacMD5"))
-        val signature = mac.doFinal(canonical.toByteArray(Charsets.UTF_8))
-        val signatureB64 = base64Encode(signature)
-
-        return "$timestamp|2|$signatureB64"
-    }
-}
-
-object CNCVerseHelper {
-    private const val PREFS_NAME = "CNCVerseMirrorPrefs"
-    private const val COOKIE_KEY = "nf_cookie"
-    private const val TIMESTAMP_KEY = "nf_cookie_timestamp"
-
-    suspend fun bypass(mainUrl: String): String {
-        val context = XX1.context ?: return ""
-        val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
-        
-        val savedCookie = prefs.getString(COOKIE_KEY, null)
-        val savedTimestamp = prefs.getLong(TIMESTAMP_KEY, 0L)
-
-        if (!savedCookie.isNullOrEmpty() && System.currentTimeMillis() - savedTimestamp < 54_000_000) {
-            return savedCookie
-        }
-
-        val newCookie = try {
-            var verifyCheck: String
-            var verifyResponse: com.lagradost.nicehttp.NiceResponse
-            var retries = 0
-            do {
-                verifyResponse = app.post("$mainUrl/tv/p.php", referer = "$mainUrl/home")
-                verifyCheck = verifyResponse.text
-                retries++
-            } while (!verifyCheck.contains("\"r\":\"n\"") && retries < 5)
-            verifyResponse.cookies["t_hash_t"].orEmpty()
-        } catch (e: Exception) {
-            prefs.edit().remove(COOKIE_KEY).remove(TIMESTAMP_KEY).apply()
-            ""
-        }
-
-        if (newCookie.isNotEmpty()) {
-            prefs.edit().putString(COOKIE_KEY, newCookie)
-                .putLong(TIMESTAMP_KEY, System.currentTimeMillis())
-                .apply()
-        }
-        return newCookie
-    }
-}

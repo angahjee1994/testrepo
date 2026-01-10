@@ -408,26 +408,6 @@ open class XX1 : TmdbProvider() {
                     subtitleCallback,
                     callback
                 )
-            },
-            {
-                invokeMovieBox(
-                    res.title,
-                    res.year,
-                    res.season,
-                    res.episode,
-                    subtitleCallback,
-                    callback
-                )
-            },
-            {
-                invokeCNCVerse(
-                    res.title,
-                    res.year,
-                    res.season,
-                    res.episode,
-                    subtitleCallback,
-                    callback
-                )
             }
         )
 
