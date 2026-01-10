@@ -144,10 +144,10 @@ class MovieBoxProvider : MainAPI() {
         "4380734070238626200" to "South Korean (Series)",
         "1|1;country=China" to "China (Movies)",
         "8624142774394406504" to "China (Series)",
-		"6528093688173053896" to "Indonesia (Movies)",
-        "5283462032510044280" to "Indonesia (Series)",
-        "606779077307122552" to "Philippines (Movies)",
-        "8449223314756747760" to "Philippines (Series)",
+		"1|1;country=Indonesia" to "Indonesia (Movies)",
+        "1|2;country=Indonesia" to "Indonesia (Series)",
+        "1|1;country=Philippines" to "Philippines (Movies)",
+        "1|2;country=Philippines" to "Philippines (Series)",
         "1|1;country=Thailand" to "Thailand(Movies)",
         "1164329479448281992" to "Thailand(Series)",
         "1|1;country=Japan" to "Japan (Movies)",
@@ -184,7 +184,7 @@ class MovieBoxProvider : MainAPI() {
         val country  = options["country"] ?: "All"
         val year     = options["year"] ?: "All"
         val genre    = options["genre"] ?: "All"
-        val sort     = options["sort"] ?: "Latest"
+        val sort     = options["sort"] ?: "ForYou"
 
         val jsonBody = """{"page":$pg,"perPage":$perPage,"channelId":"$channelId","classify":"$classify","country":"$country","year":"$year","genre":"$genre","sort":"$sort"}"""
 
