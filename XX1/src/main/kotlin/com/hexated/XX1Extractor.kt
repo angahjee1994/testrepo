@@ -1364,6 +1364,8 @@ object XX1Extractor : XX1() {
                 )
             }
         }
+    }
+
     suspend fun invokeCinemacity(
         title: String?,
         year: Int?,
@@ -1376,7 +1378,7 @@ object XX1Extractor : XX1() {
         val cookies = mapOf(
             "Cookie" to base64Decode("ZGxlX3VzZXJfaWQ9MzI3Mjk7IGRsZV9wYXNzd29yZD04OTQxNzFjNmE4ZGFiMThlZTU5NGQ1YzY1MjAwOWEzNTs=")
         )
-        
+
         val searchRes = app.get(
             "$mainUrl/index.php",
             params = mapOf(
@@ -1387,22 +1389,22 @@ object XX1Extractor : XX1() {
             ),
             cookies = cookies
         ).document
-        
-        val matchingResult = searchRes.select("div.dar-short_item").find { 
+
+        val matchingResult = searchRes.select("div.dar-short_item").find {
             it.selectFirst("a")?.ownText()?.contains(title ?: "", true) == true
         } ?: return
-        
+
         val url = matchingResult.selectFirst("a")?.attr("href") ?: return
         val page = app.get(url, cookies = cookies).document
-        
+
         val playerScript = page.select("script:containsData(atob)").getOrNull(1)?.data() ?: return
         val decodedPlayer = base64Decode(playerScript.substringAfter("atob(\"").substringBefore("\")"))
         val playerJsonStr = decodedPlayer.substringAfter("new Playerjs(").substringBeforeLast(");")
         val playerJson = JSONObject(playerJsonStr)
-        
+
         val rawFile = playerJson.optString("file", "")
         if (rawFile.isEmpty()) return
-        
+
         val subtitleTracks = playerJson.optString("subtitle", "")
 
         if (season == null && episode == null) {
@@ -1412,7 +1414,7 @@ object XX1Extractor : XX1() {
                     "Cinemacity",
                     "Cinemacity",
                     rawFile,
-                    mainUrl,
+                    INFER_TYPE,
                     getQualityFromName(rawFile)
                 )
             )
@@ -1422,18 +1424,18 @@ object XX1Extractor : XX1() {
             val fileArray = JSONArray(rawFile)
             val seasonRegex = Regex("Season\\s*(\\d+)", RegexOption.IGNORE_CASE)
             val episodeRegex = Regex("Episode\\s*(\\d+)", RegexOption.IGNORE_CASE)
-            
+
             for (i in 0 until fileArray.length()) {
                 val sJson = fileArray.getJSONObject(i)
                 val sNum = seasonRegex.find(sJson.optString("title"))?.groupValues?.get(1)?.toIntOrNull()
                 if (sNum != season) continue
-                
+
                 val episodes = sJson.optJSONArray("folder") ?: continue
                 for (j in 0 until episodes.length()) {
                     val eJson = episodes.getJSONObject(j)
                     val eNum = episodeRegex.find(eJson.optString("title"))?.groupValues?.get(1)?.toIntOrNull()
                     if (eNum != episode) continue
-                    
+
                     val fileUrl = eJson.optString("file")
                     if (fileUrl.isNotBlank()) {
                         callback.invoke(
@@ -1441,7 +1443,7 @@ object XX1Extractor : XX1() {
                                 "Cinemacity",
                                 "Cinemacity",
                                 fileUrl,
-                                mainUrl,
+                                INFER_TYPE,
                                 getQualityFromName(fileUrl)
                             )
                         )
@@ -1465,6 +1467,7 @@ object XX1Extractor : XX1() {
         }
         return subs
     }
+}
 
 
 data class RiveStreamSource(
