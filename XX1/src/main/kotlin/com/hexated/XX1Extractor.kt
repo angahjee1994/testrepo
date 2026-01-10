@@ -1241,11 +1241,11 @@ object XX1Extractor : XX1() {
         )
 
         val encodedTitle = java.net.URLEncoder.encode(title ?: "", "utf-8").replace("+", "%20")
-        val searchUrl = "$mainUrl/nf/search.php?s=$encodedTitle&t=${System.currentTimeMillis() / 1000}"
+        val searchUrl = "$mainUrl/search.php?s=$encodedTitle&t=${System.currentTimeMillis() / 1000}"
 
         val searchRes = app.get(
             searchUrl,
-            referer = "$mainUrl/nf/",
+            referer = "$mainUrl/tv/home",
             cookies = cookies
         ).text
 
@@ -1257,10 +1257,10 @@ object XX1Extractor : XX1() {
         val playId = if (season == null && episode == null) {
             id
         } else {
-            val postUrl = "$mainUrl/nf/post.php?id=$id&t=${System.currentTimeMillis() / 1000}"
+            val postUrl = "$mainUrl/post.php?id=$id&t=${System.currentTimeMillis() / 1000}"
             val postRes = app.get(
                 postUrl,
-                referer = "$mainUrl/nf/",
+                referer = "$mainUrl/tv/home",
                 cookies = cookies,
                 headers = mapOf("X-Requested-With" to "XMLHttpRequest")
             ).text
@@ -1275,7 +1275,7 @@ object XX1Extractor : XX1() {
         val playlistUrl = "$newUrl/tv/playlist.php?id=$playId&t=$encodedTitle&tm=${System.currentTimeMillis() / 1000}"
         val playlistRes = app.get(
             playlistUrl,
-            referer = "$mainUrl/nf/",
+            referer = "$mainUrl/home",
             cookies = cookies,
             headers = mapOf("X-Requested-With" to "XMLHttpRequest")
         ).text
