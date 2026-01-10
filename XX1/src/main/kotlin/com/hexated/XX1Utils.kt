@@ -495,7 +495,101 @@ object VidsrcHelper {
 
 }
 
+object MovieBoxHelper {
+    private val secretKeyDefault = base64Decode("NzZpUmwwN3MweFNOOWpxbUVXQXQ3OUVCSlp1bElRSXNWNjRGWnIyTw==")
+    private val secretKeyAlt = base64Decode("WHFuMm5uTzQxL0w5Mm8xaXVYaFNMSFRiWHZZNFo1Wlo2Mm04bVNMQQ==")
 
+    private fun md5(input: ByteArray): String {
+        return MessageDigest.getInstance("MD5").digest(input)
+            .joinToString("") { "%02x".format(it) }
+    }
+
+    private fun reverseString(input: String): String = input.reversed()
+
+    fun generateXClientToken(hardcodedTimestamp: Long? = null): String {
+        val timestamp = (hardcodedTimestamp ?: System.currentTimeMillis()).toString()
+        val reversed = reverseString(timestamp)
+        val hash = md5(reversed.toByteArray())
+        return "$timestamp,$hash"
+    }
+
+    private fun buildCanonicalString(
+        method: String,
+        accept: String?,
+        contentType: String?,
+        url: String,
+        body: String?,
+        timestamp: Long
+    ): String {
+        val parsed = android.net.Uri.parse(url)
+        val path = parsed.path ?: ""
+
+        val query = if (parsed.queryParameterNames.isNotEmpty()) {
+            parsed.queryParameterNames.sorted().joinToString("&") { key ->
+                parsed.getQueryParameters(key).joinToString("&") { value ->
+                    "$key=$value"
+                }
+            }
+        } else ""
+
+        val canonicalUrl = if (query.isNotEmpty()) "$path?$query" else path
+
+        val bodyBytes = body?.toByteArray(Charsets.UTF_8)
+        val bodyHash = if (bodyBytes != null) {
+            val trimmed = if (bodyBytes.size > 102400) bodyBytes.copyOfRange(0, 102400) else bodyBytes
+            md5(trimmed)
+        } else ""
+
+        val bodyLength = bodyBytes?.size?.toString() ?: ""
+        return "${method.uppercase()}\n" +
+                "${accept ?: ""}\n" +
+                "${contentType ?: ""}\n" +
+                "$bodyLength\n" +
+                "$timestamp\n" +
+                "$bodyHash\n" +
+                canonicalUrl
+    }
+
+    fun generateXTrSignature(
+        method: String,
+        accept: String?,
+        contentType: String?,
+        url: String,
+        body: String? = null,
+        useAltKey: Boolean = false,
+        hardcodedTimestamp: Long? = null
+    ): String {
+        val timestamp = hardcodedTimestamp ?: System.currentTimeMillis()
+        val canonical = buildCanonicalString(method, accept, contentType, url, body, timestamp)
+        val secret = if (useAltKey) secretKeyAlt else secretKeyDefault
+        val secretBytes = base64DecodeArray(secret)
+
+        val mac = Mac.getInstance("HmacMD5")
+        mac.init(SecretKeySpec(secretBytes, "HmacMD5"))
+        val signature = mac.doFinal(canonical.toByteArray(Charsets.UTF_8))
+        val signatureB64 = base64Encode(signature)
+
+        return "$timestamp|2|$signatureB64"
+    }
+
+    fun getHighestQuality(input: String): Int? {
+        val qualities = listOf(
+            "2160" to Qualities.P2160.value,
+            "1440" to Qualities.P1440.value,
+            "1080" to Qualities.P1080.value,
+            "720" to Qualities.P720.value,
+            "480" to Qualities.P480.value,
+            "360" to Qualities.P360.value,
+            "240" to Qualities.P240.value
+        )
+        for ((label, mappedValue) in qualities) {
+            if (input.contains(label, ignoreCase = true)) {
+                return mappedValue
+            }
+        }
+        return null
+    }
+}
 
 
 

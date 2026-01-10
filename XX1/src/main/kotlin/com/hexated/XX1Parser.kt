@@ -436,15 +436,17 @@ data class NepuSearch(
     )
 }
 
+
+
 data class MovieBoxSearchResponse(
     @JsonProperty("data") val data: MovieBoxSearchData? = null
 )
 
 data class MovieBoxSearchData(
-    @JsonProperty("results") val results: List<MovieBoxSearchResult>? = null
+    @JsonProperty("results") val results: List<MovieBoxResultGroup>? = null
 )
 
-data class MovieBoxSearchResult(
+data class MovieBoxResultGroup(
     @JsonProperty("subjects") val subjects: List<MovieBoxSubject>? = null
 )
 
@@ -452,13 +454,7 @@ data class MovieBoxSubject(
     @JsonProperty("subjectId") val subjectId: String? = null,
     @JsonProperty("title") val title: String? = null,
     @JsonProperty("releaseDate") val releaseDate: String? = null,
-    @JsonProperty("subjectType") val subjectType: Int? = null,
-    @JsonProperty("imdbRatingValue") val imdbRatingValue: String? = null,
-    @JsonProperty("cover") val cover: MovieBoxCover? = null
-)
-
-data class MovieBoxCover(
-    @JsonProperty("url") val url: String? = null
+    @JsonProperty("subjectType") val subjectType: Int? = null
 )
 
 data class MovieBoxDetailResponse(
@@ -475,10 +471,10 @@ data class MovieBoxDub(
 )
 
 data class MovieBoxPlayInfoResponse(
-    @JsonProperty("data") val data: MovieBoxPlayInfoData? = null
+    @JsonProperty("data") val data: MovieBoxPlayData? = null
 )
 
-data class MovieBoxPlayInfoData(
+data class MovieBoxPlayData(
     @JsonProperty("streams") val streams: List<MovieBoxStream>? = null
 )
 
@@ -497,73 +493,10 @@ data class MovieBoxSubtitleResponse(
 data class MovieBoxSubtitleData(
     @JsonProperty("extCaptions") val extCaptions: List<MovieBoxCaption>? = null
 )
+
 data class MovieBoxCaption(
     @JsonProperty("url") val url: String? = null,
     @JsonProperty("language") val language: String? = null,
     @JsonProperty("lanName") val lanName: String? = null,
     @JsonProperty("lan") val lan: String? = null
-)
-
-data class CNCVerseSearchData(
-    @JsonProperty("search_result") val searchResult: List<CNCVerseSearchResult> = emptyList()
-)
-
-data class CNCVerseSearchResult(
-    @JsonProperty("t") val t: String? = null,
-    @JsonProperty("id") val id: String? = null
-)
-
-data class CNCVersePostData(
-    @JsonProperty("title") val title: String? = null,
-    @JsonProperty("desc") val desc: String? = null,
-    @JsonProperty("year") val year: String? = null,
-    @JsonProperty("runtime") val runtime: Any? = null,
-    @JsonProperty("genre") val genre: String? = null,
-    @JsonProperty("cast") val cast: String? = null,
-    @JsonProperty("match") val match: String? = null,
-    @JsonProperty("ua") val ua: String? = null,
-    @JsonProperty("episodes") val episodes: List<CNCVerseEpisode?> = emptyList(),
-    @JsonProperty("season") val season: List<CNCVerseSeason>? = null,
-    @JsonProperty("nextPageShow") val nextPageShow: Int? = null,
-    @JsonProperty("nextPageSeason") val nextPageSeason: String? = null,
-    @JsonProperty("suggest") val suggest: List<CNCVerseSuggest>? = null
-)
-
-data class CNCVerseEpisode(
-    @JsonProperty("t") val t: String? = null,
-    @JsonProperty("id") val id: String? = null,
-    @JsonProperty("ep") val ep: String? = null,
-    @JsonProperty("s") val s: String? = null,
-    @JsonProperty("time") val time: String? = null
-)
-
-data class CNCVerseSeason(
-    @JsonProperty("id") val id: String? = null,
-    @JsonProperty("t") val t: String? = null
-)
-
-data class CNCVerseEpisodesData(
-    @JsonProperty("episodes") val episodes: List<CNCVerseEpisode>? = null,
-    @JsonProperty("nextPageShow") val nextPageShow: Int? = null
-)
-
-data class CNCVerseSuggest(
-    @JsonProperty("id") val id: String? = null,
-    @JsonProperty("t") val t: String? = null
-)
-
-data class CNCVersePlayListItem(
-    @JsonProperty("sources") val sources: List<CNCVerseSource> = emptyList(),
-    @JsonProperty("tracks") val tracks: List<CNCVerseTracks>? = null
-)
-
-data class CNCVerseSource(
-    @JsonProperty("file") val file: String? = null,
-    @JsonProperty("label") val label: String? = null
-)
-
-data class CNCVerseTracks(
-    @JsonProperty("file") val file: String? = null,
-    @JsonProperty("kind") val kind: String? = null,
-    @JsonProperty("label") val label: String? = null
 )

@@ -17,6 +17,7 @@ import com.hexated.XX1Extractor.invokeWatchsomuch
 import com.hexated.XX1Extractor.invokeWyzie
 import com.hexated.XX1Extractor.invokeXprime
 import com.hexated.XX1Extractor.invokeRiveStream
+import com.hexated.XX1Extractor.invokeMovieBox
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.metaproviders.TmdbProvider
@@ -401,6 +402,16 @@ open class XX1 : TmdbProvider() {
             {
                 invokeVidrock(
                     res.id,
+                    res.season,
+                    res.episode,
+                    subtitleCallback,
+                    callback
+                )
+            },
+            {
+                invokeMovieBox(
+                    res.title,
+                    res.year,
                     res.season,
                     res.episode,
                     subtitleCallback,

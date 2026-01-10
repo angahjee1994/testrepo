@@ -1077,6 +1077,148 @@ object XX1Extractor : XX1() {
         }
     }
 
+    suspend fun invokeMovieBox(
+        title: String? = null,
+        year: Int? = null,
+        season: Int? = null,
+        episode: Int? = null,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        val mainUrl = "https://api.inmoviebox.com"
+        val searchUrl = "$mainUrl/wefeed-mobile-bff/subject-api/search/v2"
+        val searchBody = """{"page":1,"perPage":10,"keyword":"${title ?: ""}"}"""
+
+        val searchXClientToken = MovieBoxHelper.generateXClientToken()
+        val searchXTrSignature = MovieBoxHelper.generateXTrSignature(
+            "POST",
+            "application/json",
+            "application/json; charset=utf-8",
+            searchUrl,
+            searchBody
+        )
+
+        val baseHeaders = mapOf(
+            "user-agent" to "com.community.mbox.in/50020042 (Linux; U; Android 16; en_IN; sdk_gphone64_x86_64; Build/BP22.250325.006; Cronet/133.0.6876.3)",
+            "accept" to "application/json",
+            "content-type" to "application/json",
+            "x-client-token" to searchXClientToken,
+            "x-tr-signature" to searchXTrSignature,
+            "x-client-info" to """{"package_name":"com.community.mbox.in","version_name":"3.0.03.0529.03","version_code":50020042,"os":"android","os_version":"16","device_id":"da2b99c821e6ea023e4be55b54d5f7d8","install_store":"ps","gaid":"d7578036d13336cc","brand":"google","model":"sdk_gphone64_x86_64","system_language":"en","net":"NETWORK_WIFI","region":"IN","timezone":"Asia/Calcutta","sp_code":""}""",
+            "x-client-status" to "0"
+        )
+
+        val searchRes = app.post(
+            searchUrl,
+            headers = baseHeaders,
+            requestBody = searchBody.toRequestBody("application/json".toMediaTypeOrNull())
+        ).text
+
+        val searchJson = tryParseJson<MovieBoxSearchResponse>(searchRes)
+        val results = searchJson?.data?.results?.flatMap { it.subjects ?: emptyList() } ?: return
+        val matchingSubject = results.find { subject ->
+            subject.title?.equals(title, true) == true && (year == null || subject.releaseDate?.startsWith(year.toString()) == true)
+        } ?: results.firstOrNull { it.title?.contains(title ?: "", true) == true } ?: return
+
+        val originalSubjectId = matchingSubject.subjectId ?: return
+
+        val subjectUrl = "$mainUrl/wefeed-mobile-bff/subject-api/get?subjectId=$originalSubjectId"
+        val subjectXTrSignature = MovieBoxHelper.generateXTrSignature("GET", "application/json", "application/json", subjectUrl)
+        val subjectHeaders = baseHeaders.toMutableMap().apply {
+            put("x-client-token", MovieBoxHelper.generateXClientToken())
+            put("x-tr-signature", subjectXTrSignature)
+        }
+
+        val subjectIds = mutableListOf<Pair<String, String>>()
+        var originalLanguageName = "Original"
+
+        val subjectRes = app.get(subjectUrl, headers = subjectHeaders).text
+        val subjectJson = tryParseJson<MovieBoxDetailResponse>(subjectRes)
+        subjectJson?.data?.dubs?.forEach { dub ->
+            val dubSubjectId = dub.subjectId ?: return@forEach
+            val lanName = dub.lanName ?: "Unknown"
+            if (dubSubjectId == originalSubjectId) {
+                originalLanguageName = lanName
+            } else {
+                subjectIds.add(dubSubjectId to lanName)
+            }
+        }
+        subjectIds.add(0, originalSubjectId to originalLanguageName)
+
+        val se = season ?: 0
+        val ep = episode ?: 0
+
+        subjectIds.forEach { (subjectId, language) ->
+            try {
+                val playUrl = "$mainUrl/wefeed-mobile-bff/subject-api/play-info?subjectId=$subjectId&se=$se&ep=$ep"
+                val playXClientToken = MovieBoxHelper.generateXClientToken()
+                val playXTrSignature = MovieBoxHelper.generateXTrSignature("GET", "application/json", "application/json", playUrl)
+
+                val playHeaders = baseHeaders.toMutableMap().apply {
+                    put("x-client-token", playXClientToken)
+                    put("x-tr-signature", playXTrSignature)
+                }
+
+                val playRes = app.get(playUrl, headers = playHeaders).text
+                val playJson = tryParseJson<MovieBoxPlayInfoResponse>(playRes)
+
+                playJson?.data?.streams?.forEach { stream ->
+                    val streamUrl = stream.url ?: return@forEach
+                    val format = stream.format ?: ""
+                    val resolutions = stream.resolutions ?: ""
+                    val signCookie = stream.signCookie
+                    val streamId = stream.id ?: "$subjectId|$se|$ep"
+                    val quality = MovieBoxHelper.getHighestQuality(resolutions)
+
+                    callback.invoke(
+                        newExtractorLink(
+                            source = "MovieBox $language",
+                            name = "MovieBox ($language)",
+                            url = streamUrl,
+                            type = when {
+                                streamUrl.contains(".mpd", ignoreCase = true) -> ExtractorLinkType.DASH
+                                format.equals("HLS", ignoreCase = true) || streamUrl.contains(".m3u8", ignoreCase = true) -> ExtractorLinkType.M3U8
+                                streamUrl.contains(".mp4", ignoreCase = true) || streamUrl.contains(".mkv", ignoreCase = true) -> ExtractorLinkType.VIDEO
+                                else -> INFER_TYPE
+                            }
+                        ) {
+                            this.headers = mapOf("Referer" to mainUrl)
+                            if (quality != null) this.quality = quality
+                            if (!signCookie.isNullOrEmpty()) {
+                                this.headers = this.headers!! + mapOf("Cookie" to signCookie)
+                            }
+                        }
+                    )
+
+                    listOf(
+                        "$mainUrl/wefeed-mobile-bff/subject-api/get-stream-captions?subjectId=$subjectId&streamId=$streamId",
+                        "$mainUrl/wefeed-mobile-bff/subject-api/get-ext-captions?subjectId=$subjectId&resourceId=$streamId&episode=0"
+                    ).forEach { subUrl ->
+                        val subXClientToken = MovieBoxHelper.generateXClientToken()
+                        val subXTrSignature = MovieBoxHelper.generateXTrSignature("GET", "", "", subUrl)
+
+                        val subHeaders = mapOf(
+                            "User-Agent" to "com.community.mbox.in/50020042 (Linux; U; Android 16; en_IN; sdk_gphone64_x86_64; Build/BP22.250325.006; Cronet/133.0.6876.3)",
+                            "Accept" to "",
+                            "Content-Type" to "",
+                            "X-Client-Token" to subXClientToken,
+                            "x-tr-signature" to subXTrSignature,
+                            "X-Client-Info" to """{"package_name":"com.community.mbox.in","version_name":"3.0.03.0529.03","version_code":50020042,"os":"android","os_version":"16","device_id":"da2b99c821e6ea023e4be55b54d5f7d8","install_store":"ps","gaid":"d7578036d13336cc","brand":"google","model":"sdk_gphone64_x86_64","system_language":"en","net":"NETWORK_WIFI","region":"IN","timezone":"Asia/Calcutta","sp_code":""}""",
+                            "X-Client-Status" to "0"
+                        )
+
+                        val subRes = app.get(subUrl, headers = subHeaders).text
+                        val subJson = tryParseJson<MovieBoxSubtitleResponse>(subRes)
+                        subJson?.data?.extCaptions?.forEach { caption ->
+                            val captionUrl = caption.url ?: return@forEach
+                            val lang = caption.language ?: caption.lanName ?: caption.lan ?: "Unknown"
+                            subtitleCallback.invoke(SubtitleFile("$lang ($language)", captionUrl))
+                        }
+                    }
+                }
+            } catch (_: Exception) { }
+        }
+    }
 
 }
 
