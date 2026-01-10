@@ -1256,7 +1256,11 @@ object XX1Extractor : XX1() {
         val searchJson = tryParseJson<NetflixSearchData>(searchRes)
         val searchData = searchJson?.data ?: searchJson
         val results = searchData?.searchResult ?: searchData?.results ?: return
-        val matchingResult = results.find { it.t?.equals(title, true) == true } ?: results.firstOrNull() ?: return
+        
+        // Improve matching: try exact match first, then approximate
+        val matchingResult = results.find { it.t?.equals(title, true) == true } 
+            ?: results.find { it.t?.contains(title ?: "", true) == true }
+            ?: results.firstOrNull() ?: return
         val id = matchingResult.id ?: return
 
         val playId = if (season == null && episode == null) {
@@ -1274,10 +1278,46 @@ object XX1Extractor : XX1() {
             ).text
             val postJson = tryParseJson<NetflixPostData>(postRes)
             val postData = postJson?.data ?: postJson ?: return
-            val ep = postData.episodes.filterNotNull().find {
+            
+            // 1. Try to find in main episodes list (usually latest season)
+            var ep = postData.episodes.filterNotNull().find {
                 it.s?.filter { c -> c.isDigit() }?.toIntOrNull() == season &&
                         it.ep?.filter { c -> c.isDigit() }?.toIntOrNull() == episode
             }
+            
+            // 2. If not found, check other seasons via episodes.php
+            if (ep == null && postData.season != null) {
+                for (s in postData.season) {
+                    val sid = s.id ?: continue
+                    var pg = 1
+                    while (true) {
+                        val epRes = app.get(
+                            "$mainUrl/episodes.php",
+                            params = mapOf(
+                                "s" to sid,
+                                "series" to id,
+                                "t" to (System.currentTimeMillis() / 1000).toString(),
+                                "page" to pg.toString()
+                            ),
+                            referer = "$mainUrl/tv/home",
+                            cookies = cookies,
+                            headers = commonHeaders
+                        ).text
+                        val epJson = tryParseJson<NetflixEpisodesResponse>(epRes)
+                        val epData = epJson?.data ?: epJson ?: break
+                        
+                        ep = epData.episodes.filterNotNull().find {
+                            it.s?.filter { c -> c.isDigit() }?.toIntOrNull() == season &&
+                                    it.ep?.filter { c -> c.isDigit() }?.toIntOrNull() == episode
+                        }
+                        
+                        if (ep != null || epData.nextPageShow != 1) break
+                        pg++
+                    }
+                    if (ep != null) break
+                }
+            }
+            
             ep?.id ?: return
         }
 

@@ -515,7 +515,15 @@ data class NetflixSearchResult(
 data class NetflixPostData(
     @JsonProperty("title") val title: String? = null,
     @JsonProperty("episodes") val episodes: List<NetflixEpisode?> = emptyList(),
+    @JsonProperty("season") val season: List<NetflixSeason>? = null,
+    @JsonProperty("nextPageShow") val nextPageShow: Int? = null,
+    @JsonProperty("nextPageSeason") val nextPageSeason: String? = null,
     @JsonProperty("data") val data: NetflixPostData? = null
+)
+
+data class NetflixSeason(
+    @JsonProperty("id") val id: String? = null,
+    @JsonProperty("name") val name: String? = null
 )
 
 data class NetflixEpisode(
@@ -528,6 +536,12 @@ data class NetflixEpisode(
 
 data class NetflixPlayList(
     @JsonProperty("data") val data: List<NetflixPlayListItem>? = null
+)
+
+data class NetflixEpisodesResponse(
+    @JsonProperty("episodes") val episodes: List<NetflixEpisode?> = emptyList(),
+    @JsonProperty("nextPageShow") val nextPageShow: Int? = null,
+    @JsonProperty("data") val data: NetflixEpisodesResponse? = null
 )
 
 data class NetflixPlayListItem(
