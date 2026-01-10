@@ -591,7 +591,37 @@ object MovieBoxHelper {
     }
 }
 
+object NetflixHelper {
+    private var cachedCookie: String? = null
+    private var cookieTimestamp: Long = 0L
 
+    suspend fun bypass(mainUrl: String): String {
+        if (!cachedCookie.isNullOrEmpty() && System.currentTimeMillis() - cookieTimestamp < 54_000_000) {
+            return cachedCookie!!
+        }
+
+        val newCookie = try {
+            var verifyCheck: String
+            var verifyResponse: com.lagradost.nicehttp.NiceResponse
+            var retries = 0
+            do {
+                verifyResponse = app.post("$mainUrl/tv/p.php", referer = "$mainUrl/home")
+                verifyCheck = verifyResponse.text
+                retries++
+            } while (!verifyCheck.contains("\"r\":\"n\"") && retries < 5)
+            verifyResponse.cookies["t_hash_t"].orEmpty()
+        } catch (e: Exception) {
+            cachedCookie = null
+            ""
+        }
+
+        if (newCookie.isNotEmpty()) {
+            cachedCookie = newCookie
+            cookieTimestamp = System.currentTimeMillis()
+        }
+        return newCookie
+    }
+}
 
 
 

@@ -18,6 +18,7 @@ import com.hexated.XX1Extractor.invokeWyzie
 import com.hexated.XX1Extractor.invokeXprime
 import com.hexated.XX1Extractor.invokeRiveStream
 import com.hexated.XX1Extractor.invokeMovieBox
+import com.hexated.XX1Extractor.invokeNetflix
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.metaproviders.TmdbProvider
@@ -410,6 +411,16 @@ open class XX1 : TmdbProvider() {
             },
             {
                 invokeMovieBox(
+                    res.title,
+                    res.year,
+                    res.season,
+                    res.episode,
+                    subtitleCallback,
+                    callback
+                )
+            },
+            {
+                invokeNetflix(
                     res.title,
                     res.year,
                     res.season,

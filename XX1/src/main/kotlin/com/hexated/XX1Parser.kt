@@ -500,3 +500,40 @@ data class MovieBoxCaption(
     @JsonProperty("lanName") val lanName: String? = null,
     @JsonProperty("lan") val lan: String? = null
 )
+
+data class NetflixSearchData(
+    @JsonProperty("search_result") val searchResult: List<NetflixSearchResult>? = null
+)
+
+data class NetflixSearchResult(
+    @JsonProperty("t") val t: String? = null,
+    @JsonProperty("id") val id: String? = null
+)
+
+data class NetflixPostData(
+    @JsonProperty("title") val title: String? = null,
+    @JsonProperty("episodes") val episodes: List<NetflixEpisode?> = emptyList()
+)
+
+data class NetflixEpisode(
+    @JsonProperty("t") val t: String? = null,
+    @JsonProperty("id") val id: String? = null,
+    @JsonProperty("ep") val ep: String? = null,
+    @JsonProperty("s") val s: String? = null
+)
+
+data class NetflixPlayListItem(
+    @JsonProperty("sources") val sources: List<NetflixSource> = emptyList(),
+    @JsonProperty("tracks") val tracks: List<NetflixTracks>? = null
+)
+
+data class NetflixSource(
+    @JsonProperty("file") val file: String? = null,
+    @JsonProperty("label") val label: String? = null
+)
+
+data class NetflixTracks(
+    @JsonProperty("file") val file: String? = null,
+    @JsonProperty("kind") val kind: String? = null,
+    @JsonProperty("label") val label: String? = null
+)
