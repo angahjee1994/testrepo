@@ -322,9 +322,13 @@ open class XX1 : TmdbProvider() {
 
         val res = parseJson<LinkData>(data)
 
+        val disabledProviders = AcraApplication.getKey<String>("xx1_disabled_providers") ?: ""
+        val disabledList = disabledProviders.split(",").filter { it.isNotEmpty() }.toSet()
+        fun isEnabled(name: String): Boolean = name !in disabledList
+
         runAllAsync(
             {
-                invokeIdlix(
+                if (isEnabled("Idlix")) invokeIdlix(
                     res.title,
                     res.year,
                     res.season,
@@ -334,7 +338,7 @@ open class XX1 : TmdbProvider() {
                 )
             },
             {
-            invokeKisskh(
+                if (isEnabled("Kisskh")) invokeKisskh(
                     res.title ?: return@runAllAsync,
                     res.year,
                     res.season,
@@ -344,7 +348,7 @@ open class XX1 : TmdbProvider() {
                 )
             },
             {
-                invokeVidsrccc(
+                if (isEnabled("Vidsrccc")) invokeVidsrccc(
                     res.id,
                     res.imdbId,
                     res.season,
@@ -354,7 +358,7 @@ open class XX1 : TmdbProvider() {
                 )
             },
             {
-                invokeVidsrc(
+                if (isEnabled("Vidsrc")) invokeVidsrc(
                     res.imdbId,
                     res.season,
                     res.episode,
@@ -363,10 +367,15 @@ open class XX1 : TmdbProvider() {
                 )
             },
             {
-                if (!res.isAnime) invokeRiveStream(res.id, res.season, res.episode, callback)
+                if (isEnabled("RiveStream") && !res.isAnime) invokeRiveStream(
+                    res.id,
+                    res.season,
+                    res.episode,
+                    callback
+                )
             },
             {
-                invokeWatchsomuch(
+                if (isEnabled("Watchsomuch")) invokeWatchsomuch(
                     res.imdbId,
                     res.season,
                     res.episode,
@@ -374,25 +383,13 @@ open class XX1 : TmdbProvider() {
                 )
             },
             {
-                invokeVixsrc(res.id, res.season, res.episode, callback)
+                if (isEnabled("Vixsrc")) invokeVixsrc(res.id, res.season, res.episode, callback)
             },
             {
-                invokeVidlink(res.id, res.season, res.episode, callback)
+                if (isEnabled("Vidlink")) invokeVidlink(res.id, res.season, res.episode, callback)
             },
             {
-                invokeVidfast(res.id, res.season, res.episode, subtitleCallback, callback)
-            },
-            {
-                invokeMapple(res.id, res.season, res.episode, subtitleCallback, callback)
-            },
-            {
-                invokeWyzie(res.id, res.season, res.episode, subtitleCallback)
-            },
-            {
-                invokeVidsrccx(res.id, res.season, res.episode, callback)
-            },
-            {
-                invokeSuperembed(
+                if (isEnabled("Vidfast")) invokeVidfast(
                     res.id,
                     res.season,
                     res.episode,
@@ -401,7 +398,7 @@ open class XX1 : TmdbProvider() {
                 )
             },
             {
-                invokeVidrock(
+                if (isEnabled("Mapple")) invokeMapple(
                     res.id,
                     res.season,
                     res.episode,
@@ -410,7 +407,31 @@ open class XX1 : TmdbProvider() {
                 )
             },
             {
-                invokeMovieBox(
+                if (isEnabled("Wyzie")) invokeWyzie(res.id, res.season, res.episode, subtitleCallback)
+            },
+            {
+                if (isEnabled("Vidsrccx")) invokeVidsrccx(res.id, res.season, res.episode, callback)
+            },
+            {
+                if (isEnabled("Superembed")) invokeSuperembed(
+                    res.id,
+                    res.season,
+                    res.episode,
+                    subtitleCallback,
+                    callback
+                )
+            },
+            {
+                if (isEnabled("Vidrock")) invokeVidrock(
+                    res.id,
+                    res.season,
+                    res.episode,
+                    subtitleCallback,
+                    callback
+                )
+            },
+            {
+                if (isEnabled("MovieBox")) invokeMovieBox(
                     res.title,
                     res.year,
                     res.season,
@@ -420,7 +441,7 @@ open class XX1 : TmdbProvider() {
                 )
             },
             {
-                invokeNetflix(
+                if (isEnabled("Netflix")) invokeNetflix(
                     res.title,
                     res.year,
                     res.season,
