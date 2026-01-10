@@ -2,6 +2,7 @@
 version = 1
 
 android {
+    namespace = "com.hexated"
     buildFeatures {
         buildConfig = true
     }
