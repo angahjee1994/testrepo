@@ -1087,13 +1087,13 @@ object XX1Extractor : XX1() {
     ) {
         val mainUrl = "https://api.inmoviebox.com"
         val searchUrl = "$mainUrl/wefeed-mobile-bff/subject-api/search/v2"
-        val searchBody = """{"page": 1, "perPage": 10, "keyword": "$title"}"""
+        val searchBody = mapOf("page" to 1, "perPage" to 10, "keyword" to (title ?: "")).toJson()
 
         val searchXClientToken = MovieBoxHelper.generateXClientToken()
         val searchXTrSignature = MovieBoxHelper.generateXTrSignature(
             "POST",
             "application/json",
-            "application/json; charset=utf-8",
+            "application/json",
             searchUrl,
             searchBody
         )
@@ -1270,6 +1270,8 @@ object XX1Extractor : XX1() {
         val cookie = CNCVerseHelper.bypass(mainUrl)
         if (cookie.isEmpty()) return
 
+        val encodedTitle = java.net.URLEncoder.encode(title ?: "", "utf-8")
+
         mirrors.amap { (mirrorName, ott) ->
             try {
                 val cookies = mapOf(
@@ -1278,7 +1280,7 @@ object XX1Extractor : XX1() {
                     "hd" to "on"
                 )
 
-                val searchUrl = "$mainUrl/search.php?s=$title&t=${System.currentTimeMillis() / 1000}"
+                val searchUrl = "$mainUrl/$ott/search.php?s=$encodedTitle&t=${System.currentTimeMillis() / 1000}"
                 val searchRes = app.get(
                     searchUrl,
                     referer = "$mainUrl/home",
@@ -1289,7 +1291,7 @@ object XX1Extractor : XX1() {
                 val matchingResult = results.find { it.t?.equals(title, true) == true } ?: results.firstOrNull() ?: return@amap
                 val id = matchingResult.id ?: return@amap
 
-                val postUrl = "$mainUrl/post.php?id=$id&t=${System.currentTimeMillis() / 1000}"
+                val postUrl = "$mainUrl/$ott/post.php?id=$id&t=${System.currentTimeMillis() / 1000}"
                 val postRes = app.get(
                     postUrl,
                     referer = "$mainUrl/home",
@@ -1307,7 +1309,8 @@ object XX1Extractor : XX1() {
                     ep?.id ?: return@amap
                 }
 
-                val playlistUrl = "$newUrl/tv/playlist.php?id=$playId&t=$title&tm=${System.currentTimeMillis() / 1000}"
+                val playlistPath = if (ott == "pv") "pv" else "tv"
+                val playlistUrl = "$newUrl/$playlistPath/playlist.php?id=$playId&t=$encodedTitle&tm=${System.currentTimeMillis() / 1000}"
                 val playlistRes = app.get(
                     playlistUrl,
                     referer = "$mainUrl/home",
@@ -1321,7 +1324,7 @@ object XX1Extractor : XX1() {
                             newExtractorLink(
                                 mirrorName,
                                 source.label ?: mirrorName,
-                                "${newUrl}${source.file?.replace("/tv/", "/")}",
+                                "${newUrl}${source.file?.replace("/tv/", "/$playlistPath/")}",
                                 type = ExtractorLinkType.M3U8
                             ) {
                                 this.referer = "$newUrl/"
