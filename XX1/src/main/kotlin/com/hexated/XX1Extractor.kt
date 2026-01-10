@@ -19,7 +19,7 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.jsoup.Jsoup
 
-object SoraExtractor : SoraStream() {
+object XX1Extractor : XX1() {
 
     suspend fun invokeGomovies(
         title: String? = null,
@@ -1248,6 +1248,101 @@ object SoraExtractor : SoraStream() {
                     )
                 )
             }
+    }
+
+    suspend fun invokeCNCVerse(
+        title: String? = null,
+        year: Int? = null,
+        season: Int? = null,
+        episode: Int? = null,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        val mirrors = listOf(
+            "Netflix" to "nf",
+            "Disney Plus" to "dp",
+            "Hotstar" to "hs",
+            "PrimeVideo" to "pv"
+        )
+
+        val mainUrl = "https://net20.cc"
+        val newUrl = "https://net51.cc"
+        val cookie = CNCVerseHelper.bypass(mainUrl)
+        if (cookie.isEmpty()) return
+
+        mirrors.amap { (mirrorName, ott) ->
+            try {
+                val cookies = mapOf(
+                    "t_hash_t" to cookie,
+                    "ott" to ott,
+                    "hd" to "on"
+                )
+
+                val searchUrl = "$mainUrl/search.php?s=$title&t=${System.currentTimeMillis() / 1000}"
+                val searchRes = app.get(
+                    searchUrl,
+                    referer = "$mainUrl/home",
+                    cookies = cookies
+                ).parsedSafe<CNCVerseSearchData>()
+
+                val results = searchRes?.searchResult ?: return@amap
+                val matchingResult = results.find { it.t?.equals(title, true) == true } ?: results.firstOrNull() ?: return@amap
+                val id = matchingResult.id ?: return@amap
+
+                val postUrl = "$mainUrl/post.php?id=$id&t=${System.currentTimeMillis() / 1000}"
+                val postRes = app.get(
+                    postUrl,
+                    referer = "$mainUrl/home",
+                    cookies = cookies,
+                    headers = mapOf("X-Requested-With" to "XMLHttpRequest")
+                ).parsedSafe<CNCVersePostData>() ?: return@amap
+
+                val playId = if (season == null && episode == null) {
+                    id
+                } else {
+                    val ep = postRes.episodes.filterNotNull().find {
+                        it.s?.replace("S", "")?.toIntOrNull() == season &&
+                                it.ep?.replace("E", "")?.toIntOrNull() == episode
+                    }
+                    ep?.id ?: return@amap
+                }
+
+                val playlistUrl = "$newUrl/tv/playlist.php?id=$playId&t=$title&tm=${System.currentTimeMillis() / 1000}"
+                val playlistRes = app.get(
+                    playlistUrl,
+                    referer = "$mainUrl/home",
+                    cookies = cookies,
+                    headers = mapOf("X-Requested-With" to "XMLHttpRequest")
+                ).parsedSafe<List<CNCVersePlayListItem>>() ?: return@amap
+
+                playlistRes.forEach { item ->
+                    item.sources.forEach { source ->
+                        callback.invoke(
+                            newExtractorLink(
+                                mirrorName,
+                                source.label ?: mirrorName,
+                                "${newUrl}${source.file?.replace("/tv/", "/")}",
+                                type = ExtractorLinkType.M3U8
+                            ) {
+                                this.referer = "$newUrl/"
+                                this.quality = getQualityFromName(source.file?.substringAfter("q=", "") ?: "")
+                            }
+                        )
+                    }
+
+                    item.tracks?.filter { it.kind == "captions" }?.forEach { track ->
+                        subtitleCallback.invoke(
+                            newSubtitleFile(
+                                track.label ?: "Unknown",
+                                httpsify(track.file ?: "")
+                            )
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                // Ignore individual mirror errors
+            }
+        }
     }
 
 }

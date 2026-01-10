@@ -1,7 +1,7 @@
 package com.hexated
 
 import android.util.Base64
-import com.hexated.SoraStream.Companion.anilistAPI
+import com.hexated.XX1.Companion.anilistAPI
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.APIHolder.unixTimeMS
 import com.lagradost.cloudstream3.mvvm.logError
@@ -570,5 +570,43 @@ object MovieBoxHelper {
         val signatureB64 = base64Encode(signature)
 
         return "$timestamp|2|$signatureB64"
+    }
+}
+
+object CNCVerseHelper {
+    private const val PREFS_NAME = "CNCVerseMirrorPrefs"
+    private const val COOKIE_KEY = "nf_cookie"
+    private const val TIMESTAMP_KEY = "nf_cookie_timestamp"
+
+    suspend fun bypass(mainUrl: String): String {
+        val context = XX1.context ?: return ""
+        val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        
+        val savedCookie = prefs.getString(COOKIE_KEY, null)
+        val savedTimestamp = prefs.getLong(TIMESTAMP_KEY, 0L)
+
+        if (!savedCookie.isNullOrEmpty() && System.currentTimeMillis() - savedTimestamp < 54_000_000) {
+            return savedCookie
+        }
+
+        val newCookie = try {
+            var verifyCheck: String
+            var verifyResponse: com.lagradost.nicehttp.NiceResponse
+            do {
+                verifyResponse = app.post("$mainUrl/tv/p.php")
+                verifyCheck = verifyResponse.text
+            } while (!verifyCheck.contains("\"r\":\"n\""))
+            verifyResponse.cookies["t_hash_t"].orEmpty()
+        } catch (e: Exception) {
+            prefs.edit().remove(COOKIE_KEY).remove(TIMESTAMP_KEY).apply()
+            ""
+        }
+
+        if (newCookie.isNotEmpty()) {
+            prefs.edit().putString(COOKIE_KEY, newCookie)
+                .putLong(TIMESTAMP_KEY, System.currentTimeMillis())
+                .apply()
+        }
+        return newCookie
     }
 }

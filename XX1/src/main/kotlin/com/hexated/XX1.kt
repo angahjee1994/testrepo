@@ -1,23 +1,24 @@
 package com.hexated
 
 import com.fasterxml.jackson.annotation.JsonProperty
-import com.hexated.SoraExtractor.invokeGomovies
-import com.hexated.SoraExtractor.invokeKisskh
-import com.hexated.SoraExtractor.invokeIdlix
-import com.hexated.SoraExtractor.invokeMapple
-import com.hexated.SoraExtractor.invokeSuperembed
-import com.hexated.SoraExtractor.invokeVidfast
-import com.hexated.SoraExtractor.invokeVidlink
-import com.hexated.SoraExtractor.invokeVidrock
-import com.hexated.SoraExtractor.invokeVidsrc
-import com.hexated.SoraExtractor.invokeVidsrccc
-import com.hexated.SoraExtractor.invokeVidsrccx
-import com.hexated.SoraExtractor.invokeVixsrc
-import com.hexated.SoraExtractor.invokeWatchsomuch
-import com.hexated.SoraExtractor.invokeWyzie
-import com.hexated.SoraExtractor.invokeXprime
-import com.hexated.SoraExtractor.invokeRiveStream
-import com.hexated.SoraExtractor.invokeMovieBox
+import com.hexated.XX1Extractor.invokeGomovies
+import com.hexated.XX1Extractor.invokeKisskh
+import com.hexated.XX1Extractor.invokeIdlix
+import com.hexated.XX1Extractor.invokeMapple
+import com.hexated.XX1Extractor.invokeSuperembed
+import com.hexated.XX1Extractor.invokeVidfast
+import com.hexated.XX1Extractor.invokeVidlink
+import com.hexated.XX1Extractor.invokeVidrock
+import com.hexated.XX1Extractor.invokeVidsrc
+import com.hexated.XX1Extractor.invokeVidsrccc
+import com.hexated.XX1Extractor.invokeVidsrccx
+import com.hexated.XX1Extractor.invokeVixsrc
+import com.hexated.XX1Extractor.invokeWatchsomuch
+import com.hexated.XX1Extractor.invokeWyzie
+import com.hexated.XX1Extractor.invokeXprime
+import com.hexated.XX1Extractor.invokeRiveStream
+import com.hexated.XX1Extractor.invokeMovieBox
+import com.hexated.XX1Extractor.invokeCNCVerse
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.metaproviders.TmdbProvider
@@ -30,8 +31,8 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import kotlin.math.roundToInt
 
 
-open class SoraStream : TmdbProvider() {
-    override var name = "SoraStream🥩"
+open class XX1 : TmdbProvider() {
+    override var name = "XX1"
     override val hasMainPage = true
     override val instantLinkLoading = true
     override val useMetaLoadResponse = true
@@ -45,7 +46,7 @@ open class SoraStream : TmdbProvider() {
 
     val wpRedisInterceptor by lazy { CloudflareKiller() }
 
-    /** AUTHOR : Hexated & Sora */
+    /** AUTHOR : Hexated & XX1 */
     companion object {
         /** TOOLS */
         var context: android.content.Context? = null
@@ -410,6 +411,16 @@ open class SoraStream : TmdbProvider() {
             },
             {
                 invokeMovieBox(
+                    res.title,
+                    res.year,
+                    res.season,
+                    res.episode,
+                    subtitleCallback,
+                    callback
+                )
+            },
+            {
+                invokeCNCVerse(
                     res.title,
                     res.year,
                     res.season,

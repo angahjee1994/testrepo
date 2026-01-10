@@ -6,7 +6,7 @@ cloudstream {
     // All of these properties are optional, you can safely remove them
 
      description = "#1 best extention based on MultiAPI"
-     authors = listOf("Hexated", "Sora")
+     authors = listOf("Hexated", "XX1")
 
     /**
      * Status int as the following:
@@ -23,5 +23,5 @@ cloudstream {
         "Movie",
     )
 
-    iconUrl = "https://github.com/duro92/ExtCloud/blob/main/SoraStream/Icon.png"
+    iconUrl = "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/XX1/logo.png"
 }
