@@ -1380,26 +1380,20 @@ object XX1Extractor : XX1() {
         )
 
         val searchRes = app.get(
-            "$mainUrl/index.php",
-            params = mapOf(
-                "do" to "search",
-                "subaction" to "search",
-                "full_search" to "0",
-                "story" to (title ?: "")
-            ),
+            "$mainUrl/index.php?do=search&subaction=search&search_start=0&full_search=0&story=$title",
             headers = headers
         ).document
 
         val matchingResult = searchRes.select("div.dar-short_item").find {
-            val t = it.select("a").lastOrNull()?.ownText() ?: ""
+            val t = it.selectFirst("a")?.ownText() ?: ""
             t.contains(title ?: "", true) && (year == null || t.contains(year.toString()))
         } ?: return
 
-        val url = matchingResult.select("a").lastOrNull()?.attr("href") ?: return
+        val url = matchingResult.selectFirst("a")?.attr("href") ?: return
         val page = app.get(url, headers = headers).document
 
         val playerScript = page.select("script:containsData(atob)")
-            .firstOrNull { it.data().contains("Playerjs") }
+            .getOrNull(1)
             ?.data() ?: return
         
         val decodedPlayer = base64Decode(playerScript.substringAfter("atob(\"").substringBefore("\")"))
