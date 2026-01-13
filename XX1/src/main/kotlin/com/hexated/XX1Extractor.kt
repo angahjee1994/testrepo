@@ -1380,17 +1380,18 @@ object XX1Extractor : XX1() {
         )
 
         val searchRes = app.get(
-            "$mainUrl/index.php?do=search&subaction=search&search_start=0&full_search=0&story=${encode(title ?: "")}",
-            headers = headers
+            "$mainUrl/index.php?do=search&subaction=search&search_start=0&full_search=0&story=$title",
         ).document
 
-        val matchingResult = searchRes.select("div.dar-short_item").firstOrNull() ?: return
+        val matchingResult = searchRes.select("div.dar-short_item").find {
+            val t = it.children().firstOrNull { c -> c.tagName() == "a" }?.ownText()?.substringBefore("(")?.trim() ?: ""
+            t.contains(title ?: "", true)
+        } ?: searchRes.select("div.dar-short_item").firstOrNull() ?: return
 
         val url = matchingResult.children().firstOrNull { c -> c.tagName() == "a" }?.attr("href") ?: return
         val page = app.get(url, headers = headers).document
 
         val playerScript = page.select("script:containsData(atob)").getOrNull(1)?.data() ?: return
-        
         val decodedPlayer = base64Decode(playerScript.substringAfter("atob(\"").substringBefore("\")"))
         val playerJsonStr = decodedPlayer.substringAfter("new Playerjs(").substringBeforeLast(");")
         val playerJson = JSONObject(playerJsonStr)
@@ -1411,15 +1412,11 @@ object XX1Extractor : XX1() {
         }
 
         if (season == null && episode == null) {
-            val fileUrl = fileArray.optJSONObject(0)?.optString("file") ?: return
+            val fileUrl = fileArray.optJSONObject(0)?.takeIf { !it.has("folder") }?.optString("file") ?: return
             callback.invoke(
-                newExtractorLink(
-                    source = "Cinemacity",
-                    name = "Cinemacity",
-                    url = fileUrl,
-                ) {
+                newExtractorLink("CinemaCity", "CinemaCity", fileUrl, INFER_TYPE) {
                     this.referer = mainUrl
-                    this.quality = getQualityFromName(fileUrl)
+                    this.quality = extractCinemacityQuality(fileUrl)
                 }
             )
             val subtitles = when {
@@ -1446,13 +1443,9 @@ object XX1Extractor : XX1() {
                     val fileUrl = eJson.optString("file")
                     if (fileUrl.isNotBlank()) {
                         callback.invoke(
-                            newExtractorLink(
-                                source = "Cinemacity",
-                                name = "Cinemacity",
-                                url = fileUrl,
-                            ) {
+                            newExtractorLink("CinemaCity", "CinemaCity", fileUrl, INFER_TYPE) {
                                 this.referer = mainUrl
-                                this.quality = getQualityFromName(fileUrl)
+                                this.quality = extractCinemacityQuality(fileUrl)
                             }
                         )
                         parseCinemacitySubtitles(eJson.optString("subtitle")).forEach(subtitleCallback)
@@ -1461,6 +1454,18 @@ object XX1Extractor : XX1() {
                 }
                 break
             }
+        }
+    }
+
+    private fun extractCinemacityQuality(url: String): Int {
+        return when {
+            url.contains("2160p") -> Qualities.P2160.value
+            url.contains("1440p") -> Qualities.P1440.value
+            url.contains("1080p") -> Qualities.P1080.value
+            url.contains("720p")  -> Qualities.P720.value
+            url.contains("480p")  -> Qualities.P480.value
+            url.contains("360p")  -> Qualities.P360.value
+            else -> Qualities.Unknown.value
         }
     }
 
