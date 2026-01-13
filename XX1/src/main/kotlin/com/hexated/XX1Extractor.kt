@@ -1375,7 +1375,7 @@ object XX1Extractor : XX1() {
         callback: (ExtractorLink) -> Unit
     ) {
         val mainUrl = "https://cinemacity.cc"
-        val cookies = mapOf(
+        val headers = mapOf(
             "Cookie" to base64Decode("ZGxlX3VzZXJfaWQ9MzI3Mjk7IGRsZV9wYXNzd29yZD04OTQxNzFjNmE4ZGFiMThlZTU5NGQ1YzY1MjAwOWEzNTs=")
         )
 
@@ -1387,42 +1387,59 @@ object XX1Extractor : XX1() {
                 "full_search" to "0",
                 "story" to (title ?: "")
             ),
-            cookies = cookies
+            headers = headers
         ).document
 
         val matchingResult = searchRes.select("div.dar-short_item").find {
-            it.selectFirst("a")?.ownText()?.contains(title ?: "", true) == true
+            val t = it.select("a").lastOrNull()?.ownText() ?: ""
+            t.contains(title ?: "", true) && (year == null || t.contains(year.toString()))
         } ?: return
 
-        val url = matchingResult.selectFirst("a")?.attr("href") ?: return
-        val page = app.get(url, cookies = cookies).document
+        val url = matchingResult.select("a").lastOrNull()?.attr("href") ?: return
+        val page = app.get(url, headers = headers).document
 
-        val playerScript = page.select("script:containsData(atob)").getOrNull(1)?.data() ?: return
+        val playerScript = page.select("script:containsData(atob)")
+            .firstOrNull { it.data().contains("Playerjs") }
+            ?.data() ?: return
+        
         val decodedPlayer = base64Decode(playerScript.substringAfter("atob(\"").substringBefore("\")"))
         val playerJsonStr = decodedPlayer.substringAfter("new Playerjs(").substringBeforeLast(");")
         val playerJson = JSONObject(playerJsonStr)
 
-        val rawFile = playerJson.optString("file", "")
-        if (rawFile.isEmpty()) return
-
-        val subtitleTracks = playerJson.optString("subtitle", "")
+        val rawFile = playerJson.opt("file") ?: return
+        val fileArray: JSONArray = when (rawFile) {
+            is JSONArray -> rawFile
+            is String -> {
+                val value = rawFile.trim()
+                when {
+                    value.startsWith("[") && value.endsWith("]") -> JSONArray(value)
+                    value.startsWith("{") && value.endsWith("}") -> JSONArray().apply { put(JSONObject(value)) }
+                    value.isNotBlank() -> JSONArray().apply { put(JSONObject().apply { put("file", value) }) }
+                    else -> return
+                }
+            }
+            else -> return
+        }
 
         if (season == null && episode == null) {
-            // Movie logic
+            val fileUrl = fileArray.optJSONObject(0)?.optString("file") ?: return
             callback.invoke(
                 newExtractorLink(
                     source = "Cinemacity",
                     name = "Cinemacity",
-                    url = rawFile,
+                    url = fileUrl,
                 ) {
                     this.referer = mainUrl
-                    this.quality = getQualityFromName(rawFile)
+                    this.quality = getQualityFromString(fileUrl)
                 }
             )
-            parseCinemacitySubtitles(subtitleTracks).forEach(subtitleCallback)
+            val subtitles = when {
+                playerJson.opt("subtitle") is String -> playerJson.optString("subtitle")
+                fileArray.optJSONObject(0)?.opt("subtitle") is String -> fileArray.optJSONObject(0)?.optString("subtitle")
+                else -> null
+            }
+            parseCinemacitySubtitles(subtitles).forEach(subtitleCallback)
         } else {
-            // TV Series logic
-            val fileArray = JSONArray(rawFile)
             val seasonRegex = Regex("Season\\s*(\\d+)", RegexOption.IGNORE_CASE)
             val episodeRegex = Regex("Episode\\s*(\\d+)", RegexOption.IGNORE_CASE)
 
@@ -1446,7 +1463,7 @@ object XX1Extractor : XX1() {
                                 url = fileUrl,
                             ) {
                                 this.referer = mainUrl
-                                this.quality = getQualityFromName(fileUrl)
+                                this.quality = getQualityFromString(fileUrl)
                             }
                         )
                         parseCinemacitySubtitles(eJson.optString("subtitle")).forEach(subtitleCallback)
@@ -1458,11 +1475,10 @@ object XX1Extractor : XX1() {
         }
     }
 
-    private suspend fun parseCinemacitySubtitles(raw: String?): List<SubtitleFile> {
+    private fun parseCinemacitySubtitles(raw: String?): List<SubtitleFile> {
         val subs = mutableListOf<SubtitleFile>()
         if (raw.isNullOrBlank()) return subs
-        val entries = raw.split(",")
-        for (entry in entries) {
+        raw.split(",").forEach { entry ->
             val match = Regex("""\[(.+?)](https?://.+)""").find(entry.trim())
             if (match != null) {
                 subs.add(newSubtitleFile(match.groupValues[1], match.groupValues[2]))
