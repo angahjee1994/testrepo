@@ -1379,20 +1379,23 @@ object XX1Extractor : XX1() {
             "Cookie" to base64Decode("ZGxlX3VzZXJfaWQ9MzI3Mjk7IGRsZV9wYXNzd29yZD04OTQxNzFjNmE4ZGFiMThlZTU5NGQ1YzY1MjAwOWEzNTs=")
         )
 
+        val encodedTitle = encode(title ?: "")
         val searchRes = app.get(
-            "$mainUrl/index.php?do=search&subaction=search&search_start=0&full_search=0&story=$title",
+            "$mainUrl/index.php?do=search&subaction=search&search_start=1&full_search=0&story=$encodedTitle",
+            headers = headers
         ).document
 
         val matchingResult = searchRes.select("div.dar-short_item").find {
             val t = it.children().firstOrNull { c -> c.tagName() == "a" }?.ownText()?.substringBefore("(")?.trim() ?: ""
-            t.contains(title ?: "", true)
+            t.equals(title, true) || t.contains(title ?: "", true) || (title ?: "").contains(t, true)
         } ?: searchRes.select("div.dar-short_item").firstOrNull() ?: return
 
         val url = matchingResult.children().firstOrNull { c -> c.tagName() == "a" }?.attr("href") ?: return
         val page = app.get(url, headers = headers).document
 
         val playerScript = page.select("script:containsData(atob)").getOrNull(1)?.data() ?: return
-        val decodedPlayer = base64Decode(playerScript.substringAfter("atob(\"").substringBefore("\")"))
+        val atobEncoded = Regex("""atob\s*\(\s*["'](.+?)["']\s*\)""").find(playerScript)?.groupValues?.get(1) ?: return
+        val decodedPlayer = base64Decode(atobEncoded)
         val playerJsonStr = decodedPlayer.substringAfter("new Playerjs(").substringBeforeLast(");")
         val playerJson = JSONObject(playerJsonStr)
 
