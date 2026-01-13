@@ -1379,25 +1379,35 @@ object XX1Extractor : XX1() {
             "Cookie" to base64Decode("ZGxlX3VzZXJfaWQ9MzI3Mjk7IGRsZV9wYXNzd29yZD04OTQxNzFjNmE4ZGFiMThlZTU5NGQ1YzY1MjAwOWEzNTs=")
         )
 
-        val encodedTitle = encode(title ?: "")
         val searchRes = app.get(
-            "$mainUrl/index.php?do=search&subaction=search&search_start=1&full_search=0&story=$encodedTitle",
+            "$mainUrl/index.php",
+            params = mapOf(
+                "do" to "search",
+                "subaction" to "search",
+                "search_start" to "1",
+                "full_search" to "0",
+                "story" to (title ?: "")
+            ),
             headers = headers
         ).document
 
         val matchingResult = searchRes.select("div.dar-short_item").find {
-            val t = it.children().firstOrNull { c -> c.tagName() == "a" }?.ownText()?.substringBefore("(")?.trim() ?: ""
+            val t = it.selectFirst("a")?.ownText()?.substringBefore("(")?.trim() ?: ""
             t.equals(title, true) || t.contains(title ?: "", true) || (title ?: "").contains(t, true)
-        } ?: searchRes.select("div.dar-short_item").firstOrNull() ?: return
+        } ?: searchRes.selectFirst("div.dar-short_item") ?: return
 
-        val url = matchingResult.children().firstOrNull { c -> c.tagName() == "a" }?.attr("href") ?: return
+        val url = fixUrl(matchingResult.selectFirst("a")?.attr("href") ?: return)
         val page = app.get(url, headers = headers).document
 
-        val playerScript = page.select("script:containsData(atob)").getOrNull(1)?.data() ?: return
+        val playerScript = page.select("script").find { 
+            val data = it.data()
+            data.contains("new Playerjs") && data.contains("atob")
+        }?.data() ?: return
+        
         val atobEncoded = Regex("""atob\s*\(\s*["'](.+?)["']\s*\)""").find(playerScript)?.groupValues?.get(1) ?: return
-        val decodedPlayer = base64Decode(atobEncoded)
+        val decodedPlayer = try { base64Decode(atobEncoded) } catch(e: Exception) { return }
         val playerJsonStr = decodedPlayer.substringAfter("new Playerjs(").substringBeforeLast(");")
-        val playerJson = JSONObject(playerJsonStr)
+        val playerJson = try { JSONObject(playerJsonStr) } catch(e: Exception) { return }
 
         val rawFile = playerJson.opt("file") ?: return
         val fileArray: JSONArray = when (rawFile) {
@@ -1405,8 +1415,8 @@ object XX1Extractor : XX1() {
             is String -> {
                 val value = rawFile.trim()
                 when {
-                    value.startsWith("[") && value.endsWith("]") -> JSONArray(value)
-                    value.startsWith("{") && value.endsWith("}") -> JSONArray().apply { put(JSONObject(value)) }
+                    value.startsWith("[") && value.endsWith("]") -> try { JSONArray(value) } catch(e: Exception) { return }
+                    value.startsWith("{") && value.endsWith("}") -> try { JSONArray().apply { put(JSONObject(value)) } } catch(e: Exception) { return }
                     value.isNotBlank() -> JSONArray().apply { put(JSONObject().apply { put("file", value) }) }
                     else -> return
                 }
@@ -1433,14 +1443,16 @@ object XX1Extractor : XX1() {
             val episodeRegex = Regex("Episode\\s*(\\d+)", RegexOption.IGNORE_CASE)
 
             for (i in 0 until fileArray.length()) {
-                val sJson = fileArray.getJSONObject(i)
-                val sNum = seasonRegex.find(sJson.optString("title"))?.groupValues?.get(1)?.toIntOrNull()
+                val sJson = fileArray.optJSONObject(i) ?: continue
+                val sTitle = sJson.optString("title")
+                val sNum = seasonRegex.find(sTitle)?.groupValues?.get(1)?.toIntOrNull()
                 if (sNum != season) continue
 
                 val episodes = sJson.optJSONArray("folder") ?: continue
                 for (j in 0 until episodes.length()) {
-                    val eJson = episodes.getJSONObject(j)
-                    val eNum = episodeRegex.find(eJson.optString("title"))?.groupValues?.get(1)?.toIntOrNull()
+                    val eJson = episodes.optJSONObject(j) ?: continue
+                    val eTitle = eJson.optString("title")
+                    val eNum = episodeRegex.find(eTitle)?.groupValues?.get(1)?.toIntOrNull()
                     if (eNum != episode) continue
 
                     val fileUrl = eJson.optString("file")
