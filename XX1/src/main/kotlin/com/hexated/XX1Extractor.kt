@@ -1430,7 +1430,7 @@ object XX1Extractor : XX1() {
                     url = fileUrl,
                 ) {
                     this.referer = mainUrl
-                    this.quality = getQualityFromString(fileUrl)
+                    this.quality = getQualityFromName(fileUrl)
                 }
             )
             val subtitles = when {
@@ -1463,7 +1463,7 @@ object XX1Extractor : XX1() {
                                 url = fileUrl,
                             ) {
                                 this.referer = mainUrl
-                                this.quality = getQualityFromString(fileUrl)
+                                this.quality = getQualityFromName(fileUrl)
                             }
                         )
                         parseCinemacitySubtitles(eJson.optString("subtitle")).forEach(subtitleCallback)
@@ -1481,7 +1481,7 @@ object XX1Extractor : XX1() {
         raw.split(",").forEach { entry ->
             val match = Regex("""\[(.+?)](https?://.+)""").find(entry.trim())
             if (match != null) {
-                subs.add(newSubtitleFile(match.groupValues[1], match.groupValues[2]))
+                subs.add(SubtitleFile(match.groupValues[1], match.groupValues[2]))
             }
         }
         return subs
