@@ -1380,34 +1380,20 @@ object XX1Extractor : XX1() {
         )
 
         val searchRes = app.get(
-            "$mainUrl/index.php",
-            params = mapOf(
-                "do" to "search",
-                "subaction" to "search",
-                "search_start" to "1",
-                "full_search" to "0",
-                "story" to (title ?: "")
-            ),
+            "$mainUrl/index.php?do=search&subaction=search&search_start=0&full_search=0&story=${encode(title ?: "")}",
             headers = headers
         ).document
 
-        val matchingResult = searchRes.select("div.dar-short_item").find {
-            val t = it.selectFirst("a")?.ownText()?.substringBefore("(")?.trim() ?: ""
-            t.equals(title, true) || t.contains(title ?: "", true) || (title ?: "").contains(t, true)
-        } ?: searchRes.selectFirst("div.dar-short_item") ?: return
+        val matchingResult = searchRes.select("div.dar-short_item").firstOrNull() ?: return
 
-        val url = fixUrl(matchingResult.selectFirst("a")?.attr("href") ?: return)
+        val url = matchingResult.children().firstOrNull { c -> c.tagName() == "a" }?.attr("href") ?: return
         val page = app.get(url, headers = headers).document
 
-        val playerScript = page.select("script").find { 
-            val data = it.data()
-            data.contains("new Playerjs") && data.contains("atob")
-        }?.data() ?: return
+        val playerScript = page.select("script:containsData(atob)").getOrNull(1)?.data() ?: return
         
-        val atobEncoded = Regex("""atob\s*\(\s*["'](.+?)["']\s*\)""").find(playerScript)?.groupValues?.get(1) ?: return
-        val decodedPlayer = try { base64Decode(atobEncoded) } catch(e: Exception) { return }
+        val decodedPlayer = base64Decode(playerScript.substringAfter("atob(\"").substringBefore("\")"))
         val playerJsonStr = decodedPlayer.substringAfter("new Playerjs(").substringBeforeLast(");")
-        val playerJson = try { JSONObject(playerJsonStr) } catch(e: Exception) { return }
+        val playerJson = JSONObject(playerJsonStr)
 
         val rawFile = playerJson.opt("file") ?: return
         val fileArray: JSONArray = when (rawFile) {
@@ -1415,8 +1401,8 @@ object XX1Extractor : XX1() {
             is String -> {
                 val value = rawFile.trim()
                 when {
-                    value.startsWith("[") && value.endsWith("]") -> try { JSONArray(value) } catch(e: Exception) { return }
-                    value.startsWith("{") && value.endsWith("}") -> try { JSONArray().apply { put(JSONObject(value)) } } catch(e: Exception) { return }
+                    value.startsWith("[") && value.endsWith("]") -> JSONArray(value)
+                    value.startsWith("{") && value.endsWith("}") -> JSONArray().apply { put(JSONObject(value)) }
                     value.isNotBlank() -> JSONArray().apply { put(JSONObject().apply { put("file", value) }) }
                     else -> return
                 }
@@ -1425,11 +1411,15 @@ object XX1Extractor : XX1() {
         }
 
         if (season == null && episode == null) {
-            val fileUrl = fileArray.optJSONObject(0)?.takeIf { !it.has("folder") }?.optString("file") ?: return
+            val fileUrl = fileArray.optJSONObject(0)?.optString("file") ?: return
             callback.invoke(
-                newExtractorLink("CinemaCity", "CinemaCity", fileUrl, INFER_TYPE) {
+                newExtractorLink(
+                    source = "Cinemacity",
+                    name = "Cinemacity",
+                    url = fileUrl,
+                ) {
                     this.referer = mainUrl
-                    this.quality = extractCinemacityQuality(fileUrl)
+                    this.quality = getQualityFromName(fileUrl)
                 }
             )
             val subtitles = when {
@@ -1443,24 +1433,26 @@ object XX1Extractor : XX1() {
             val episodeRegex = Regex("Episode\\s*(\\d+)", RegexOption.IGNORE_CASE)
 
             for (i in 0 until fileArray.length()) {
-                val sJson = fileArray.optJSONObject(i) ?: continue
-                val sTitle = sJson.optString("title")
-                val sNum = seasonRegex.find(sTitle)?.groupValues?.get(1)?.toIntOrNull()
+                val sJson = fileArray.getJSONObject(i)
+                val sNum = seasonRegex.find(sJson.optString("title"))?.groupValues?.get(1)?.toIntOrNull()
                 if (sNum != season) continue
 
                 val episodes = sJson.optJSONArray("folder") ?: continue
                 for (j in 0 until episodes.length()) {
-                    val eJson = episodes.optJSONObject(j) ?: continue
-                    val eTitle = eJson.optString("title")
-                    val eNum = episodeRegex.find(eTitle)?.groupValues?.get(1)?.toIntOrNull()
+                    val eJson = episodes.getJSONObject(j)
+                    val eNum = episodeRegex.find(eJson.optString("title"))?.groupValues?.get(1)?.toIntOrNull()
                     if (eNum != episode) continue
 
                     val fileUrl = eJson.optString("file")
                     if (fileUrl.isNotBlank()) {
                         callback.invoke(
-                            newExtractorLink("CinemaCity", "CinemaCity", fileUrl, INFER_TYPE) {
+                            newExtractorLink(
+                                source = "Cinemacity",
+                                name = "Cinemacity",
+                                url = fileUrl,
+                            ) {
                                 this.referer = mainUrl
-                                this.quality = extractCinemacityQuality(fileUrl)
+                                this.quality = getQualityFromName(fileUrl)
                             }
                         )
                         parseCinemacitySubtitles(eJson.optString("subtitle")).forEach(subtitleCallback)
@@ -1469,18 +1461,6 @@ object XX1Extractor : XX1() {
                 }
                 break
             }
-        }
-    }
-
-    private fun extractCinemacityQuality(url: String): Int {
-        return when {
-            url.contains("2160p") -> Qualities.P2160.value
-            url.contains("1440p") -> Qualities.P1440.value
-            url.contains("1080p") -> Qualities.P1080.value
-            url.contains("720p")  -> Qualities.P720.value
-            url.contains("480p")  -> Qualities.P480.value
-            url.contains("360p")  -> Qualities.P360.value
-            else -> Qualities.Unknown.value
         }
     }
 
