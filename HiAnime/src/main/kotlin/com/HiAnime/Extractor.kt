@@ -8,8 +8,6 @@ import com.lagradost.cloudstream3.newSubtitleFile
 import com.lagradost.cloudstream3.utils.ExtractorApi
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import java.net.URLEncoder
 
 class Megacloud : ExtractorApi() {
@@ -17,17 +15,11 @@ class Megacloud : ExtractorApi() {
     override val mainUrl = "https://megacloud.blog"
     override val requiresReferer = false
 
-    private val client = OkHttpClient()
     private val gson = Gson()
 
-    private fun fetchUrl(url: String, headers: Map<String, String> = emptyMap()): String? {
+    private suspend fun fetchUrl(url: String, headers: Map<String, String> = emptyMap()): String? {
         return try {
-            val requestBuilder = Request.Builder().url(url)
-            headers.forEach { (k, v) -> requestBuilder.addHeader(k, v) }
-
-            client.newCall(requestBuilder.build()).execute().use { response ->
-                if (response.isSuccessful) response.body.string() else null
-            }
+            app.get(url, headers = headers).text
         } catch (e: Exception) {
             Log.e("Megacloud", "Network request failed: ${e.localizedMessage}")
             null

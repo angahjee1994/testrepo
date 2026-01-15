@@ -48,8 +48,6 @@ import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.net.URI
-import okhttp3.OkHttpClient
-import okhttp3.Request
 
 class HiAnime : MainAPI() {
     override var mainUrl = HiAnimeProviderPlugin.currentHiAnimeServer
@@ -100,8 +98,7 @@ class HiAnime : MainAPI() {
     }
 
     companion object {
-        private val client = OkHttpClient()
-        const val userAgent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/70.0.3538.77 Chrome/70.0.3538.77 Safari/537.36"
+        const val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
         fun getType(t: String): TvType {
             return if (t.contains("OVA") || t.contains("Special")) TvType.OVA
             else if (t.contains("Movie")) TvType.AnimeMovie else TvType.Anime
@@ -137,33 +134,17 @@ class HiAnime : MainAPI() {
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val url = "${request.data}$page"
-        val httpRequest = Request.Builder()
-            .url(url)
-            .header("User-Agent", userAgent)
-            .get()
-            .build()
-        val response = client.newCall(httpRequest).execute()
-        val html = response.body.string()
-        response.close()
-        val document = Jsoup.parse(html)
-        val items = document.select("div.flw-item").map { it.toSearchResult() }
+        val response = app.get(url, headers = mapOf("User-Agent" to userAgent))
+        val items = response.document.select("div.flw-item").map { it.toSearchResult() }
 
         return newHomePageResponse(request.name, items)
     }
 
     override suspend fun load(url: String): LoadResponse {
         val url1 = url.replace("watch/", "")
-        val request1 = Request.Builder().url(url1).header("User-Agent", userAgent).get().build()
-        val response1 = client.newCall(request1).execute()
-        val html1 = response1.body.string()
-        response1.close()
-        val doc = Jsoup.parse(html1)
+        val doc = app.get(url1, headers = mapOf("User-Agent" to userAgent)).document
 
-        val request2 = Request.Builder().url(url).header("User-Agent", userAgent).get().build()
-        val response2 = client.newCall(request2).execute()
-        val html2 = response2.body.string()
-        response2.close()
-        val document = Jsoup.parse(html2)
+        val document = app.get(url, headers = mapOf("User-Agent" to userAgent)).document
 
 
         val syncData = tryParseJson<ZoroSyncData>(document.selectFirst("#syncData")?.data())
