@@ -1,5 +1,5 @@
 // use an integer for version numbers
-version = 4
+version = 1
 
 
 cloudstream {
@@ -22,7 +22,7 @@ cloudstream {
     // You can find a list of available types here:
     // https://recloudstream.github.io/cloudstream/html/app/com.lagradost.cloudstream3/-tv-type/index.html
     tvTypes = listOf("Movie","TvSeries")
-    iconUrl = "https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://ww03.pencurimovie.bond&size=%size%"
+    iconUrl = "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/Pencurimovie/logo.png"
 
     isCrossPlatform = true
 }

@@ -1,10 +1,10 @@
-package com.OneTouchTV
+package com.loklok
 
 import com.fasterxml.jackson.annotation.JsonProperty
 import org.json.JSONArray
 import org.json.JSONObject
 
-data class OneTouchTVParser(
+data class LoklokParser(
     val day: List<Day>? = emptyList(),
     val week: List<Week>? = emptyList(),
     val month: List<Month>? = emptyList()

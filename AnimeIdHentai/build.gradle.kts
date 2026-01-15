@@ -1,5 +1,5 @@
 // use an integer for version numbers
-version = 2
+version = 1
 
 
 cloudstream {
@@ -21,5 +21,5 @@ cloudstream {
         "NSFW",
     )
 
-    iconUrl = "https://www.google.com/s2/favicons?domain=animeidhentai.com&sz=%size%"
+    iconUrl = "https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://animeidhentai.com&size=256"
 }

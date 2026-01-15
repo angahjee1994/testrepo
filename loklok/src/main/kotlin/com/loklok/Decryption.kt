@@ -1,4 +1,4 @@
-package com.OneTouchTV
+package com.loklok
 
 import com.lagradost.cloudstream3.base64Decode
 import com.lagradost.cloudstream3.base64DecodeArray

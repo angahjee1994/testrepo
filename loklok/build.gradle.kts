@@ -6,7 +6,7 @@ cloudstream {
     language = "en"
     // All of these properties are optional, you can safely remove them
 
-     description = "Asian Dramas"
+     description = "Loklok - Asian Dramas"
      authors = listOf("Phisher98")
 
     /**
@@ -22,7 +22,7 @@ cloudstream {
         "TvSeries",
     )
 
-    iconUrl = "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/OneTouchTV/logo.png"
+    iconUrl = "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/loklok/logo.png"
 
     isCrossPlatform = true
 }

@@ -1,4 +1,4 @@
-version = 4
+version = 1
 
 cloudstream {
     description = "Kissasian"
@@ -15,8 +15,6 @@ cloudstream {
     status = 1 // will be 3 if unspecified
     tvTypes = listOf(
         "AsianDrama",
-        "TvSeries",
-        "Movie",
     )
 
     iconUrl = "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/Kissasian/logo.png"

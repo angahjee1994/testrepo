@@ -1,6 +1,6 @@
 import org.jetbrains.kotlin.konan.properties.Properties
 
-version = 27
+version = 1
 
 android {
     buildFeatures {
@@ -39,7 +39,7 @@ cloudstream {
         "OVA",
     )
 
-    iconUrl = "https://www.google.com/s2/favicons?domain=hianime.to&sz=%size%"
+    iconUrl = "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/HiAnime/logo.png"
     requiresResources = true
     isCrossPlatform = false
 }

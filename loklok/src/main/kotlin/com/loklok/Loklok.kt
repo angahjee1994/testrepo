@@ -1,4 +1,4 @@
-package com.OneTouchTV
+package com.loklok
 
 import com.google.gson.Gson
 import com.lagradost.cloudstream3.APIHolder.capitalize
@@ -33,9 +33,9 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
-class OneTouchTV : MainAPI() {
+class Loklok : MainAPI() {
     override var mainUrl = base64Decode("aHR0cHM6Ly9hcGkzLmRldmNvcnAubWU=")
-    override var name = "OneTouchTV"
+    override var name = "loklok"
     override val hasMainPage = true
     override val hasDownloadSupport = true
     override val supportedTypes = setOf(
@@ -136,7 +136,7 @@ class OneTouchTV : MainAPI() {
         return newHomePageResponse(list = homeLists, hasNext = false)
     }
 
-    private fun OneTouchTVParser.Day.toMedia() = OneTouchMedia(
+    private fun LoklokParser.Day.toMedia() = LoklokMedia(
         title = title ?: "Unknown Title",
         id = id ?: "0",
         image = image,
@@ -147,7 +147,7 @@ class OneTouchTV : MainAPI() {
         isSub = isSub
     )
 
-    private fun OneTouchTVParser.Week.toMedia() = OneTouchMedia(
+    private fun LoklokParser.Week.toMedia() = LoklokMedia(
         title = title ?: "Unknown Title",
         id = id ?: "0",
         image = image,
@@ -158,7 +158,7 @@ class OneTouchTV : MainAPI() {
         isSub = isSub
     )
 
-    private fun OneTouchTVParser.Month.toMedia() = OneTouchMedia(
+    private fun LoklokParser.Month.toMedia() = LoklokMedia(
         title = title ?: "Unknown Title",
         id = id ?: "0",
         image = image,
@@ -169,13 +169,13 @@ class OneTouchTV : MainAPI() {
         isSub = isSub
     )
 
-    private fun OneTouchMedia.toSearchResponse(): SearchResponse {
+    private fun LoklokMedia.toSearchResponse(): SearchResponse {
         return newTvSeriesSearchResponse(title, "$mainUrl/vod/${id}/detail", TvType.Movie) {
             this.posterUrl = image
         }
     }
 
-    data class OneTouchMedia(
+    data class LoklokMedia(
         val title: String = "Unknown Title",
         val id: String? = "0",
         val image: String? = null,
@@ -300,7 +300,7 @@ class OneTouchTV : MainAPI() {
 
             val gson = Gson()
             val parser = try {
-                gson.fromJson(decryptedJson, OneTouchTVParser::class.java)
+                gson.fromJson(decryptedJson, LoklokParser::class.java)
             } catch (e: Exception) {
                 throw ErrorLoadingException("Failed to parse decrypted JSON: ${e.message}")
             }
