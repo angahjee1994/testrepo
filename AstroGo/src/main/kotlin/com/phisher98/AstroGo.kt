@@ -138,10 +138,10 @@ class AstroGo(private val sharedPref: SharedPreferences) : MainAPI() {
                     this.name,
                     this.name,
                     videoUrl,
-                    mainUrl,
-                    Qualities.Unknown.value,
-                    isM3u8 = videoUrl.contains(".m3u8")
-                )
+                    "",
+                ) {
+                    this.quality = Qualities.Unknown.value
+                }
             )
         }
         
