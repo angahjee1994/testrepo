@@ -137,8 +137,7 @@ class AstroGo(private val sharedPref: SharedPreferences) : MainAPI() {
                 newExtractorLink(
                     this.name,
                     this.name,
-                    videoUrl,
-                    "",
+                    videoUrl
                 ) {
                     this.quality = Qualities.Unknown.value
                 }
