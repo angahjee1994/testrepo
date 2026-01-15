@@ -47,18 +47,17 @@ class AstroGo(private val sharedPref: SharedPreferences) : MainAPI() {
             val posterUrl = element.selectFirst("img")?.attr("src")
             
             items.add(
-                MovieSearchResponse(
+                newMovieSearchResponse(
                     title,
                     mainUrl + href,
-                    this.name,
-                    TvType.Movie,
-                    posterUrl,
-                    null
-                )
+                    TvType.Movie
+                ) {
+                    this.posterUrl = posterUrl
+                }
             )
         }
         
-        return HomePageResponse(listOf(HomePageList(request.name, items)))
+        return newHomePageResponse(request.name, items)
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
@@ -76,14 +75,13 @@ class AstroGo(private val sharedPref: SharedPreferences) : MainAPI() {
             val poster = item.optString("poster")
             
             searchResults.add(
-                MovieSearchResponse(
+                newMovieSearchResponse(
                     title,
                     "$mainUrl/content/$id",
-                    this.name,
-                    TvType.Movie,
-                    poster,
-                    null
-                )
+                    TvType.Movie
+                ) {
+                    this.posterUrl = poster
+                }
             )
         }
         
@@ -103,36 +101,24 @@ class AstroGo(private val sharedPref: SharedPreferences) : MainAPI() {
             val epUrl = ep.selectFirst("a")?.attr("href") ?: ""
             val epNum = ep.selectFirst("span.episode-number")?.text()?.toIntOrNull()
             
-            Episode(
-                mainUrl + epUrl,
-                epTitle,
-                null,
-                epNum
-            )
+            newEpisode(mainUrl + epUrl) {
+                this.name = epTitle
+                this.episode = epNum
+            }
         }
         
         return if (episodes.isNotEmpty()) {
-            TvSeriesLoadResponse(
-                title,
-                url,
-                this.name,
-                TvType.TvSeries,
-                episodes,
-                poster,
-                year,
-                description
-            )
+            newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
+                this.posterUrl = poster
+                this.year = year
+                this.plot = description
+            }
         } else {
-            MovieLoadResponse(
-                title,
-                url,
-                this.name,
-                TvType.Movie,
-                url,
-                poster,
-                year,
-                description
-            )
+            newMovieLoadResponse(title, url, TvType.Movie, url) {
+                this.posterUrl = poster
+                this.year = year
+                this.plot = description
+            }
         }
     }
 
@@ -148,7 +134,7 @@ class AstroGo(private val sharedPref: SharedPreferences) : MainAPI() {
         
         if (videoUrl != null) {
             callback.invoke(
-                ExtractorLink(
+                newExtractorLink(
                     this.name,
                     this.name,
                     videoUrl,

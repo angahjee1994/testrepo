@@ -16,12 +16,10 @@ import android.widget.EditText
 import android.widget.TextView
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AlertDialog
-import androidx.core.content.edit
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.lagradost.cloudstream3.CommonActivity.showToast
-import com.phisher98.BuildConfig
 import com.phisher98.AstroGoPlugin
 
 class SettingsFragment(
@@ -29,9 +27,10 @@ class SettingsFragment(
     private val sharedPref: SharedPreferences,
 ) : BottomSheetDialogFragment() {
     private val res = plugin.resources ?: throw Exception("Unable to read resources")
+    private val packageName = "com.phisher98"
 
     private fun <T : View> View.findView(name: String): T {
-        val id = res.getIdentifier(name, "id", BuildConfig.LIBRARY_PACKAGE_NAME)
+        val id = res.getIdentifier(name, "id", packageName)
         return this.findViewById(id)
     }
 
@@ -39,7 +38,7 @@ class SettingsFragment(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?,
     ): View? {
-        val id = res.getIdentifier("settings_fragment", "layout", BuildConfig.LIBRARY_PACKAGE_NAME)
+        val id = res.getIdentifier("settings_fragment", "layout", packageName)
         val layout = res.getLayout(id)
         return inflater.inflate(layout, container, false)
     }
@@ -78,8 +77,9 @@ class SettingsFragment(
         }
 
         logoutButton.setOnClickListener {
-            sharedPref.edit {
+            sharedPref.edit().apply {
                 remove("cookies")
+                apply()
             }
             statusText.text = "Status: Not Logged In"
             logoutButton.visibility = View.GONE
@@ -125,8 +125,9 @@ class SettingsFragment(
 
                     if (!cookies.isNullOrEmpty()) {
                         activity?.runOnUiThread {
-                            sharedPref.edit {
+                            sharedPref.edit().apply {
                                 putString("cookies", cookies)
+                                apply()
                             }
 
                             statusText.text = "Status: Logged In"
