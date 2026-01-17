@@ -3,6 +3,7 @@ package com.MissAv
 import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
+import java.net.URLEncoder
 
 class MissAVProvider : MainAPI() {
     override var mainUrl              = "https://missav.ws"
@@ -44,9 +45,14 @@ class MissAVProvider : MainAPI() {
 
     private fun Element.toSearchResult(): SearchResponse {
         val status = this.select(".bg-blue-800").text()
-        val title = if(status.isNotBlank()){"[$status] "+ this.select(".text-secondary").text()} else {this.select(".text-secondary").text()}
-        val href = this.select(".text-secondary").attr("href")
-        val posterUrl = this.selectFirst(".w-full")?.attr("data-src")
+        val titleElement = this.selectFirst(".text-secondary") ?: this.selectFirst("a.text-secondary")
+        val titleText = titleElement?.text()?.trim() ?: this.select("a").text().trim()
+        val title = if(status.isNotBlank()) "[$status] $titleText" else titleText
+        val href = titleElement?.attr("href") ?: this.selectFirst("a")?.attr("href") ?: ""
+        val posterUrl = this.selectFirst(".w-full")?.attr("data-src") 
+            ?: this.selectFirst("img")?.attr("data-src")
+            ?: this.selectFirst("img")?.attr("src")
+
         return newMovieSearchResponse(title, href, TvType.NSFW) {
             this.posterUrl = posterUrl
         }
@@ -55,12 +61,17 @@ class MissAVProvider : MainAPI() {
     override suspend fun search(query: String): List<SearchResponse> {
 
         val searchResponse = mutableListOf<SearchResponse>()
+        val encoded = URLEncoder.encode(query, "UTF-8")
 
         for (i in 1..7) {
-            val document = app.get("$mainUrl/en/search/$query?page=$i").document
+            val document = app.get("$mainUrl/en/search/$encoded?page=$i").document
             //val document = app.get("${mainUrl}/page/$i/?s=$query").document
 
-            val results = document.select(".thumbnail").mapNotNull { it.toSearchResult() }
+            var elementList = document.select(".thumbnail")
+            if (elementList.isEmpty()) {
+                elementList = document.select("div.grid > div")
+            }
+            val results = elementList.mapNotNull { it.toSearchResult() }
 
             if(results.isNotEmpty())
             {
