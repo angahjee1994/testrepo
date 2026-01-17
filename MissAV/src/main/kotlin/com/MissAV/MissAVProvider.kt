@@ -119,12 +119,10 @@ class MissAVProvider : MainAPI() {
             val actorName = actorLink.text().trim()
             if (actorName.isBlank()) return@mapNotNull null
             
-            val actorUrl = actorLink.attr("href")
-            val actorSlug = actorUrl.substringAfterLast("/actresses/").removeSuffix("/")
-            
-            val actorImageUrl = if (actorSlug.isNotBlank()) {
-                "https://fivetiu.com/${actorSlug}_a.jpg"
-            } else null
+            val actorImageUrl = actorLink.selectFirst("img")?.attr("src")
+                ?: actorLink.selectFirst("img")?.attr("data-src")
+                ?: actorLink.parent()?.selectFirst("img")?.attr("src")
+                ?: actorLink.parent()?.selectFirst("img")?.attr("data-src")
             
             ActorData(
                 actor = Actor(actorName, actorImageUrl),
