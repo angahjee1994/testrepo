@@ -59,45 +59,53 @@ class MissAVProvider : MainAPI() {
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
-
         val searchResponse = mutableListOf<SearchResponse>()
         val encoded = URLEncoder.encode(query, "UTF-8")
-
-        for (i in 1..7) {
-            val document = app.get("$mainUrl/en/search/$encoded?page=$i").document
-            //val document = app.get("${mainUrl}/page/$i/?s=$query").document
-
-            var elementList = document.select(".thumbnail")
-            if (elementList.isEmpty()) {
-                elementList = document.select("div.grid > div")
+        
+        var domainPrefix = ""
+        try {
+            val homePage = app.get(mainUrl).document
+            val firstLink = homePage.selectFirst("a[href*='/dm']")?.attr("href")
+            if (firstLink != null) {
+                val prefixMatch = Regex("/(dm\\d+)/").find(firstLink)
+                domainPrefix = prefixMatch?.groupValues?.get(1)?.let { "/$it" } ?: ""
             }
-            val results = elementList.mapNotNull { it.toSearchResult() }
+        } catch (e: Exception) { }
 
-            if(results.isNotEmpty())
-            {
-                for (result in results)
-                {
-                    if(!searchResponse.contains(result))
-                    {
-                        searchResponse.add(result)
+        val searchUrls = if (domainPrefix.isNotBlank()) {
+            listOf("$mainUrl$domainPrefix/en/search/$encoded", "$mainUrl/en/search/$encoded")
+        } else {
+            listOf("$mainUrl/en/search/$encoded")
+        }
+
+        for (searchUrl in searchUrls) {
+            try {
+                for (i in 1..7) {
+                    val document = app.get("$searchUrl?page=$i").document
+                    
+                    var elementList = document.select(".thumbnail")
+                    if (elementList.isEmpty()) {
+                        elementList = document.select("div.grid > div")
+                    }
+                    val results = elementList.mapNotNull { it.toSearchResult() }
+
+                    if(results.isNotEmpty()) {
+                        for (result in results) {
+                            if(!searchResponse.contains(result)) {
+                                searchResponse.add(result)
+                            }
+                        }
+                    } else {
+                        break
                     }
                 }
+                if (searchResponse.isNotEmpty()) break
+            } catch (e: Exception) {
+                continue
             }
-            else
-            {
-                break
-            }
-            /*if (!searchResponse.containsAll(results)) {
-                searchResponse.addAll(results)
-            } else {
-                break
-            }
-
-            if (results.isEmpty()) break*/
         }
 
         return searchResponse
-
     }
 
     override suspend fun load(url: String): LoadResponse {
@@ -106,10 +114,28 @@ class MissAVProvider : MainAPI() {
         val title = document.selectFirst("meta[property=og:title]")?.attr("content")?.trim().toString()
         val poster = fixUrlNull(document.selectFirst("[property='og:image']")?.attr("content"))
         val description = document.selectFirst("meta[property=og:description]")?.attr("content")?.trim()
+        
+        val actors = document.select("a[href*='/actresses/']").mapNotNull { actorLink ->
+            val actorName = actorLink.text().trim()
+            if (actorName.isBlank()) return@mapNotNull null
+            
+            val actorUrl = actorLink.attr("href")
+            val actorSlug = actorUrl.substringAfterLast("/actresses/").removeSuffix("/")
+            
+            val actorImageUrl = if (actorSlug.isNotBlank()) {
+                "https://fivetiu.com/${actorSlug}_a.jpg"
+            } else null
+            
+            ActorData(
+                actor = Actor(actorName, actorImageUrl),
+                roleString = "Actress"
+            )
+        }.distinctBy { it.actor.name }
 
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = poster
             this.plot = description
+            this.actors = actors.takeIf { it.isNotEmpty() }
         }
     }
 
