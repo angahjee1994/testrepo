@@ -62,41 +62,25 @@ class MissAVProvider : MainAPI() {
         val searchResponse = mutableListOf<SearchResponse>()
         val encoded = URLEncoder.encode(query, "UTF-8")
         
-        var domainPrefix = ""
-        try {
-            val homePage = app.get(mainUrl).document
-            val firstLink = homePage.selectFirst("a[href*='/dm']")?.attr("href")
-            if (firstLink != null) {
-                val prefixMatch = Regex("/(dm\\d+)/").find(firstLink)
-                domainPrefix = prefixMatch?.groupValues?.get(1)?.let { "/$it" } ?: ""
-            }
-        } catch (e: Exception) { }
-
-        val searchUrls = if (domainPrefix.isNotBlank()) {
-            listOf("$mainUrl$domainPrefix/en/search/$encoded", "$mainUrl/en/search/$encoded")
-        } else {
-            listOf("$mainUrl/en/search/$encoded")
-        }
+        val searchUrls = listOf(
+            "$mainUrl/en/search/$encoded"
+        )
 
         for (searchUrl in searchUrls) {
             try {
-                for (i in 1..7) {
-                    val document = app.get("$searchUrl?page=$i").document
-                    
-                    var elementList = document.select(".thumbnail")
-                    if (elementList.isEmpty()) {
-                        elementList = document.select("div.grid > div")
-                    }
-                    val results = elementList.mapNotNull { it.toSearchResult() }
+                val document = app.get("$searchUrl?page=1").document
+                
+                var elementList = document.select(".thumbnail")
+                if (elementList.isEmpty()) {
+                    elementList = document.select("div.grid > div")
+                }
+                val results = elementList.mapNotNull { it.toSearchResult() }
 
-                    if(results.isNotEmpty()) {
-                        for (result in results) {
-                            if(!searchResponse.contains(result)) {
-                                searchResponse.add(result)
-                            }
+                if(results.isNotEmpty()) {
+                    for (result in results) {
+                        if(!searchResponse.contains(result)) {
+                            searchResponse.add(result)
                         }
-                    } else {
-                        break
                     }
                 }
                 if (searchResponse.isNotEmpty()) break
