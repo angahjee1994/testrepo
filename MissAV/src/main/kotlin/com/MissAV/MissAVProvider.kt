@@ -115,25 +115,21 @@ class MissAVProvider : MainAPI() {
         val poster = fixUrlNull(document.selectFirst("[property='og:image']")?.attr("content"))
         val description = document.selectFirst("meta[property=og:description]")?.attr("content")?.trim()
         
-        val actors = document.select("a[href*='/actresses/']").mapNotNull { actorLink ->
+        val actorDiv = document.selectFirst("div.text-secondary:has(span:contains(Actress))")
+        val actors = actorDiv?.select("a[href*='/actresses/']")?.mapNotNull { actorLink ->
             val actorName = actorLink.text().trim()
             if (actorName.isBlank()) return@mapNotNull null
             
-            val actorImageUrl = actorLink.selectFirst("img")?.attr("src")
-                ?: actorLink.selectFirst("img")?.attr("data-src")
-                ?: actorLink.parent()?.selectFirst("img")?.attr("src")
-                ?: actorLink.parent()?.selectFirst("img")?.attr("data-src")
-            
             ActorData(
-                actor = Actor(actorName, actorImageUrl),
+                actor = Actor(actorName, null),
                 roleString = "Actress"
             )
-        }.distinctBy { it.actor.name }
+        }?.distinctBy { it.actor.name }
 
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = poster
             this.plot = description
-            this.actors = actors.takeIf { it.isNotEmpty() }
+            this.actors = actors?.takeIf { it.isNotEmpty() }
         }
     }
 
