@@ -72,7 +72,7 @@ class Moviebox : MainAPI() {
                     val (key, value) = it.split("=")
                     key to value
                 }.toMutableMap().apply {
-                    put("page", page)
+                    put("page", page.toString())
                     putIfAbsent("perPage", "28")
                 }
             } else {
