@@ -27,13 +27,8 @@ class Moviebox : MainAPI() {
     )
 
     override val mainPage: List<MainPageData> = mainPageOf(
-        "4123278689004061520" to "Trending Movies",
-		"6766346312503248424" to "Trending Series",
-        "8617025562613270856" to "Anime",
-		"2117365787374534736" to "Malaysia (Movies)",
-        "1458805601336804584" to "Malaysia (Series)",
-        "997144265920760504" to "USA (Movies)",
-        "5307082080063488480" to "USA (Series)",
+        "872031290915189720" to "Trending Now",
+        "997144265920760504" to "Popular Movie",
         "5283462032510044280" to "Drama Indonesia Terkini",
         "6528093688173053896" to "Trending Indonesian Movies",
         "4380734070238626200" to "K-Drama",
@@ -43,8 +38,6 @@ class Moviebox : MainAPI() {
         "5848753831881965888" to "Indonesian Horror Stories",
         "1164329479448281992" to "Thai-Drama",
         "7132534597631837112" to "Animated Film",
-		"1|1;country=Philippines" to "Philippines (Movies)",
-        "1|2;country=Philippines" to "Philippines (Series)",
         "1,ForYou" to "Movie ForYou",
         "1,Hottest" to "Movie Hottest",
         "1,Latest" to "Movie Latest",
