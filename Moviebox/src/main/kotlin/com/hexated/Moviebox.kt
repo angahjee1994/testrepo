@@ -27,31 +27,20 @@ class Moviebox : MainAPI() {
     )
 
     override val mainPage: List<MainPageData> = mainPageOf(
-        "872031290915189720" to "Trending Now",
-        "997144265920760504" to "Popular Movie",
+        "4123278689004061520" to "Trending Movie",
+        "6766346312503248424" to "Trending Series",
         "2117365787374534736" to "Malaysia (Movies)",
         "1458805601336804584" to "Malaysia (Series)",
         "5283462032510044280" to "Drama Indonesia Terkini",
         "6528093688173053896" to "Trending Indonesian Movies",
-        "4380734070238626200" to "K-Drama",
-        "7736026911486755336" to "Western TV",
-        "8624142774394406504" to "Most Popular C-Drama",
-        "5404290953194750296" to "Trending Anime",
-        "5848753831881965888" to "Indonesian Horror Stories",
-        "1164329479448281992" to "Thai-Drama",
-        "7132534597631837112" to "Animated Film",
-        "1,ForYou" to "Movie ForYou",
-        "1,Hottest" to "Movie Hottest",
-        "1,Latest" to "Movie Latest",
-        "1,Rating" to "Movie Rating",
-        "2,ForYou" to "TVShow ForYou",
-        "2,Hottest" to "TVShow Hottest",
-        "2,Latest" to "TVShow Latest",
-        "2,Rating" to "TVShow Rating",
-        "1006,ForYou" to "Animation ForYou",
-        "1006,Hottest" to "Animation Hottest",
-        "1006,Latest" to "Animation Latest",
-        "1006,Rating" to "Animation Rating",
+        "1|1;country=Philippines" to "Philippines (Movies)",
+        "1|2;country=Philippines" to "Philippines (Series)",
+        "1|1;country=Thailand" to "Thailand(Movies)",
+        "1164329479448281992" to "Thailand(Series)",
+        "1|1;country=Japan" to "Japan (Movies)",
+        "1|2;country=Japan" to "Japan (Series)",
+        "1|1;country=India" to "Indian (Movies)",
+        "1|2;country=India" to "Indian (Series)"
     )
 
     override suspend fun getMainPage(
