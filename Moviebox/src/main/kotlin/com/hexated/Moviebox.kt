@@ -29,24 +29,24 @@ class Moviebox : MainAPI() {
     override val mainPage: List<MainPageData> = mainPageOf(
         "4123278689004061520" to "Trending Movie",
         "6766346312503248424" to "Trending Series",
-        "2117365787374534736" to "Malaysia (Movies)",
-        "1458805601336804584" to "Malaysia (Series)",
-        "5283462032510044280" to "Indonesia (Series)",
-        "6528093688173053896" to "Indonesia (Movies)",
-        "997144265920760504" to "USA (Movies)",
-        "5307082080063488480" to "USA (Series)",
-        "1|1;country=Korea" to "South Korean (Movies)",
-        "4380734070238626200" to "South Korean (Series)",
-        "1|1;country=China" to "China (Movies)",
-        "8624142774394406504" to "China (Series)",
-        "1|1;country=Philippines" to "Philippines (Movies)",
-        "1|2;country=Philippines" to "Philippines (Series)",
-        "1|1;country=Thailand" to "Thailand(Movies)",
-        "1164329479448281992" to "Thailand(Series)",
-        "1|1;country=Japan" to "Japan (Movies)",
-        "1|2;country=Japan" to "Japan (Series)",
-        "1|1;country=India" to "Indian (Movies)",
-        "1|2;country=India" to "Indian (Series)",
+        "2117365787374534736" to "Malaysia Movies",
+        "1458805601336804584" to "Malaysia Series",
+        "5283462032510044280" to "Indonesia Series",
+        "6528093688173053896" to "Indonesia Movies",
+        "997144265920760504" to "USA Movies",
+        "5307082080063488480" to "USA Series",
+        "channelId=2,country=Korea,sort=latest" to "Korean Movies",
+        "4380734070238626200" to "South Korean Series",
+        "channelId=2,country=China,sort=latest" to "China Movies",
+        "8624142774394406504" to "China Series",
+        "606779077307122552" to "Philippines Movies",
+        "8449223314756747760" to "Philippines Series",
+        "channelId=2,country=Thailand,sort=latest" to "Thailand Movies",
+        "1164329479448281992" to "ThailandSeries",
+        "channelId=2,country=Japan,sort=latest" to "Japan Movies",
+        "channelId=1,country=Japan,sort=latest" to "Japan Series",
+        "414907768299210008" to "Indian Movies",
+        "4903182713986896328" to "Indian Series",
         "8617025562613270856" to "Anime",
     )
 
@@ -67,15 +67,40 @@ class Moviebox : MainAPI() {
             home.addAll(index)
         } else {
             val params = request.data.split(",")
-            val body = mapOf(
-                "channelId" to params.first(),
-                "page" to page,
-                "perPage" to "28",
-                "sort" to params.last()
-            ).toJson().toRequestBody(RequestBodyTypes.JSON.toMediaTypeOrNull())
+            val body = if (request.data.contains("=")) {
+                params.associate {
+                    val (key, value) = it.split("=")
+                    key to value
+                }.toMutableMap().apply {
+                    put("page", page)
+                    putIfAbsent("perPage", "28")
+                }
+            } else {
+                mapOf(
+                    "channelId" to params.first(),
+                    "page" to page,
+                    "perPage" to "28",
+                    "sort" to params.last()
+                )
+            }.toJson().toRequestBody(RequestBodyTypes.JSON.toMediaTypeOrNull())
 
             val index = app.post("$mainAPIUrl/wefeed-h5api-bff/subject/filter", requestBody = body)
-                .parsedSafe<Media>()?.data?.items?.map {
+                .parsedSafe<Media>()?.data?.items
+                ?.filterNot { item ->
+                    val title = item.title.orEmpty()
+                    val corner = item.corner.orEmpty()
+                    val banned = listOf(
+                        "English", "French", "Hindi", "Bengali", "Urdu", "Punjabi",
+                        "Tamil", "Telugu", "Malayalam", "Kannada", "Arabic",
+                        "Tagalog", "Indonesian", "Russian", "Kurdish"
+                    )
+                    banned.any { lang ->
+                        corner.equals(lang, true) ||
+                                title.contains("$lang Dub", true) ||
+                                title.contains("$lang Sub", true) ||
+                                title.contains("[$lang]", true)
+                    }
+                }?.map {
                     it.toSearchResponse(this)
                 } ?: throw ErrorLoadingException("No Data Found")
 
@@ -292,6 +317,7 @@ class Moviebox : MainAPI() {
         @JsonProperty("cover") val cover: Cover? = null,
         @JsonProperty("imdbRatingValue") val imdbRatingValue: String? = null,
         @JsonProperty("countryName") val countryName: String? = null,
+        @JsonProperty("corner") val corner: String? = null,
         @JsonProperty("trailer") val trailer: Trailer? = null,
         @JsonProperty("detailPath") val detailPath: String? = null,
     ) {
