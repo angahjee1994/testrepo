@@ -36,7 +36,7 @@ class Moviebox : MainAPI() {
         "997144265920760504" to "USA Movies",
         "channelId=2,country=United States,sort=latest" to "USA Series",
         "channelId=1,country=Korea,sort=latest" to "Korean Movies",
-        "channelId=2,country=Korea,sort=latest" to "South Korean Series",
+        "channelId=2,country=Korea,sort=latest" to "Korean Series",
         "channelId=1,country=China,sort=latest" to "China Movies",
         "channelId=2,country=China,sort=latest" to "China Series",
         "606779077307122552" to "Philippines Movies",
