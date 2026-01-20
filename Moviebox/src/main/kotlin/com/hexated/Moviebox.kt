@@ -29,6 +29,8 @@ class Moviebox : MainAPI() {
     override val mainPage: List<MainPageData> = mainPageOf(
         "872031290915189720" to "Trending Now",
         "997144265920760504" to "Popular Movie",
+        "2117365787374534736" to "Malaysia (Movies)",
+        "1458805601336804584" to "Malaysia (Series)",
         "5283462032510044280" to "Drama Indonesia Terkini",
         "6528093688173053896" to "Trending Indonesian Movies",
         "4380734070238626200" to "K-Drama",
