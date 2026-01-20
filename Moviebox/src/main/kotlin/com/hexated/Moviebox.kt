@@ -31,8 +31,14 @@ class Moviebox : MainAPI() {
         "6766346312503248424" to "Trending Series",
         "2117365787374534736" to "Malaysia (Movies)",
         "1458805601336804584" to "Malaysia (Series)",
-        "5283462032510044280" to "Drama Indonesia Terkini",
-        "6528093688173053896" to "Trending Indonesian Movies",
+        "5283462032510044280" to "Indonesia (Series)",
+        "6528093688173053896" to "Indonesia (Movies)",
+        "997144265920760504" to "USA (Movies)",
+        "5307082080063488480" to "USA (Series)",
+        "1|1;country=Korea" to "South Korean (Movies)",
+        "4380734070238626200" to "South Korean (Series)",
+        "1|1;country=China" to "China (Movies)",
+        "8624142774394406504" to "China (Series)",
         "1|1;country=Philippines" to "Philippines (Movies)",
         "1|2;country=Philippines" to "Philippines (Series)",
         "1|1;country=Thailand" to "Thailand(Movies)",
@@ -40,7 +46,8 @@ class Moviebox : MainAPI() {
         "1|1;country=Japan" to "Japan (Movies)",
         "1|2;country=Japan" to "Japan (Series)",
         "1|1;country=India" to "Indian (Movies)",
-        "1|2;country=India" to "Indian (Series)"
+        "1|2;country=India" to "Indian (Series)",
+        "8617025562613270856" to "Anime",
     )
 
     override suspend fun getMainPage(
