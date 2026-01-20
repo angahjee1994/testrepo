@@ -29,6 +29,7 @@ class Moviebox : MainAPI() {
     override val mainPage: List<MainPageData> = mainPageOf(
         "4123278689004061520" to "Trending Movie",
         "6766346312503248424" to "Trending Series",
+        "8617025562613270856" to "Anime",
         "2117365787374534736" to "Malaysia Movies",
         "1458805601336804584" to "Malaysia Series",
         "5283462032510044280" to "Indonesia Series",
@@ -47,7 +48,8 @@ class Moviebox : MainAPI() {
         "channelId=1,country=Japan,sort=latest" to "Japan Series",
         "414907768299210008" to "Indian Movies",
         "4903182713986896328" to "Indian Series",
-        "8617025562613270856" to "Anime",
+        "channelId=2,genre=short,sort=latest" to "Short Movies",
+        "channelId=1,genre=short,sort=latest" to "Short Series",
     )
 
     override suspend fun getMainPage(
