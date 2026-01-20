@@ -1,12 +1,12 @@
 // use an integer for version numbers
-version = 5
+version = 1
 
 
 cloudstream {
     language = "en"
     // All of these properties are optional, you can safely remove them
 
-    // description = "Lorem Ipsum"
+    // description = "Multi Language Movies and Series Provider"
      authors = listOf("Hexated")
 
     /**
@@ -24,5 +24,5 @@ cloudstream {
         "AsianDrama",
     )
 
-    iconUrl = "https://moviebox.ph/favicon.ico"
+    iconUrl = "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/Moviebox/logo.png"
 }
