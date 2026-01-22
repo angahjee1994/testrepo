@@ -11,7 +11,7 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
 
 class Moviebox : MainAPI() {
-    override var mainUrl = "https://moviebox.ph"
+    override var mainUrl = "https://moviebox.ac"
     private val mainAPIUrl = "https://h5-api.aoneroom.com"
     private val secondAPIUrl = "https://filmboom.top"
     override val instantLinkLoading = true
@@ -74,9 +74,11 @@ class Moviebox : MainAPI() {
         if(!request.data.contains(",")) {
             val url = "$mainAPIUrl/wefeed-h5api-bff/ranking-list/content?id=${request.data}&page=$page&perPage=12"
 
-            val index = app.get(url).parsedSafe<Media>()?.data?.subjectList?.map {
+            val index = retry {
+                app.get(url).parsedSafe<Media>()
+            }?.data?.subjectList?.map {
                 it.toSearchResponse(this)
-            } ?: throw ErrorLoadingException("No Data Found")
+            } ?: emptyList()
 
             home.addAll(index)
         } else {
@@ -98,8 +100,12 @@ class Moviebox : MainAPI() {
                 )
             }.toJson().toRequestBody(RequestBodyTypes.JSON.toMediaTypeOrNull())
 
-            val index = app.post("$mainAPIUrl/wefeed-h5api-bff/subject/filter", requestBody = body)
-                .parsedSafe<Media>()?.data?.items
+            val index = retry {
+                app.post(
+                    "$mainAPIUrl/wefeed-h5api-bff/subject/filter",
+                    requestBody = body
+                ).parsedSafe<Media>()
+            }?.data?.items
                 ?.filterNot { item ->
                     val title = item.title.orEmpty()
                     val corner = item.corner.orEmpty()
@@ -116,13 +122,25 @@ class Moviebox : MainAPI() {
                     }
                 }?.map {
                     it.toSearchResponse(this)
-                } ?: throw ErrorLoadingException("No Data Found")
+                } ?: emptyList()
 
             home.addAll(index)
         }
 
-
         return newHomePageResponse(request.name, home)
+    }
+
+    private suspend fun <T> retry(block: suspend () -> T): T? {
+        var lastException: Exception? = null
+        for (i in 1..3) {
+            try {
+                return block()
+            } catch (e: Exception) {
+                lastException = e
+                kotlinx.coroutines.delay(1000L)
+            }
+        }
+        return null
     }
 
     override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
