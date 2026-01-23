@@ -45,16 +45,30 @@ class Dramabox : MainAPI() {
         val text = app.get(url).text
         val items = try { 
             parseJson<List<DramaItem>>(text) 
-        } catch (e: Exception) { 
-            emptyList() 
+        } catch (e: Exception) {
+            try {
+                // Handle VIP/Nested structure
+                val response = parseJson<VipResponse>(text)
+                response.sectionList?.flatMap { it.dataList ?: emptyList() } ?: emptyList()
+            } catch (e2: Exception) {
+                emptyList()
+            }
         }
 
-        val home = items.map {
+        val home = items.filter { !it.bookName.isNullOrEmpty() && !it.bookId.isNullOrEmpty() }.map {
             it.toSearchResponse(this)
         }
 
         return newHomePageResponse(request.name, home)
     }
+
+    data class VipResponse(
+        @JsonProperty("sectionList") val sectionList: List<SectionItem>? = null
+    )
+
+    data class SectionItem(
+        @JsonProperty("dataList") val dataList: List<DramaItem>? = null
+    )
 
     override suspend fun search(query: String): List<SearchResponse> {
         val url = "$mainUrl/api/dramabox/search?query=$query"
