@@ -71,12 +71,15 @@ class Dramabox : MainAPI() {
         if (!nextData.isNullOrBlank()) {
             try {
                 val json = parseJson<NextData>(nextData)
-                val channelList = json.props?.pageProps?.initialState?.channel?.list 
+                
+                // Try multiple paths to find the item list
+                val channelList = json.props?.pageProps?.moreData?.items
+                    ?: json.props?.pageProps?.initialState?.channel?.list 
                     ?: json.props?.pageProps?.initialState?.channel?.homeFuncList?.flatMap { it.list ?: emptyList() }
                 
                 if (!channelList.isNullOrEmpty()) {
                     return channelList.mapNotNull { item ->
-                        val title = item.bookName
+                        val title = item.bookName ?: item.name
                         val bookId = item.bookId
                         val cover = item.cover ?: item.image
                          
@@ -143,7 +146,12 @@ class Dramabox : MainAPI() {
     )
 
     data class PageProps(
-        @JsonProperty("initialState") val initialState: InitialState? = null
+        @JsonProperty("initialState") val initialState: InitialState? = null,
+        @JsonProperty("moreData") val moreData: MoreData? = null
+    )
+    
+    data class MoreData(
+        @JsonProperty("items") val items: List<MovieItem>? = null
     )
 
     data class InitialState(
@@ -161,6 +169,7 @@ class Dramabox : MainAPI() {
 
     data class MovieItem(
         @JsonProperty("bookId") val bookId: String? = null,
+        @JsonProperty("name") val name: String? = null,
         @JsonProperty("bookName") val bookName: String? = null,
         @JsonProperty("cover") val cover: String? = null,
         @JsonProperty("image") val image: String? = null
