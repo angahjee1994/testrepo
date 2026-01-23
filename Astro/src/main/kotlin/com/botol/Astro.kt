@@ -1,9 +1,6 @@
-package com.botol
-
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
-import okhttp3.Interceptor
-import okhttp3.Response
+import java.util.UUID
 
 class Astro : MainAPI() {
     override var mainUrl = "https://astro.com.my"
@@ -46,34 +43,25 @@ class Astro : MainAPI() {
     ): Boolean {
         if (data == "300.astro") {
             val streamUrl = "https://linearjitp-playback.astro.com.my/dash-wv/linear/1006/default_primary.mpd"
-            
+            val kid = "7ef7e913ce85a1131b27036069169a10"
+            val key = "77d98ed71db7524c27875a09a975f9e6"
+            val ua = "Mozilla/5.0 (Linux; Android 13; UltraBox Build/TP1A.220624.014; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/136.0.7103.61 Mobile Safari/537.36"
+
             callback.invoke(
-                newExtractorLink(
+                newDrmExtractorLink(
                     name,
                     "Astro Stream",
                     streamUrl,
-                    type = ExtractorLinkType.DASH
-                )
+                    ExtractorLinkType.DASH,
+                    UUID.randomUUID()
+                ) {
+                    this.kid = kid
+                    this.key = key
+                    this.headers = mapOf("User-Agent" to ua)
+                }
             )
             return true
         }
         return false
-    }
-
-    override fun getVideoInterceptor(extractorLink: ExtractorLink): Interceptor? {
-        return object : Interceptor {
-            override fun intercept(chain: Interceptor.Chain): Response {
-                val request = chain.request()
-                if (request.url.toString().contains("dash-wv")) {
-                     val newRequest = request.newBuilder()
-                        .header("User-Agent", "Mozilla/5.0 (Linux; Android 13; UltraBox Build/TP1A.220624.014; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/136.0.7103.61 Mobile Safari/537.36")
-                        .header("KODIPROP:inputstream.adaptive.license_type", "clearkey")
-                        .header("KODIPROP:inputstream.adaptive.license_key", "7ef7e913ce85a1131b27036069169a10:77d98ed71db7524c27875a09a975f9e6")
-                        .build()
-                     return chain.proceed(newRequest)
-                }
-                return chain.proceed(request)
-            }
-        }
     }
 }
