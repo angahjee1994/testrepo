@@ -129,9 +129,21 @@ class XMalay : MainAPI() {
         // 2. Parse FluidPlayer / EmbedPlayer Logic
         // Script variables are often just comma separated, so we loosen regex to not require 'var'
         // Matches "a = 1234, ... b = '...'"
-        val id = Regex("""\ba\s*=\s*(\d+)""").find(iframeText)?.groupValues?.get(1)
-        val token = Regex("""\bb\s*=\s*["']([^"']+)["']""").find(iframeText)?.groupValues?.get(1)
-        val auth = Regex("""\bu\s*=\s*["']([^"']+)["']""").find(iframeText)?.groupValues?.get(1)
+        // 2. Parse FluidPlayer / EmbedPlayer Logic
+        // Script variables are: var a = 1234, b = '...', u = '...'
+        // The regex needs to be robust enough to handle newlines or spacing differences
+        
+        // Find 'a' (id) - usually a number
+        val id = Regex("""var\s+a\s*=\s*(\d+)""").find(iframeText)?.groupValues?.get(1) 
+            ?: Regex("""\ba\s*=\s*(\d+)""").find(iframeText)?.groupValues?.get(1)
+            
+        // Find 'b' (token) - string
+        val token = Regex("""var\s+b\s*=\s*["']([^"']+)["']""").find(iframeText)?.groupValues?.get(1)
+            ?: Regex("""\bb\s*=\s*["']([^"']+)["']""").find(iframeText)?.groupValues?.get(1)
+            
+        // Find 'u' (auth) - string
+        val auth = Regex("""var\s+u\s*=\s*["']([^"']+)["']""").find(iframeText)?.groupValues?.get(1)
+            ?: Regex("""\bu\s*=\s*["']([^"']+)["']""").find(iframeText)?.groupValues?.get(1)
         
         if (id != null && token != null && auth != null) {
             // Determine the base domain for the API call
