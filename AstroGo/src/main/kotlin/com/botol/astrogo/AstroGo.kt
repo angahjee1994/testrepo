@@ -38,14 +38,19 @@ class AstroGo : MainAPI() {
         try {
             val response = app.get(url, headers = headers).parsedSafe<AstroResponse>()
             val items = ArrayList<HomePageList>()
+            val addedTitles = HashSet<String>()
 
             response?.categories?.forEach { category ->
-                val title = category.title ?: request.name
+                var title = category.title ?: request.name
+                if (addedTitles.contains(title)) {
+                    title = "$title (More)"
+                }
+                
                 val contents = category.content?.mapNotNull { it.toSearchResponse() }
                 
-                // Only add if we have valid content and a meaningful title (unless it's the main list)
                 if (!contents.isNullOrEmpty()) {
                     items.add(HomePageList(title, contents))
+                    addedTitles.add(title)
                 }
             }
 
@@ -53,7 +58,12 @@ class AstroGo : MainAPI() {
             if (response?.content != null) {
                  val contents = response.content.mapNotNull { it.toSearchResponse() }
                  if (contents.isNotEmpty()) {
-                     items.add(HomePageList(request.name, contents))
+                     // If we already have categories, this might be a "Featured" section or similar.
+                     // If it's the ONLY thing (like in Movies tab potentially), use the request name.
+                     var title = if (items.isEmpty()) request.name else "Featured"
+                     if (addedTitles.contains(title)) title = "$title List"
+                     
+                     items.add(HomePageList(title, contents))
                  }
             }
 
