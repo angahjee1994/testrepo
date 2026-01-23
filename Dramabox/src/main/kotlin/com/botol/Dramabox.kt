@@ -66,13 +66,11 @@ class Dramabox : MainAPI() {
     }
 
     private fun parseItems(doc: Document): List<SearchResponse> {
-        // Strategy 1: Try to parse Next.js data (Contains ALL items including those not rendered in HTML)
         val nextData = doc.selectFirst("#__NEXT_DATA__")?.data()
         if (!nextData.isNullOrBlank()) {
             try {
                 val json = parseJson<NextData>(nextData)
                 
-                // Try multiple paths to find the item list
                 val channelList = json.props?.pageProps?.moreData?.items
                     ?: json.props?.pageProps?.initialState?.channel?.list 
                     ?: json.props?.pageProps?.initialState?.channel?.homeFuncList?.flatMap { it.list ?: emptyList() }
@@ -93,11 +91,9 @@ class Dramabox : MainAPI() {
                     }
                 }
             } catch (e: Exception) {
-                // Fallback to HTML parsing if JSON structure changes
             }
         }
 
-        // Strategy 2: Fallback to HTML Link Aggregation (Original robust logic)
         val links = doc.select("a[href*='/movie/']")
         val grouped = links.groupBy { 
             val href = it.attr("href")
@@ -131,59 +127,55 @@ class Dramabox : MainAPI() {
         }
     }
     
-    // Helper to slugify title for URL construction (mimics simple slug behavior)
     private fun String.toSlug(): String {
         return this.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-')
     }
 
-    // JSON Data Structures for Next.js Data
-    data class NextData(
-        @JsonProperty("props") val props: Props? = null
-    )
-
-    data class Props(
-        @JsonProperty("pageProps") val pageProps: PageProps? = null
-    )
-
-    data class PageProps(
-        @JsonProperty("initialState") val initialState: InitialState? = null,
-        @JsonProperty("moreData") val moreData: MoreData? = null
-    )
-    
-    data class MoreData(
-        @JsonProperty("items") val items: List<MovieItem>? = null
-    )
-
-    data class InitialState(
-        @JsonProperty("channel") val channel: ChannelData? = null
-    )
-    
-    data class ChannelData(
-        @JsonProperty("list") val list: List<MovieItem>? = null,
-        @JsonProperty("homeFuncList") val homeFuncList: List<HomeSection>? = null
-    )
-    
-    data class HomeSection(
-        @JsonProperty("list") val list: List<MovieItem>? = null
-    )
-
-    data class MovieItem(
-        @JsonProperty("bookId") val bookId: String? = null,
-        @JsonProperty("name") val name: String? = null,
-        @JsonProperty("bookName") val bookName: String? = null,
-        @JsonProperty("cover") val cover: String? = null,
-        @JsonProperty("image") val image: String? = null
-    )
-
     override suspend fun load(url: String): LoadResponse {
         val doc = app.get(url, headers = baseHeaders).document
         
-        val title = doc.selectFirst("h1, .drama-title, div[class*='bookName']")?.text() ?: "Unknown"
-        val poster = doc.selectFirst("img.poster, .drama-cover img, div[class*='bookImage'] img")?.attr("src") 
-            ?: doc.selectFirst("meta[property='og:image']")?.attr("content")
-        val description = doc.selectFirst(".description, .plot, meta[name='description'], div[class*='introduction']")?.text() 
-            ?: doc.selectFirst("meta[property='og:description']")?.attr("content")
-        val tags = doc.select(".tags a, .genre a, div[class*='tags'] span").map { it.text() }
+        var title = "Unknown"
+        var poster: String? = null
+        var description: String? = null
+        var tags = emptyList<String>()
+        var bookNameEn: String? = null
+        
+        val nextData = doc.selectFirst("#__NEXT_DATA__")?.data()
+        if (!nextData.isNullOrBlank()) {
+            try {
+                val json = parseJson<NextData>(nextData)
+                val bookInfo = json.props?.pageProps?.bookInfo
+                
+                if (bookInfo != null) {
+                    title = bookInfo.bookName ?: bookInfo.name ?: title
+                    bookNameEn = bookInfo.bookNameEn
+                    poster = bookInfo.cover ?: bookInfo.image ?: poster
+                    description = bookInfo.introduction ?: description
+                    
+                    val rawTags = mutableListOf<String>()
+                    bookInfo.tags?.let { rawTags.addAll(it) }
+                    bookInfo.labels?.let { rawTags.addAll(it) }
+                    bookInfo.typeTwoNames?.let { rawTags.addAll(it) }
+                    tags = rawTags.distinct()
+                }
+            } catch (e: Exception) {
+            }
+        }
+        
+        if (title == "Unknown") {
+            title = doc.selectFirst("h1, .drama-title, div[class*='bookName']")?.text() ?: "Unknown"
+        }
+        if (poster == null) {
+            poster = doc.selectFirst("img.poster, .drama-cover img, div[class*='bookImage'] img")?.attr("src") 
+                ?: doc.selectFirst("meta[property='og:image']")?.attr("content")
+        }
+        if (description == null) {
+            description = doc.selectFirst(".description, .plot, meta[name='description'], div[class*='introduction']")?.text() 
+                ?: doc.selectFirst("meta[property='og:description']")?.attr("content")
+        }
+        if (tags.isEmpty()) {
+            tags = doc.select(".tags a, .genre a, div[class*='tags'] span").map { it.text() }
+        }
         
         val bookId = Regex("""/movie/(\d+)""").find(url)?.groupValues?.get(1) 
             ?: url.trimEnd('/').substringAfterLast("/")
@@ -193,14 +185,11 @@ class Dramabox : MainAPI() {
         val episodesUrl = "$playerApiUrl/api/dramabox/allepisode/$bookId"
         var episodes: Array<DramaboxEpisode>? = null
         
-        // Retry logic for slow API to prevent caching empty/failed responses
         for (i in 0..2) {
             try {
-                // Increased timeout to 45s
                 episodes = app.get(episodesUrl, timeout = 45L).parsedSafe<Array<DramaboxEpisode>>()
                 if (!episodes.isNullOrEmpty()) break
             } catch (e: Exception) {
-                // Ignore and retry
             }
             if (i < 2) delay(1500)
         }
@@ -252,6 +241,60 @@ class Dramabox : MainAPI() {
         }
         return true
     }
+
+    // --- JSON Data Classes ---
+
+    data class NextData(
+        @JsonProperty("props") val props: Props? = null
+    )
+
+    data class Props(
+        @JsonProperty("pageProps") val pageProps: PageProps? = null
+    )
+
+    data class PageProps(
+        @JsonProperty("initialState") val initialState: InitialState? = null,
+        @JsonProperty("moreData") val moreData: MoreData? = null,
+        @JsonProperty("bookInfo") val bookInfo: BookInfo? = null
+    )
+
+    data class InitialState(
+        @JsonProperty("channel") val channel: ChannelData? = null
+    )
+    
+    data class MoreData(
+        @JsonProperty("items") val items: List<MovieItem>? = null
+    )
+
+    data class ChannelData(
+        @JsonProperty("list") val list: List<MovieItem>? = null,
+        @JsonProperty("homeFuncList") val homeFuncList: List<HomeSection>? = null
+    )
+    
+    data class HomeSection(
+        @JsonProperty("list") val list: List<MovieItem>? = null
+    )
+
+    data class MovieItem(
+        @JsonProperty("bookId") val bookId: String? = null,
+        @JsonProperty("name") val name: String? = null,
+        @JsonProperty("bookName") val bookName: String? = null,
+        @JsonProperty("cover") val cover: String? = null,
+        @JsonProperty("image") val image: String? = null
+    )
+    
+    data class BookInfo(
+        @JsonProperty("bookId") val bookId: String? = null,
+        @JsonProperty("bookName") val bookName: String? = null,
+        @JsonProperty("name") val name: String? = null,
+        @JsonProperty("introduction") val introduction: String? = null,
+        @JsonProperty("cover") val cover: String? = null,
+        @JsonProperty("image") val image: String? = null,
+        @JsonProperty("tags") val tags: List<String>? = null,
+        @JsonProperty("labels") val labels: List<String>? = null,
+        @JsonProperty("typeTwoNames") val typeTwoNames: List<String>? = null,
+        @JsonProperty("bookNameEn") val bookNameEn: String? = null
+    )
 
     data class LoadLinksData(
         @JsonProperty("bookId") val bookId: String,
