@@ -129,20 +129,11 @@ class Melolo : MainAPI() {
                 val mainUrlEncoded = videoData["main_url"] as? String
                 val backupUrlEncoded = videoData["backup_url_1"] as? String
                 
-                val qName = when(qualityKey) {
-                    "10", "360p", "video_1" -> "360p"
-                    "20", "480p", "video_2" -> "480p"
-                    "30", "720p", "video_3" -> "720p"
-                    "40", "1080p", "video_4" -> "1080p"
-                    "video_5" -> "1080p"
-                    else -> qualityKey.replace("video_", "p")
-                }
-
-                val quality = when(qName) {
-                    "360p" -> Qualities.P360.value
-                    "480p" -> Qualities.P480.value
-                    "720p" -> Qualities.P720.value
-                    "1080p" -> Qualities.P1080.value
+                val quality = when(qualityKey) {
+                    "10", "360p" -> Qualities.P360.value
+                    "20", "480p" -> Qualities.P480.value
+                    "30", "720p" -> Qualities.P720.value
+                    "40", "1080p" -> Qualities.P1080.value
                     else -> Qualities.Unknown.value
                 }
 
@@ -151,7 +142,7 @@ class Melolo : MainAPI() {
                     callback.invoke(
                         newExtractorLink(
                             name,
-                            "1 $qName",
+                            "Main ${if(qualityKey == "default") "" else qualityKey}".trim(),
                             mainUrl,
                             INFER_TYPE
                         ) {
@@ -166,7 +157,7 @@ class Melolo : MainAPI() {
                     callback.invoke(
                         newExtractorLink(
                             name,
-                            "2 $qName",
+                            "Backup ${if(qualityKey == "default") "" else qualityKey}".trim(),
                             backupUrl,
                             INFER_TYPE
                         ) {
