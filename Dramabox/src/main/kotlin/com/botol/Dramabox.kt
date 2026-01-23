@@ -13,11 +13,12 @@ class Dramabox : MainAPI() {
     override var lang = "id"
     override val supportedTypes = setOf(TvType.AsianDrama)
 
-    private val headers = mapOf(
+    private val baseHeaders = mapOf(
         "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "Accept" to "application/json",
+        "X-Requested-With" to "XMLHttpRequest",
         "Referer" to "$mainUrl/",
-        "Origin" to mainUrl,
-        "Accept" to "application/json, text/plain, */*"
+        "Origin" to mainUrl
     )
 
     override val mainPage = mainPageOf(
@@ -29,15 +30,15 @@ class Dramabox : MainAPI() {
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val url = if (request.data.contains("?")) "${request.data}&page=$page" else "${request.data}?page=$page"
-        val res = app.get(url, headers = headers).parsedSafe<Array<DramaboxMedia>>() 
-            ?: throw ErrorLoadingException("Gagal memuat data: Format tidak valid")
+        val res = app.get(url, headers = baseHeaders).parsedSafe<Array<DramaboxMedia>>() 
+            ?: throw ErrorLoadingException("Gagal memuat data: Hubungi Admin (Format HTML diterima)")
         val home = res.map { it.toSearchResponse(this) }
         return newHomePageResponse(request.name, home)
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
         val url = "$mainUrl/api/dramabox/search?query=$query"
-        val res = app.get(url, headers = headers).parsedSafe<Array<DramaboxMedia>>() ?: return emptyList()
+        val res = app.get(url, headers = baseHeaders).parsedSafe<Array<DramaboxMedia>>() ?: return emptyList()
         return res.map { it.toSearchResponse(this) }
     }
 
@@ -46,11 +47,11 @@ class Dramabox : MainAPI() {
         val detailUrl = "$mainUrl/api/dramabox/detail/$bookId"
         val episodesUrl = "$mainUrl/api/dramabox/allepisode/$bookId"
 
-        val detail = app.get(detailUrl, headers = headers).parsedSafe<DramaboxMedia>() 
-            ?: throw ErrorLoadingException("Gagal memuat detail: Konten tidak ditemukan")
+        val detail = app.get(detailUrl, headers = baseHeaders).parsedSafe<DramaboxMedia>() 
+            ?: throw ErrorLoadingException("Detail Drama tidak tersedia (Server Sibuk)")
 
-        val episodes = app.get(episodesUrl, headers = headers).parsedSafe<Array<DramaboxEpisode>>() 
-            ?: throw ErrorLoadingException("Gagal memuat episode: Daftar kosong")
+        val episodes = app.get(episodesUrl, headers = baseHeaders).parsedSafe<Array<DramaboxEpisode>>() 
+            ?: throw ErrorLoadingException("Episode tidak tersedia (Server Sibuk)")
 
         val epData = episodes.map { ep ->
             val data = LoadLinksData(bookId, ep.chapterId ?: "").toJson()
@@ -76,7 +77,7 @@ class Dramabox : MainAPI() {
     ): Boolean {
         val loadData = parseJson<LoadLinksData>(data)
         val episodesUrl = "$mainUrl/api/dramabox/allepisode/${loadData.bookId}"
-        val episodes = app.get(episodesUrl, headers = headers).parsedSafe<Array<DramaboxEpisode>>() ?: return false
+        val episodes = app.get(episodesUrl, headers = baseHeaders).parsedSafe<Array<DramaboxEpisode>>() ?: return false
         val chapter = episodes.find { it.chapterId == loadData.chapterId } ?: return false
 
         chapter.cdnList?.forEach { cdn ->
