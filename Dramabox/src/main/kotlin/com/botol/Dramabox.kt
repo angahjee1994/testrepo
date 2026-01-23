@@ -36,11 +36,9 @@ class Dramabox : MainAPI() {
     }
 
     override val mainPage = mainPageOf(
-        "" to "Foryou",
         "channel/must-sees" to "Must Sees",
         "channel/trending" to "Trending",
-        "channel/hidden-gems" to "Hidden Gems",
-        "channel/new" to "New Arrivals"
+        "channel/hidden-gems" to "Hidden Gems"
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
