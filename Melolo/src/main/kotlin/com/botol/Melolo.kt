@@ -69,35 +69,59 @@ class Melolo : MainAPI() {
         val streamUrl = "$mainUrl/api/melolo/stream/$data"
         val res = app.get(streamUrl).parsedSafe<MeloloStreamResponse>() ?: return false
         
-        val streamData = res.data ?: return false
+        val streamResult = res.data ?: return false
+        val videoModelJson = streamResult.videoModel ?: return false
         
-        streamData.mainUrl?.let { url ->
-             callback.invoke(
-                newExtractorLink(
-                    name,
-                    "Main",
-                    url,
-                    INFER_TYPE
-                ) {
-                    this.quality = Qualities.Unknown.value
+        try {
+            val videoModel = parseJson<MeloloVideoModel>(videoModelJson)
+            val videos = videoModel.videoInfo?.data ?: return false
+
+            videos.forEach { (qualityName, videoInfo) ->
+                val mainUrl = videoInfo.mainUrl?.decodeBase64()
+                val backupUrl = videoInfo.backupUrl?.decodeBase64()
+                val quality = getQualityFromName(qualityName)
+
+                if (mainUrl != null) {
+                    callback.invoke(
+                        newExtractorLink(
+                            name,
+                            "Main $qualityName",
+                            mainUrl,
+                            INFER_TYPE
+                        ) {
+                            this.quality = quality
+                        }
+                    )
                 }
-            )
-        }
-        
-        streamData.backupUrl?.let { url ->
-             callback.invoke(
-                newExtractorLink(
-                    name,
-                    "Backup",
-                    url,
-                    INFER_TYPE
-                ) {
-                    this.quality = Qualities.Unknown.value
+
+                if (backupUrl != null) {
+                    callback.invoke(
+                        newExtractorLink(
+                            name,
+                            "Backup $qualityName",
+                            backupUrl,
+                            INFER_TYPE
+                        ) {
+                            this.quality = quality
+                        }
+                    )
                 }
-            )
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return false
         }
 
         return true
+    }
+    
+    // Helper extension
+    private fun String.decodeBase64(): String {
+        return try {
+            String(android.util.Base64.decode(this, android.util.Base64.DEFAULT))
+        } catch (e: Exception) {
+            this
+        }
     }
 
     // Data Classes
@@ -141,8 +165,7 @@ class Melolo : MainAPI() {
 
     data class MeloloDetailData(
         @JsonProperty("video_data") val videoData: MeloloVideoData? = null,
-        // book_data might exist based on observation pattern
-         @JsonProperty("book_data") val bookData: MeloloBook? = null
+        @JsonProperty("book_data") val bookData: MeloloBook? = null
     )
 
     data class MeloloVideoData(
@@ -161,11 +184,23 @@ class Melolo : MainAPI() {
     
     data class MeloloStreamResponse(
          @JsonProperty("status") val status: Boolean? = null,
-         @JsonProperty("data") val data: MeloloStreamData? = null
+         @JsonProperty("data") val data: MeloloStreamResult? = null
     )
     
-    data class MeloloStreamData(
+    data class MeloloStreamResult(
+        @JsonProperty("video_model") val videoModel: String? = null
+    )
+
+    data class MeloloVideoModel(
+        @JsonProperty("video_info") val videoInfo: MeloloVideoInfoWrapper? = null
+    )
+
+    data class MeloloVideoInfoWrapper(
+        @JsonProperty("data") val data: Map<String, MeloloVideoSource>? = null
+    )
+
+    data class MeloloVideoSource(
         @JsonProperty("main_url") val mainUrl: String? = null,
-        @JsonProperty("backup_url") val backupUrl: String? = null
+        @JsonProperty("backup_url_1") val backupUrl: String? = null
     )
 }
