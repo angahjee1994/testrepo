@@ -47,11 +47,13 @@ class Dramabox : MainAPI() {
         val detailUrl = "$mainUrl/api/dramabox/detail/$bookId"
         val episodesUrl = "$mainUrl/api/dramabox/allepisode/$bookId"
 
-        val detail = app.get(detailUrl, headers = baseHeaders).parsedSafe<DramaboxMedia>() 
-            ?: throw ErrorLoadingException("Detail Drama tidak tersedia (Server Sibuk)")
+        val response = app.get(detailUrl, headers = baseHeaders)
+        val detail = response.parsedSafe<DramaboxMedia>() 
+            ?: throw ErrorLoadingException("Gagal Memuat Detail: ${response.code} ${response.text.take(200)}")
 
-        val episodes = app.get(episodesUrl, headers = baseHeaders).parsedSafe<Array<DramaboxEpisode>>() 
-            ?: throw ErrorLoadingException("Episode tidak tersedia (Server Sibuk)")
+        val episodesResponse = app.get(episodesUrl, headers = baseHeaders)
+        val episodes = episodesResponse.parsedSafe<Array<DramaboxEpisode>>() 
+            ?: throw ErrorLoadingException("Gagal Memuat Episode: ${episodesResponse.code} ${episodesResponse.text.take(200)}")
 
         val epData = episodes.map { ep ->
             val data = LoadLinksData(bookId, ep.chapterId ?: "").toJson()
