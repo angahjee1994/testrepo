@@ -71,7 +71,10 @@ class Dramabox : MainAPI() {
             try {
                 val json = parseJson<NextData>(nextData)
                 
-                val channelList = json.props?.pageProps?.moreData?.items
+                // Try multiple paths to find the item list
+                // Search pages use "bookList", Channel pages use "moreData.items" or "channel.list"
+                val channelList = json.props?.pageProps?.bookList
+                    ?: json.props?.pageProps?.moreData?.items
                     ?: json.props?.pageProps?.initialState?.channel?.list 
                     ?: json.props?.pageProps?.initialState?.channel?.homeFuncList?.flatMap { it.list ?: emptyList() }
                 
@@ -79,7 +82,7 @@ class Dramabox : MainAPI() {
                     return channelList.mapNotNull { item ->
                         val title = item.bookName ?: item.name
                         val bookId = item.bookId
-                        val cover = item.cover ?: item.image
+                        val cover = item.cover ?: item.image ?: item.coverWap
                          
                         if (title.isNullOrBlank() || bookId.isNullOrBlank()) return@mapNotNull null
                         
@@ -94,9 +97,16 @@ class Dramabox : MainAPI() {
             }
         }
 
-        val links = doc.select("a[href*='/movie/']")
+        // Fallback to HTML: Search results use /ep/, others use /movie/
+        val links = doc.select("a[href*='/movie/'], a[href*='/ep/']")
         val grouped = links.groupBy { 
             val href = it.attr("href")
+            // Normalize: If it's an episode link /ep/ID_Slug/..., extract just the movie part?
+            // Actually, for search results, the link IS the movie link in a way.
+            // But we prefer /movie/ link format for consistency with load().
+            // If the link is /ep/41000..._title/..., we can reconstruct /movie/41000.../title
+            
+            // For now, let's just group by the raw href to merge duplicate links for the same item.
             val full = if (href.startsWith("http")) href else "$mainUrl$href"
             full.trimEnd('/').substringBefore('?')
         }
@@ -121,7 +131,18 @@ class Dramabox : MainAPI() {
             
             val poster = elements.mapNotNull { it.selectFirst("img")?.attr("src") }.firstOrNull()
             
-            newAnimeSearchResponse(validTitle, fullUrl, TvType.AsianDrama) {
+            // If the URL is an /ep/ link, try to convert it to /movie/ link for consistency
+            // Pattern: /ep/{bookId}_{slug}/{chapterId}... -> /movie/{bookId}/{slug}
+            // Or just allow it. But load() expects /movie/ regex.
+            val finalUrl = if (fullUrl.contains("/ep/")) {
+                val match = Regex("""/ep/(\d+)_([^/]+)""").find(fullUrl)
+                if (match != null) {
+                    val (id, slug) = match.destructured
+                    "$mainUrl/movie/$id/$slug"
+                } else fullUrl
+            } else fullUrl
+
+            newAnimeSearchResponse(validTitle, finalUrl, TvType.AsianDrama) {
                 this.posterUrl = poster
             }
         }
@@ -255,7 +276,8 @@ class Dramabox : MainAPI() {
     data class PageProps(
         @JsonProperty("initialState") val initialState: InitialState? = null,
         @JsonProperty("moreData") val moreData: MoreData? = null,
-        @JsonProperty("bookInfo") val bookInfo: BookInfo? = null
+        @JsonProperty("bookInfo") val bookInfo: BookInfo? = null,
+        @JsonProperty("bookList") val bookList: List<MovieItem>? = null
     )
 
     data class InitialState(
@@ -280,7 +302,8 @@ class Dramabox : MainAPI() {
         @JsonProperty("name") val name: String? = null,
         @JsonProperty("bookName") val bookName: String? = null,
         @JsonProperty("cover") val cover: String? = null,
-        @JsonProperty("image") val image: String? = null
+        @JsonProperty("image") val image: String? = null,
+        @JsonProperty("coverWap") val coverWap: String? = null
     )
     
     data class BookInfo(
