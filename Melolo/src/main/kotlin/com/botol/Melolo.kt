@@ -88,11 +88,11 @@ class Melolo : MainAPI() {
         
         try {
             val videoModel = parseJson<MeloloVideoModel>(videoModelJson)
-            // The JSON string is like {"video_model": {"video_info": {"data": ...}}}
-            val videos = videoModel.videoModel?.videoInfo?.data
+            // The JSON string can be {"video_info": ...} OR {"video_model": {"video_info": ...}}
+            val videos = (videoModel.videoModel?.videoInfo ?: videoModel.videoInfo)?.data
             
             if (videos == null) {
-                android.util.Log.e("Melolo", "videoModel.videoModel?.videoInfo?.data is null. JSON: ${videoModelJson.take(200)}")
+                android.util.Log.e("Melolo", "Could not find video_info data. Inner JSON: ${videoModelJson.take(500)}")
                 return false
             }
 
@@ -100,7 +100,7 @@ class Melolo : MainAPI() {
                 android.util.Log.d("Melolo", "Processing quality: $qualityKey")
                 val mainUrl = videoInfo.mainUrl?.decodeBase64()
                 if (mainUrl != null) {
-                    android.util.Log.d("Melolo", "Found main link: $mainUrl")
+                    android.util.Log.d("Melolo", "Found URL for $qualityKey: $mainUrl")
                     val quality = when(qualityKey) {
                         "10" -> Qualities.P360.value
                         "20" -> Qualities.P480.value
@@ -228,7 +228,8 @@ class Melolo : MainAPI() {
     )
 
     data class MeloloVideoModel(
-        @JsonProperty("video_model") val videoModel: MeloloVideoModelInner? = null
+        @JsonProperty("video_model") val videoModel: MeloloVideoModelInner? = null,
+        @JsonProperty("video_info") val videoInfo: MeloloVideoInfoWrapper? = null,
     )
 
     data class MeloloVideoModelInner(
