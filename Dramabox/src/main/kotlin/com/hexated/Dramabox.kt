@@ -32,7 +32,12 @@ class Dramabox : MainAPI() {
             "${request.data}?page=$page"
         }
 
-        val items = app.get(url).parsedSafe<List<DramaItem>>() ?: emptyList()
+        val text = app.get(url).text
+        val items = try { 
+            parseJson<List<DramaItem>>(text) 
+        } catch (e: Exception) { 
+            emptyList() 
+        }
 
         val home = items.map {
             it.toSearchResponse(this)
@@ -43,7 +48,12 @@ class Dramabox : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         val url = "$mainUrl/api/dramabox/search?query=$query"
-        val items = app.get(url).parsedSafe<List<DramaItem>>() ?: emptyList()
+        val text = app.get(url).text
+        val items = try {
+            parseJson<List<DramaItem>>(text)
+        } catch (e: Exception) {
+            emptyList()
+        }
         return items.map { it.toSearchResponse(this) }
     }
 
