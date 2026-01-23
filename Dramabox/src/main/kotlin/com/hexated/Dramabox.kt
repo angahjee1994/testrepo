@@ -68,7 +68,7 @@ class Dramabox : MainAPI() {
             }
         }
 
-        val home = items.filter { !it.bookName.isNullOrEmpty() && !it.bookId.isNullOrEmpty() }.map {
+        val home = items.map {
             it.toSearchResponse(this)
         }
 
