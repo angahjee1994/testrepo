@@ -20,19 +20,23 @@ class Dramabox : MainAPI() {
         "$mainUrl/api/dramabox/dubindo?classify=terpopuler" to "Dub Indo (Populer)",
         "$mainUrl/api/dramabox/dubindo?classify=terbaru" to "Dub Indo (Terbaru)",
         "$mainUrl/api/dramabox/vip" to "VIP",
+        "https://www.dramaboxdb.com/in/genres/0" to "Catalog"
     )
 
     override suspend fun getMainPage(
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
-        val isPaginated = request.data.contains("dubindo")
+        val isCatalog = request.data.contains("dramaboxdb.com")
+        val isPaginated = request.data.contains("dubindo") || isCatalog
         
         if (!isPaginated && page > 1) {
             return newHomePageResponse(request.name, emptyList())
         }
 
-        val url = if (isPaginated) {
+        val url = if (isCatalog) {
+            if (page == 1) request.data else "${request.data}/$page"
+        } else if (isPaginated) {
             if (request.data.contains("?")) {
                 "${request.data}&page=$page"
             } else {
@@ -44,7 +48,16 @@ class Dramabox : MainAPI() {
 
         val text = app.get(url).text
         val items = try { 
-            parseJson<List<DramaItem>>(text) 
+            if (isCatalog) {
+                // Parse Next.js data from website
+                val json = text.substringAfter("<script id=\"__NEXT_DATA__\" type=\"application/json\">")
+                    .substringBefore("</script>")
+                val nextData = parseJson<NextData>(json)
+                // Try to find bookList in likely locations
+                nextData.props?.pageProps?.bookList ?: emptyList()
+            } else {
+                parseJson<List<DramaItem>>(text) 
+            }
         } catch (e: Exception) {
             try {
                 // Handle VIP/Nested structure
@@ -61,6 +74,18 @@ class Dramabox : MainAPI() {
 
         return newHomePageResponse(request.name, home)
     }
+
+    data class NextData(
+        @JsonProperty("props") val props: NextProps? = null
+    )
+
+    data class NextProps(
+        @JsonProperty("pageProps") val pageProps: NextPageProps? = null
+    )
+
+    data class NextPageProps(
+        @JsonProperty("bookList") val bookList: List<DramaItem>? = null
+    )
 
     data class VipResponse(
         @JsonProperty("sectionList") val sectionList: List<SectionItem>? = null
