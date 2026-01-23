@@ -11,7 +11,7 @@ class Dramabox : MainAPI() {
     private val playerApiUrl = "https://dracin-web-eight.vercel.app" 
     override var name = "Dramabox"
     override val hasMainPage = true
-    override var lang = "id"
+    override var lang = "en"
     override val supportedTypes = setOf(TvType.AsianDrama)
 
     private val baseHeaders = mapOf(
@@ -29,40 +29,36 @@ class Dramabox : MainAPI() {
             "ko" -> "/kr"
             "vi" -> "/vi"
             "zh" -> "/zh"
-            "en" -> "" // English seems to be default
+            "en" -> "" // English is default, no prefix
             else -> ""
         }
     }
 
     override val mainPage = mainPageOf(
         "" to "Foryou", // Homepage
-        "latest" to "Latest",
-        "trending" to "Trending"
+        "channel/must-sees" to "Must Sees",
+        "channel/trending" to "Trending",
+        "channel/hidden-gems" to "Hidden Gems" 
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val prefix = getLangPrefix()
-        // Determine URL based on request
-        // Homepage: $mainUrl$prefix/
-        // Categories need mapping? The site seems to have /latest, /trending at root or under lang?
-        // Subagent didn't check /latest structure deeply but user mentioned "original website" structure.
-        // Let's assume standard structure or just use Homepage sections if possible.
-        // Actually, dramaboxdb.com usually has sections on homepage.
-        // Let's scrape the homepage and filter if possible, or mapping specific URLs.
+        // Ensure path starts with / if prefix exists, but handle empty logic carefully
+        // url = https://www.dramaboxdb.com + /channel/trending
+        // or https://www.dramaboxdb.com + /in + /channel/trending
         
-        // Simpler approach:
-        // request.data is "" -> Homepage
-        // request.data is "latest" -> $mainUrl$prefix/latest ? (Need to verify if exists, otherwise fallback to home)
-        // Let's rely on Homepage parsing mostly.
-        
-        val url = if(request.data.isEmpty()) "$mainUrl$prefix/" else "$mainUrl$prefix/${request.data}"
+        val sectionPath = request.data
+        val url = if (sectionPath.isEmpty()) {
+            "$mainUrl$prefix/"
+        } else {
+            "$mainUrl$prefix/$sectionPath"
+        }
         
         val doc = app.get(url, headers = baseHeaders).document
         
-        // Select logic based on typical layout
-        // The homepage usually has "Trending", "Latest" sections but scraping them as one list or separate?
-        // Let's list all items found on the page for now.
-        val home = doc.select("a[href*='/drama/']").mapNotNull {
+        // Items are usually in grid or slider.
+        // Links are /movie/{id}/name
+        val home = doc.select("a[href*='/movie/']").mapNotNull {
             it.toSearchResponse()
         }.distinctBy { it.url }
 
@@ -74,45 +70,53 @@ class Dramabox : MainAPI() {
         val url = "$mainUrl$prefix/search?searchValue=$query"
         val doc = app.get(url, headers = baseHeaders).document
         
-        return doc.select("a[href*='/drama/']").mapNotNull {
+        return doc.select("a[href*='/movie/']").mapNotNull {
             it.toSearchResponse()
         }
     }
 
     private fun org.jsoup.nodes.Element.toSearchResponse(): SearchResponse? {
         val href = this.attr("href")
-        // extract ID from /drama/123456
-        // or keep full url
-        val title = this.selectFirst(".title, h3, h4, span")?.text() 
+        // href might be relative or absolute.
+        val fullUrl = if (href.startsWith("http")) href else "$mainUrl$href"
+        
+        // Selectors based on inspection
+        // Title: .title, or just text usually inside a div or span
+        // The structure seems to be <a><img><div title></div></a> or similar
+        // Fallback: title attribute on img, or text
+        val title = this.selectFirst(".title, h3, h4, span[class*='bookName']")?.text() 
             ?: this.selectFirst("img")?.attr("alt") 
             ?: this.text()
             
         val poster = this.selectFirst("img")?.attr("src")
         
-        return newAnimeSearchResponse(title, href, TvType.AsianDrama) {
+        return newAnimeSearchResponse(title, fullUrl, TvType.AsianDrama) {
             this.posterUrl = poster
         }
     }
 
     override suspend fun load(url: String): LoadResponse {
-        // url is like "https://www.dramaboxdb.com/in/drama/12345" or relative "/in/drama/12345"
+        // url is like "https://www.dramaboxdb.com/in/movie/12345"
         val fullUrl = if (url.startsWith("http")) url else "$mainUrl$url"
         val doc = app.get(fullUrl, headers = baseHeaders).document
         
         // Extract Metadata from DramaboxDB
-        val title = doc.selectFirst("h1, .drama-title")?.text() ?: "Unknown"
-        val poster = doc.selectFirst("img.poster, .drama-cover img")?.attr("src") 
+        val title = doc.selectFirst("h1, .drama-title, div[class*='bookName']")?.text() ?: "Unknown"
+        val poster = doc.selectFirst("img.poster, .drama-cover img, div[class*='bookImage'] img")?.attr("src") 
             ?: doc.selectFirst("meta[property='og:image']")?.attr("content")
-        val description = doc.selectFirst(".description, .plot, meta[name='description']")?.attr("content") 
-            ?: doc.selectFirst(".introduction")?.text()
-        val tags = doc.select(".tags a, .genre a").map { it.text() }
+        val description = doc.selectFirst(".description, .plot, meta[name='description'], div[class*='introduction']")?.text() 
+            ?: doc.selectFirst("meta[property='og:description']")?.attr("content")
+        val tags = doc.select(".tags a, .genre a, div[class*='tags'] span").map { it.text() }
         
         // Extract ID for API calls
-        // URL structure: .../drama/{bookId}
-        val bookId = fullUrl.trimEnd('/').substringAfterLast("/")
+        // URL structure: .../movie/{bookId}/...
+        // Regex might be safer: /movie/(\d+)
+        val bookId = Regex("""/movie/(\d+)""").find(fullUrl)?.groupValues?.get(1) 
+            ?: fullUrl.substringAfterLast("/") // Fallback, likely wrong if title is at end
         
-        // Fetch Episodes from Dracin API to ensure playback compatibility
-        // Use the bookId extracted from the DramaboxDB URL
+        if (bookId == null) throw ErrorLoadingException("No Book ID found")
+
+        // Fetch Episodes from Dracin API
         val episodesUrl = "$playerApiUrl/api/dramabox/allepisode/$bookId"
         val episodes = try {
             app.get(episodesUrl).parsedSafe<Array<DramaboxEpisode>>()
