@@ -17,16 +17,18 @@ class AstroGo : MainAPI() {
     private val bearerToken = "eyJraWQiOiI0OGNiOWNjNy03YmVlLTRkNGMtYTU0OS02YzVlYmI2NGQ4YmIiLCJqa3UiOiJodHRwczovL3NnLXNnLXNnLmFzdHJvLmNvbS5teTo5NDQzL29hdXRoMi9qd2tzP2tpZD00OGNiOWNjNy03YmVlLTRkNGMtYTU0OS02YzVlYmI2NGQ4YmIiLCJhbGciOiJSUzI1NiJ9.eyJpYXQiOjE3NjkyMDk4MjIsInN1YiI6Ijg2MjIwMzM4IiwiYXVkIjoiaXZwLnNlc3Npb25ndWFyZCIsImV4cCI6MTc2OTIyMDYyMiwic2Vzc2lvbl9kYXRhIjp7InNlc3Npb24iOnsiZGV2SWQiOiI4NjIyMDMzOC41MWIyNjBlNy02NzEyLTQ4OWQtYTQ5Yy1hN2ViMDU4YTA1NzYiLCJndWVzdE1vZGUiOmZhbHNlLCJoaElkIjoiODYyMjAzMzgiLCJidXNVbml0SWQiOiJBU1RSTyJ9fSwiZGV2aWNlRnVsbFR5cGUiOiJCcm93c2VyLURlZmF1bHQiLCJzY29wZSI6ImJyb3dzZSBwbGF5YmFjayIsInRva2VuX3R5cGUiOiJhY2Nlc3NfdG9rZW4iLCJzc2FfanRpIjoiYnJvd3NlciIsImNsaWVudF9pZCI6ImJyb3dzZXIiLCJqdGkiOiI3NjQ5MWExYi0wYTZkLTRlNTAtOTgwYi0yNGNlNjlmNWM5NTQifQ.fAXuNJ5gYJrG2IKJ3SEj9WS8qd3DEOMMg3rx4hRTiV-i8ayCAFrPEuMWqWhOGkKuw3sde7TX0Z6nY5IMzGIzSuj2tM1AWCobCM1anK_UTbI6sgGwnlJ3XI94tvSho5sK8BtRDA-mLSDT1rjdrBlogYgNSUHS82y2wNw4RqCrtQRLs6bf6Aa00A8ZYwmPn_zK9QpRMgTYWAqWH5ouWePTyiXTpNJQnLkioozHnwCX9Ww1tHGvdDI-USivCOxTIARwgKZR3HJjoAc3X4G7cueduSButa4rcW8-TZotLleSRwV-bEgBnRT4cLCf2_CHb7QgmVLr0vau6sNeznrz6N88JA"
 
     override val mainPage = mainPageOf(
-        "shared/bulkContent/node:IVP:Home" to "Home",
-        "shared/bulkContent/IVP:TVShow" to "TV Shows",
-        "shared/bulkContent/IVP:Movie" to "Movies"
+        "IVP:Home" to "Home",
+        "IVP:TVShow" to "TV Shows",
+        "IVP:Movie" to "Movies"
     )
 
     override suspend fun getMainPage(
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
-        val url = "$apiUrl/${request.data}?clientToken=$clientToken"
+        val endpoint = if (request.data.contains("Home")) "shared/bulkContent/node:${request.data}" 
+                      else "shared/bulkContent/${request.data}"
+        val url = "$apiUrl/$endpoint?clientToken=$clientToken"
         
         val headers = mapOf(
             "Authorization" to "Bearer $bearerToken",
@@ -38,15 +40,16 @@ class AstroGo : MainAPI() {
             val items = ArrayList<HomePageList>()
 
             response?.categories?.forEach { category ->
-                val title = category.title ?: "Untitled"
+                val title = category.title ?: request.name
                 val contents = category.content?.mapNotNull { it.toSearchResponse() }
                 
+                // Only add if we have valid content and a meaningful title (unless it's the main list)
                 if (!contents.isNullOrEmpty()) {
                     items.add(HomePageList(title, contents))
                 }
             }
 
-            // Also check root level content if categories are empty but content exists
+            // Also check root level content
             if (response?.content != null) {
                  val contents = response.content.mapNotNull { it.toSearchResponse() }
                  if (contents.isNotEmpty()) {
