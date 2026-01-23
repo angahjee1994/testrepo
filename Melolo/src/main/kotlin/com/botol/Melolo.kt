@@ -65,37 +65,68 @@ class Melolo : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val lid = parseJson<MeloloLinkData>(data)
-        val streamUrl = "$mainUrl/api/melolo/stream/${lid.id}"
-        val res = app.get(streamUrl).parsedSafe<MeloloStreamResponse>() ?: return false
+        android.util.Log.d("Melolo", "loadLinks data: $data")
+        val lid = try { parseJson<MeloloLinkData>(data) } catch(e: Exception) { 
+            android.util.Log.e("Melolo", "Error parsing lid: $e")
+            return false 
+        }
         
-        val videoModelJson = res.data?.videoModel ?: return false
+        val streamUrl = "$mainUrl/api/melolo/stream/${lid.id}"
+        android.util.Log.d("Melolo", "Requesting stream: $streamUrl")
+        val res = app.get(streamUrl).parsedSafe<MeloloStreamResponse>() 
+        
+        if (res == null) {
+            android.util.Log.e("Melolo", "MeloloStreamResponse is null")
+            return false
+        }
+        
+        val videoModelJson = res.data?.videoModel
+        if (videoModelJson == null) {
+            android.util.Log.e("Melolo", "video_model is null in response")
+            return false
+        }
         
         try {
             val videoModel = parseJson<MeloloVideoModel>(videoModelJson)
-            val videos = videoModel.videoInfo?.data ?: return false
+            val videos = videoModel.videoInfo?.data
+            
+            if (videos == null) {
+                android.util.Log.e("Melolo", "video_info.data is null")
+                return false
+            }
 
             videos.forEach { (qualityKey, videoInfo) ->
-                val mainUrl = videoInfo.mainUrl?.decodeBase64() ?: return@forEach
-                val quality = when(qualityKey) {
-                    "10" -> Qualities.P360.value
-                    "20" -> Qualities.P480.value
-                    "30" -> Qualities.P720.value
-                    else -> Qualities.Unknown.value
+                android.util.Log.d("Melolo", "Processing quality: $qualityKey")
+                val mainUrl = videoInfo.mainUrl?.decodeBase64()
+                if (mainUrl != null) {
+                    android.util.Log.d("Melolo", "Found main link: $mainUrl")
+                    val quality = when(qualityKey) {
+                        "10" -> Qualities.P360.value
+                        "20" -> Qualities.P480.value
+                        "30" -> Qualities.P720.value
+                        else -> Qualities.Unknown.value
+                    }
+
+                    callback.invoke(
+                        newExtractorLink(
+                            name,
+                            "Main $qualityKey",
+                            mainUrl,
+                            INFER_TYPE
+                        ) {
+                            this.quality = quality
+                        }
+                    )
                 }
 
-                callback.invoke(
-                    newExtractorLink(
-                        name,
-                        "Main $qualityKey",
-                        mainUrl,
-                        INFER_TYPE
-                    ) {
-                        this.quality = quality
-                    }
-                )
-
                 videoInfo.backupUrl?.decodeBase64()?.let { backup ->
+                    android.util.Log.d("Melolo", "Found backup link: $backup")
+                    val quality = when(qualityKey) {
+                        "10" -> Qualities.P360.value
+                        "20" -> Qualities.P480.value
+                        "30" -> Qualities.P720.value
+                        else -> Qualities.Unknown.value
+                    }
                     callback.invoke(
                         newExtractorLink(
                             name,
@@ -109,6 +140,7 @@ class Melolo : MainAPI() {
                 }
             }
         } catch (e: Exception) {
+            android.util.Log.e("Melolo", "Error in link processing: $e")
             return false
         }
 
@@ -122,6 +154,7 @@ class Melolo : MainAPI() {
             val decoded = android.util.Base64.decode(unescaped, android.util.Base64.DEFAULT)
             String(decoded, Charsets.UTF_8)
         } catch (e: Exception) {
+            android.util.Log.e("Melolo", "Base64 decode failed for $this: $e")
             null
         }
     }
@@ -183,8 +216,10 @@ class Melolo : MainAPI() {
     )
     
     data class MeloloStreamResponse(
-         @JsonProperty("status") val status: Boolean? = null,
-         @JsonProperty("data") val data: MeloloStreamResult? = null
+         @JsonProperty("data") val data: MeloloStreamResult? = null,
+         @JsonProperty("debug_info") val debugInfo: String? = null,
+         @JsonProperty("log_id") val logId: String? = null,
+         @JsonProperty("message") val message: String? = null
     )
     
     data class MeloloStreamResult(
