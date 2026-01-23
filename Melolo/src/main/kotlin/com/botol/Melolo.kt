@@ -43,19 +43,19 @@ class Melolo : MainAPI() {
         val res = app.get(detailUrl).parsedSafe<MeloloDetailResponse>() 
             ?: throw ErrorLoadingException("Gagal memuat detail drama")
             
-        val data = res.data?.videoData ?: throw ErrorLoadingException("Data video tidak ditemukan")
+        val videoData = res.data?.videoData ?: throw ErrorLoadingException("Data tidak ditemukan")
 
-        val episodes = data.videoList?.map { ep ->
-            newEpisode(ep.vid ?: "") {
+        val episodes = videoData.videoList?.map { ep ->
+            val epData = MeloloLinkData(ep.vid ?: "").toJson()
+            newEpisode(epData) {
                 this.name = ep.title
                 this.episode = ep.vidIndex
-                // Duration is in seconds, convert if needed or ignore
             }
         } ?: emptyList()
 
-        return newTvSeriesLoadResponse(data.seriesTitle ?: "No Title", url, TvType.AsianDrama, episodes) {
-            this.posterUrl = data.seriesCover ?: res.data.bookData?.cover
-            this.plot = data.seriesIntro ?: res.data.bookData?.intro
+        return newTvSeriesLoadResponse(videoData.seriesTitle ?: "No Title", url, TvType.AsianDrama, episodes) {
+            this.posterUrl = videoData.seriesCover ?: res.data?.bookData?.cover
+            this.plot = videoData.seriesIntro ?: res.data?.bookData?.intro
         }
     }
 
@@ -65,42 +65,42 @@ class Melolo : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        // data here is the vid_id passed from load()
-        val vidId = data.substringAfterLast("/")
-        val streamUrl = "$mainUrl/api/melolo/stream/$vidId"
+        val lid = parseJson<MeloloLinkData>(data)
+        val streamUrl = "$mainUrl/api/melolo/stream/${lid.id}"
         val res = app.get(streamUrl).parsedSafe<MeloloStreamResponse>() ?: return false
         
-        val streamResult = res.data ?: return false
-        val videoModelJson = streamResult.videoModel ?: return false
+        val videoModelJson = res.data?.videoModel ?: return false
         
         try {
             val videoModel = parseJson<MeloloVideoModel>(videoModelJson)
             val videos = videoModel.videoInfo?.data ?: return false
 
-            videos.forEach { (qualityName, videoInfo) ->
-                val mainUrl = videoInfo.mainUrl?.decodeBase64()
-                val backupUrl = videoInfo.backupUrl?.decodeBase64()
-                val quality = getQualityFromName(qualityName)
-
-                if (mainUrl != null) {
-                    callback.invoke(
-                        newExtractorLink(
-                            name,
-                            "Main $qualityName",
-                            mainUrl,
-                            INFER_TYPE
-                        ) {
-                            this.quality = quality
-                        }
-                    )
+            videos.forEach { (qualityKey, videoInfo) ->
+                val mainUrl = videoInfo.mainUrl?.decodeBase64() ?: return@forEach
+                val quality = when(qualityKey) {
+                    "10" -> Qualities.P360.value
+                    "20" -> Qualities.P480.value
+                    "30" -> Qualities.P720.value
+                    else -> Qualities.Unknown.value
                 }
 
-                if (backupUrl != null) {
+                callback.invoke(
+                    newExtractorLink(
+                        name,
+                        "Main $qualityKey",
+                        mainUrl,
+                        INFER_TYPE
+                    ) {
+                        this.quality = quality
+                    }
+                )
+
+                videoInfo.backupUrl?.decodeBase64()?.let { backup ->
                     callback.invoke(
                         newExtractorLink(
                             name,
-                            "Backup $qualityName",
-                            backupUrl,
+                            "Backup $qualityKey",
+                            backup,
                             INFER_TYPE
                         ) {
                             this.quality = quality
@@ -109,27 +109,26 @@ class Melolo : MainAPI() {
                 }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
             return false
         }
 
         return true
     }
     
-    // Helper extension
-    private fun String.decodeBase64(): String {
+    private fun String.decodeBase64(): String? {
         return try {
-            String(android.util.Base64.decode(this, android.util.Base64.DEFAULT))
+            val decoded = android.util.Base64.decode(this, android.util.Base64.DEFAULT)
+            String(decoded, Charsets.UTF_8)
         } catch (e: Exception) {
-            this
+            null
         }
     }
 
     // Data Classes
+    data class MeloloLinkData(val id: String)
 
     data class MeloloListResponse(
         @JsonProperty("status") val status: Boolean? = null,
-        @JsonProperty("message") val message: String? = null,
         @JsonProperty("books") val books: List<MeloloBook>? = null
     )
 
@@ -145,9 +144,8 @@ class Melolo : MainAPI() {
     data class MeloloBook(
         @JsonProperty("book_id") val bookId: String? = null,
         @JsonProperty("book_name") val bookName: String? = null,
-        @JsonProperty("abstract") val abstract: String? = null, // Plot?
         @JsonProperty("thumb_url") val thumbUrl: String? = null,
-        @JsonProperty("cover") val cover: String? = null, // Search results might use this?
+        @JsonProperty("cover") val cover: String? = null,
         @JsonProperty("intro") val intro: String? = null
     ) {
         fun toSearchResponse(api: Melolo): SearchResponse? {
@@ -179,8 +177,7 @@ class Melolo : MainAPI() {
     data class MeloloEpisode(
         @JsonProperty("vid") val vid: String? = null,
         @JsonProperty("vid_index") val vidIndex: Int? = null,
-        @JsonProperty("title") val title: String? = null,
-        @JsonProperty("duration") val duration: Int? = null
+        @JsonProperty("title") val title: String? = null
     )
     
     data class MeloloStreamResponse(
