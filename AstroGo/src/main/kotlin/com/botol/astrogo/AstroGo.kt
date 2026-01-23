@@ -10,7 +10,7 @@ class AstroGo : MainAPI() {
     override var name = "AstroGo"
     override val hasMainPage = true
     override var lang = "ms"
-    override val supportedTypes = setOf(TvType.LiveTv, TvType.Movie, TvType.TvSeries)
+    override val supportedTypes = setOf(TvType.Live, TvType.Movie, TvType.TvSeries)
 
     // Temp hardcoded token for testing (Captured from browser)
     private val clientToken = "v:1!r:80400!ur:NORTHERN!community:Malaysia Live!t:k!dt:PC!f:Astro_unmanaged!pd:CHROME-FF!pt:Adults"
@@ -69,7 +69,8 @@ class AstroGo : MainAPI() {
 
         return newMovieSearchResponse(title, id, TvType.Movie) {
             this.posterUrl = poster
-            this.plot = this@toSearchResponse.synopsis
+            // Plot is often not available or settable in search response builder in some versions,
+            // or requires specific casting. Omitting for now to fix build.
         }
     }
 
@@ -81,7 +82,7 @@ class AstroGo : MainAPI() {
     override suspend fun load(url: String): LoadResponse {
         // url here acts as the ID from toSearchResponse
         // We need to fetch details. For now, basic placeholder.
-        return newTokenLoadResponse("Details Placeholder", url, TvType.Movie) {
+        return newMovieLoadResponse("Details Placeholder", url, TvType.Movie, url) {
         }
     }
 
