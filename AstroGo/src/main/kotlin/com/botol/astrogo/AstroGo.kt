@@ -19,15 +19,17 @@ class AstroGo : MainAPI() {
     override val mainPage = mainPageOf(
         "IVP:Home" to "Home",
         "IVP:TVShow" to "TV Shows",
-        "IVP:Movie" to "Movies"
+        "node:IVP:Movies" to "Movies"
     )
 
     override suspend fun getMainPage(
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
-        val endpoint = if (request.data.contains("Home")) "shared/bulkContent/node:${request.data}" 
-                      else "shared/bulkContent/${request.data}"
+        val path = if (request.data.startsWith("node:")) request.data 
+                  else if (request.data.contains("Home")) "node:${request.data}" 
+                  else request.data
+        val endpoint = "shared/bulkContent/$path"
         val url = "$apiUrl/$endpoint?clientToken=$clientToken"
         
         val headers = mapOf(
