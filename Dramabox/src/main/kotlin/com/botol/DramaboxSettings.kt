@@ -30,54 +30,44 @@ class DramaboxSettings : BottomSheetDialogFragment() {
     )
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
-        val context = requireContext()
-        val scroll = ScrollView(context)
-        val root = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(50, 50, 50, 50)
-        }
-
-        val title = TextView(context).apply {
-            text = "Select Language"
-            textSize = 20f
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                setMargins(0, 0, 0, 50)
-            }
-            gravity = Gravity.CENTER_HORIZONTAL
-        }
-        root.addView(title)
-
+        val currentContext = requireContext()
         val currentLang = getKey<String>("dramabox_language") ?: "en"
         
-        val group = RadioGroup(context)
-        languages.forEach { (name, code) ->
-            val btn = RadioButton(context).apply {
-                id = View.generateViewId()
-                text = name
-                tag = code
-                isChecked = code == currentLang
-                textSize = 16f
-                setPadding(20, 20, 20, 20)
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-            }
-            group.addView(btn)
-        }
-        
-        group.setOnCheckedChangeListener { _, checkedId ->
-            val selected = group.findViewById<RadioButton>(checkedId) ?: return@setOnCheckedChangeListener
-            val code = selected.tag as? String ?: return@setOnCheckedChangeListener
-            setKey("dramabox_language", code)
-            dismiss()
+        val root = LinearLayout(currentContext).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(40, 40, 40, 40)
         }
 
-        root.addView(group)
-        scroll.addView(root)
-        return scroll
+        val titleView = TextView(currentContext).apply {
+            text = "Select Language"
+            textSize = 18f
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(0, 0, 0, 40)
+        }
+        root.addView(titleView)
+
+        val radioGroup = RadioGroup(currentContext).apply {
+            languages.forEach { (langName, langCode) ->
+                val radioButton = RadioButton(currentContext).apply {
+                    id = View.generateViewId()
+                    text = langName
+                    tag = langCode
+                    isChecked = langCode == currentLang
+                    textSize = 16f
+                    setPadding(16, 16, 16, 16)
+                }
+                addView(radioButton)
+            }
+            
+            setOnCheckedChangeListener { group, checkedId ->
+                val selectedButton = group.findViewById<RadioButton>(checkedId)
+                val code = selectedButton?.tag as? String ?: return@setOnCheckedChangeListener
+                setKey("dramabox_language", code)
+                dismiss()
+            }
+        }
+
+        root.addView(radioGroup)
+        return ScrollView(currentContext).apply { addView(root) }
     }
 }

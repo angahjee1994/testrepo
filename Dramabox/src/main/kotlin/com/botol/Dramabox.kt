@@ -74,27 +74,21 @@ class Dramabox : MainAPI() {
         if (!nextData.isNullOrBlank()) {
             try {
                 val json = parseJson<NextData>(nextData)
-                
-                // Try multiple paths to find the item list
-                // Search pages use "bookList", Channel pages use "moreData.items" or "channel.list"
-                val channelList = json.props?.pageProps?.bookList
+                val items = json.props?.pageProps?.bookList
                     ?: json.props?.pageProps?.moreData?.items
                     ?: json.props?.pageProps?.initialState?.channel?.list 
                     ?: json.props?.pageProps?.initialState?.channel?.homeFuncList?.flatMap { it.list ?: emptyList() }
                 
-                if (!channelList.isNullOrEmpty()) {
-                    return channelList.mapNotNull { item ->
-                        val title = item.bookName ?: item.name
-                        val bookId = item.bookId
-                        val cover = item.cover ?: item.image ?: item.coverWap
-                         
-                        if (title.isNullOrBlank() || bookId.isNullOrBlank()) return@mapNotNull null
-                        
+                if (!items.isNullOrEmpty()) {
+                    return items.mapNotNull { item ->
+                        val itemTitle = item.bookName ?: item.name ?: return@mapNotNull null
+                        val bookId = item.bookId ?: return@mapNotNull null
+                        val poster = item.cover ?: item.image ?: item.coverWap
                         val prefix = getLangPrefix()
-                        val fullUrl = "$mainUrl$prefix/movie/$bookId/${title.toSlug()}"
+                        val itemUrl = "$mainUrl$prefix/movie/$bookId/${itemTitle.toSlug()}"
                         
-                        newAnimeSearchResponse(title, fullUrl, TvType.AsianDrama) {
-                            this.posterUrl = cover
+                        newAnimeSearchResponse(itemTitle, itemUrl, TvType.AsianDrama) {
+                            this.posterUrl = poster
                         }
                     }
                 }
@@ -102,56 +96,27 @@ class Dramabox : MainAPI() {
             }
         }
 
-        // Fallback to HTML: Search results use /ep/, others use /movie/
         val links = doc.select("a[href*='/movie/'], a[href*='/ep/']")
-        val grouped = links.groupBy { 
-            val href = it.attr("href")
-            // Normalize: If it's an episode link /ep/ID_Slug/..., extract just the movie part?
-            // Actually, for search results, the link IS the movie link in a way.
-            // But we prefer /movie/ link format for consistency with load().
-            // If the link is /ep/41000..._title/..., we can reconstruct /movie/41000.../title
+        return links.mapNotNull { element ->
+            val href = element.attr("href")
+            val rawTitle = element.selectFirst(".title, h3, h4, span[class*='bookName'], div[class*='bookName']")?.text() 
+                ?: element.selectFirst("img")?.attr("alt") 
+                ?: element.text()
             
-            // For now, let's just group by the raw href to merge duplicate links for the same item.
-            val full = if (href.startsWith("http")) href else "$mainUrl$href"
-            full.trimEnd('/').substringBefore('?')
-        }
+            val cleanTitle = rawTitle.trim()
+            if (cleanTitle.isEmpty() || cleanTitle.contains(Regex("""Episodes?|Coming Soon|^\d+$""", RegexOption.IGNORE_CASE))) return@mapNotNull null
+            
+            val posterUrl = element.selectFirst("img")?.attr("src")
+            val bookMatch = Regex("""/(?:movie|ep)/(\d+)""").find(href) ?: return@mapNotNull null
+            val bookId = bookMatch.groupValues[1]
+            val prefix = getLangPrefix()
+            val finalUrl = "$mainUrl$prefix/movie/$bookId/${cleanTitle.toSlug()}"
 
-        return grouped.mapNotNull { (fullUrl, elements) ->
-            val titles = elements.mapNotNull { element ->
-                 val t = element.selectFirst(".title, h3, h4, span[class*='bookName'], div[class*='bookName']")?.text() 
-                    ?: element.selectFirst("img")?.attr("alt") 
-                    ?: element.text()
-                 
-                 t.trim().takeIf { it.isNotEmpty() }
+            newAnimeSearchResponse(cleanTitle, finalUrl, TvType.AsianDrama) {
+                this.posterUrl = posterUrl
             }
-            
-            val validTitle = titles.firstOrNull { text ->
-                 !text.contains("Episodes", true) && 
-                 !text.equals("Coming Soon", true) &&
-                 !Regex("""^\d+\s*Episodes?$""", RegexOption.IGNORE_CASE).matches(text) &&
-                 !Regex("""^\d+$""").matches(text)
-            }
-            
-            if (validTitle == null) return@mapNotNull null
-            
-            val poster = elements.mapNotNull { it.selectFirst("img")?.attr("src") }.firstOrNull()
-            
-            // If the URL is an /ep/ link, try to convert it to /movie/ link for consistency
-            // Pattern: /ep/{bookId}_{slug}/{chapterId}... -> /movie/{bookId}/{slug}
-            // Or just allow it. But load() expects /movie/ regex.
-            val finalUrl = if (fullUrl.contains("/ep/")) {
-                val match = Regex("""/ep/(\d+)_([^/]+)""").find(fullUrl)
-                if (match != null) {
-                    val (id, slug) = match.destructured
-                    val prefix = getLangPrefix()
-                    "$mainUrl$prefix/movie/$id/$slug"
-                } else fullUrl
-            } else fullUrl
-
-            newAnimeSearchResponse(validTitle, finalUrl, TvType.AsianDrama) {
-                this.posterUrl = poster
-            }
-        }
+        }.distinctBy { it.url }
+    }
     }
     
     private fun String.toSlug(): String {
@@ -164,85 +129,77 @@ class Dramabox : MainAPI() {
             url.replace(mainUrl, "$mainUrl$prefix")
         } else url
 
-        val doc = app.get(finalUrl, headers = baseHeaders).document
-        
-        var title = "Unknown"
-        var poster: String? = null
-        var description: String? = null
-        var tags = emptyList<String>()
-        var bookNameEn: String? = null
-        
-        val nextData = doc.selectFirst("#__NEXT_DATA__")?.data()
-        if (!nextData.isNullOrBlank()) {
-            try {
-                val json = parseJson<NextData>(nextData)
-                val bookInfo = json.props?.pageProps?.bookInfo
-                
-                if (bookInfo != null) {
-                    title = bookInfo.bookName ?: bookInfo.name ?: title
-                    bookNameEn = bookInfo.bookNameEn
-                    poster = bookInfo.cover ?: bookInfo.image ?: poster
-                    description = bookInfo.introduction ?: description
-                    
-                    val rawTags = mutableListOf<String>()
-                    bookInfo.tags?.let { rawTags.addAll(it) }
-                    bookInfo.labels?.let { rawTags.addAll(it) }
-                    bookInfo.typeTwoNames?.let { rawTags.addAll(it) }
-                    tags = rawTags.distinct()
-                }
-            } catch (e: Exception) {
-            }
-        }
-        
-        if (title == "Unknown") {
-            title = doc.selectFirst("h1, .drama-title, div[class*='bookName']")?.text() ?: "Unknown"
-        }
-        if (poster == null) {
-            poster = doc.selectFirst("img.poster, .drama-cover img, div[class*='bookImage'] img")?.attr("src") 
-                ?: doc.selectFirst("meta[property='og:image']")?.attr("content")
-        }
-        if (description == null) {
-            description = doc.selectFirst(".description, .plot, meta[name='description'], div[class*='introduction']")?.text() 
-                ?: doc.selectFirst("meta[property='og:description']")?.attr("content")
-        }
-        if (tags.isEmpty()) {
-            tags = doc.select(".tags a, .genre a, div[class*='tags'] span").map { it.text() }
-        }
-        
         val bookId = Regex("""/movie/(\d+)""").find(url)?.groupValues?.get(1) 
             ?: url.trimEnd('/').substringAfterLast("/")
-        
-        if (bookId == null) throw ErrorLoadingException("No Book ID found")
+            ?: throw ErrorLoadingException("No Book ID found")
 
-        val episodesUrl = "$playerApiUrl/api/dramabox/allepisode/$bookId"
-        var episodes: Array<DramaboxEpisode>? = null
-        
-        for (i in 0..2) {
-            try {
-                episodes = app.get(episodesUrl, timeout = 45L).parsedSafe<Array<DramaboxEpisode>>()
-                if (!episodes.isNullOrEmpty()) break
-            } catch (e: Exception) {
+        return kotlinx.coroutines.coroutineScope {
+            val docDeferred = async { app.get(finalUrl, headers = baseHeaders).document }
+            val epDeferred = async {
+                val episodesUrl = "$playerApiUrl/api/dramabox/allepisode/$bookId"
+                for (i in 0..2) {
+                    try {
+                        val resp = app.get(episodesUrl, timeout = 30L).parsedSafe<Array<DramaboxEpisode>>()
+                        if (!resp.isNullOrEmpty()) return@async resp
+                    } catch (e: Exception) {
+                    }
+                    if (i < 2) delay(1000)
+                }
+                null
             }
-            if (i < 2) delay(1500)
-        }
 
-        if (episodes.isNullOrEmpty()) {
-            throw ErrorLoadingException("Failed to fetch episodes (Timeout)")
-        }
+            val doc = docDeferred.await()
+            val episodes = epDeferred.await() ?: throw ErrorLoadingException("Failed to fetch episodes")
 
-        val epData = episodes.map { ep ->
-            val data = LoadLinksData(bookId, ep.chapterId ?: "").toJson()
-            newEpisode(data) {
-                this.name = ep.chapterName
-                this.episode = ep.chapterIndex?.plus(1)
-                this.posterUrl = ep.chapterImg
+            var movieTitle = "Unknown"
+            var posterUrl: String? = null
+            var movieDescription: String? = null
+            var movieTags = emptyList<String>()
+            
+            val nextData = doc.selectFirst("#__NEXT_DATA__")?.data()
+            if (!nextData.isNullOrBlank()) {
+                try {
+                    val json = parseJson<NextData>(nextData)
+                    val bookInfo = json.props?.pageProps?.bookInfo
+                    if (bookInfo != null) {
+                        movieTitle = bookInfo.bookName ?: bookInfo.name ?: movieTitle
+                        posterUrl = bookInfo.cover ?: bookInfo.image ?: posterUrl
+                        movieDescription = bookInfo.introduction ?: movieDescription
+                        movieTags = (bookInfo.tags.orEmpty() + bookInfo.labels.orEmpty() + bookInfo.typeTwoNames.orEmpty()).distinct()
+                    }
+                } catch (e: Exception) {
+                }
             }
-        }
+            
+            if (movieTitle == "Unknown") {
+                movieTitle = doc.selectFirst("h1, .drama-title, div[class*='bookName']")?.text() ?: "Unknown"
+            }
+            if (posterUrl == null) {
+                posterUrl = doc.selectFirst("img.poster, .drama-cover img, div[class*='bookImage'] img")?.attr("src") 
+                    ?: doc.selectFirst("meta[property='og:image']")?.attr("content")
+            }
+            if (movieDescription == null) {
+                movieDescription = doc.selectFirst(".description, .plot, meta[name='description'], div[class*='introduction']")?.text() 
+                    ?: doc.selectFirst("meta[property='og:description']")?.attr("content")
+            }
+            if (movieTags.isEmpty()) {
+                movieTags = doc.select(".tags a, .genre a, div[class*='tags'] span").map { it.text() }
+            }
 
-        return newTvSeriesLoadResponse(title, url, TvType.AsianDrama, epData) {
-            this.posterUrl = poster
-            this.plot = description
-            this.tags = tags
+            val epData = episodes.map { ep ->
+                val data = LoadLinksData(bookId, ep.chapterId.orEmpty()).toJson()
+                newEpisode(data) {
+                    this.name = ep.chapterName
+                    this.episode = ep.chapterIndex?.plus(1)
+                    this.posterUrl = ep.chapterImg
+                }
+            }
+
+            newTvSeriesLoadResponse(movieTitle, url, TvType.AsianDrama, epData) {
+                this.posterUrl = posterUrl
+                this.plot = movieDescription
+                this.tags = movieTags
+            }
         }
     }
 
