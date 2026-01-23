@@ -22,14 +22,14 @@ class Dramabox : MainAPI() {
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val url = if (request.data.contains("?")) "${request.data}&page=$page" else "${request.data}?page=$page"
-        val res = app.get(url).parsedSafe<List<DracinMedia>>() ?: throw ErrorLoadingException("Gagal memuat data")
+        val res = app.get(url).parsedSafe<Array<DramaboxMedia>>() ?: throw ErrorLoadingException("Gagal memuat data")
         val home = res.map { it.toSearchResponse(this) }
         return newHomePageResponse(request.name, home)
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
         val url = "$mainUrl/api/dramabox/search?query=$query"
-        val res = app.get(url).parsedSafe<List<DracinMedia>>() ?: return emptyList()
+        val res = app.get(url).parsedSafe<Array<DramaboxMedia>>() ?: return emptyList()
         return res.map { it.toSearchResponse(this) }
     }
 
@@ -38,8 +38,8 @@ class Dramabox : MainAPI() {
         val detailUrl = "$mainUrl/api/dramabox/detail/$bookId"
         val episodesUrl = "$mainUrl/api/dramabox/allepisode/$bookId"
 
-        val detail = app.get(detailUrl).parsedSafe<DracinMedia>() ?: throw ErrorLoadingException("Gagal memuat detail")
-        val episodes = app.get(episodesUrl).parsedSafe<List<DracinEpisode>>() ?: throw ErrorLoadingException("Gagal memuat episode")
+        val detail = app.get(detailUrl).parsedSafe<DramaboxMedia>() ?: throw ErrorLoadingException("Gagal memuat detail")
+        val episodes = app.get(episodesUrl).parsedSafe<Array<DramaboxEpisode>>() ?: throw ErrorLoadingException("Gagal memuat episode")
 
         val epData = episodes.map { ep ->
             val data = LoadLinksData(bookId, ep.chapterId ?: "").toJson()
@@ -65,7 +65,7 @@ class Dramabox : MainAPI() {
     ): Boolean {
         val loadData = parseJson<LoadLinksData>(data)
         val episodesUrl = "$mainUrl/api/dramabox/allepisode/${loadData.bookId}"
-        val episodes = app.get(episodesUrl).parsedSafe<List<DracinEpisode>>() ?: return false
+        val episodes = app.get(episodesUrl).parsedSafe<Array<DramaboxEpisode>>() ?: return false
         val chapter = episodes.find { it.chapterId == loadData.chapterId } ?: return false
 
         chapter.cdnList?.forEach { cdn ->
@@ -90,7 +90,7 @@ class Dramabox : MainAPI() {
         @JsonProperty("chapterId") val chapterId: String
     )
 
-    data class DracinMedia(
+    data class DramaboxMedia(
         @JsonProperty("bookId") val bookId: String? = null,
         @JsonProperty("bookName") val bookName: String? = null,
         @JsonProperty("coverWap") val coverWap: String? = null,
@@ -107,7 +107,7 @@ class Dramabox : MainAPI() {
         }
     }
 
-    data class DracinEpisode(
+    data class DramaboxEpisode(
         @JsonProperty("chapterId") val chapterId: String? = null,
         @JsonProperty("chapterIndex") val chapterIndex: Int? = null,
         @JsonProperty("chapterName") val chapterName: String? = null,
