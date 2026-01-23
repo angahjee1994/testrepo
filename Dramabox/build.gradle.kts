@@ -1,5 +1,17 @@
 version = 1
 
+android {
+    namespace = "com.botol"
+    buildFeatures {
+        buildConfig = true
+    }
+}
+
+dependencies {
+    implementation("androidx.appcompat:appcompat:1.7.1")
+    implementation("com.google.android.material:material:1.13.0")
+}
+
 cloudstream {
     language = "en"
     description = "Streaming Drama Pendek"

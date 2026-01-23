@@ -9,4 +9,9 @@ class DramaboxPlugin: Plugin() {
     override fun load(context: Context) {
         registerMainAPI(Dramabox())
     }
+
+    fun openSettings(context: Context) {
+        val frag = DramaboxSettings()
+        frag.show((context as androidx.fragment.app.FragmentActivity).supportFragmentManager, "DramaboxSettings")
+    }
 }

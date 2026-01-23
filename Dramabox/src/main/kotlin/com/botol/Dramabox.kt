@@ -21,8 +21,10 @@ class Dramabox : MainAPI() {
         "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
     )
 
+
     private fun getLangPrefix(): String {
-        return when (lang) {
+        val storedLang = com.lagradost.cloudstream3.AcraApplication.getKey<String>("dramabox_language") ?: "en"
+        return when (storedLang) {
             "id", "in", "id-ID" -> "/in"
             "es", "es-ES" -> "/es"
             "fr", "fr-FR" -> "/fr"
