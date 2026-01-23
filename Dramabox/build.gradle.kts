@@ -1,13 +1,12 @@
-// use an integer for version numbers
 version = 1
 
 cloudstream {
-    language = "id"
+    language = "en"
+    description = "Streaming Drama Pendek"
     authors = listOf("botol")
-    status = 3 // Beta
+    status = 1
     tvTypes = listOf(
-        "TvSeries",
-        "Movie",
+        "AsianDrama",
     )
     iconUrl = "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/Dramabox/logo.png"
 }
