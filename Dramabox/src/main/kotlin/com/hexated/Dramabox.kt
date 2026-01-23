@@ -151,6 +151,7 @@ class Dramabox : MainAPI() {
         @JsonProperty("bookId") val bookId: String? = null,
         @JsonProperty("bookName") val bookName: String? = null,
         @JsonProperty("coverWap") val coverWap: String? = null,
+        @JsonProperty("cover") val cover: String? = null,
         @JsonProperty("introduction") val introduction: String? = null,
         @JsonProperty("tags") val tags: List<String>? = null,
         @JsonProperty("shelfTime") val shelfTime: String? = null,
@@ -161,7 +162,7 @@ class Dramabox : MainAPI() {
                 "${provider.mainUrl}/api/dramabox/detail?bookId=$bookId", // Internal URL identifier
                 TvType.TvSeries
             ) {
-                this.posterUrl = coverWap
+                this.posterUrl = coverWap ?: cover
             }
         }
     }
