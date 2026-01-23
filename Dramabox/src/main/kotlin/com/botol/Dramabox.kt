@@ -44,25 +44,29 @@ class Dramabox : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val prefix = getLangPrefix()
         val sectionPath = request.data
-        
-        // Structure: https://www.dramaboxdb.com/es/channel/must-sees/2
-        // English: https://www.dramaboxdb.com/channel/must-sees/2
-        
         val pageSuffix = if (page > 1) "/$page" else ""
         
-        // Construct URL. Ensure we don't end up with double slashes if prefix is empty.
-        // If prefix is "", url is mainUrl + / + sectionPath + pageSuffix
-        // If prefix is "/es", url is mainUrl + /es + / + sectionPath + pageSuffix
-        
-        val url = "$mainUrl$prefix/$sectionPath$pageSuffix"
+        val url = if (sectionPath.isEmpty()) {
+            "$mainUrl$prefix/"
+        } else {
+            "$mainUrl$prefix/$sectionPath$pageSuffix"
+        }
 
         val doc = app.get(url, headers = baseHeaders).document
         
-        val home = doc.select("a[href*='/movie/']").mapNotNull {
-            it.toSearchResponse()
+        // Use container-based selection to avoid duplicates
+        val items = doc.select("div[class*='itemBox']").mapNotNull { element ->
+             element.toSearchResponseFromContainer()
         }.distinctBy { it.url }
 
-        return newHomePageResponse(request.name, home, true)
+        // Fallback if containers aren't found, but with stricter filtering
+        val finalItems = if (items.isNotEmpty()) items else {
+            doc.select("a[href*='/movie/']").mapNotNull {
+                it.toSearchResponse()
+            }.distinctBy { it.url }
+        }
+
+        return newHomePageResponse(request.name, finalItems, true)
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
@@ -72,21 +76,43 @@ class Dramabox : MainAPI() {
         
         return doc.select("a[href*='/movie/']").mapNotNull {
             it.toSearchResponse()
+        }.distinctBy { it.url }
+    }
+    
+    private fun org.jsoup.nodes.Element.toSearchResponseFromContainer(): SearchResponse? {
+        val titleElement = this.selectFirst("a[class*='bookName']") 
+            ?: this.selectFirst(".title, h3, h4")
+            
+        val href = titleElement?.attr("href") 
+            ?: this.selectFirst("a[href*='/movie/']")?.attr("href")
+            ?: return null
+            
+        val fullUrl = if (href.startsWith("http")) href else "$mainUrl$href"
+        
+        val title = titleElement?.text() 
+            ?: this.selectFirst("img")?.attr("alt")
+            ?: "Unknown"
+
+        val poster = this.selectFirst("img")?.attr("src")
+        
+        return newAnimeSearchResponse(title, fullUrl, TvType.AsianDrama) {
+            this.posterUrl = poster
         }
     }
 
     private fun org.jsoup.nodes.Element.toSearchResponse(): SearchResponse? {
+        // Strict filter: Exclude "Chapter Count" links by class
+        if (this.classNames().any { it.contains("chapterCount", true) }) return null
+
         val href = this.attr("href")
         val fullUrl = if (href.startsWith("http")) href else "$mainUrl$href"
         
-        // Basic scraping for title, fallback to text if necessary
-        // Structure is often: <a> <img class="cover"> <div class="info"> <div class="title">Title</div> </div> </a>
         val title = this.selectFirst(".title, h3, h4, span[class*='bookName'], div[class*='bookName']")?.text() 
             ?: this.selectFirst("img")?.attr("alt")
             ?: this.text()
             
-        // If title is empty/null, skip
-        if (title.isNullOrBlank()) return null
+        // Strict filter: Exclude if title is episode count (contains 'Episodes') or blank
+        if (title.isNullOrBlank() || title.contains("Episodes", true)) return null
 
         val poster = this.selectFirst("img")?.attr("src")
         
