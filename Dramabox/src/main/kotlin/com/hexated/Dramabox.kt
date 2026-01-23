@@ -60,11 +60,20 @@ class Dramabox : MainAPI() {
     override suspend fun load(url: String): LoadResponse {
         val bookId = url.substringAfter("bookId=")
         val detailUrl = "$mainUrl/api/dramabox/detail?bookId=$bookId"
-        val detail = app.get(detailUrl).parsedSafe<DramaItem>()
-            ?: throw ErrorLoadingException("Failed to load detail")
+        val detailText = app.get(detailUrl).text
+        val detail = try {
+            parseJson<DramaItem>(detailText)
+        } catch (e: Exception) {
+            throw ErrorLoadingException("Failed to load detail: ${e.message}")
+        }
 
         val episodesUrl = "$mainUrl/api/dramabox/allepisode?bookId=$bookId"
-        val episodesList = app.get(episodesUrl).parsedSafe<List<EpisodeItem>>() ?: emptyList()
+        val episodesText = app.get(episodesUrl).text
+        val episodesList = try {
+            parseJson<List<EpisodeItem>>(episodesText)
+        } catch (e: Exception) {
+            emptyList()
+        }
 
         val episodes = episodesList.map { ep ->
             newEpisode(ep.toJson()) {
