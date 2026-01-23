@@ -10,11 +10,11 @@ class Astro : MainAPI() {
     override var name = "Astro"
     override val hasMainPage = true
     override var lang = "en"
-    override val supportedTypes = setOf(TvType.TvSeries)
+    override val supportedTypes = setOf(TvType.Live)
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val items = listOf(
-            newAnimeSearchResponse("300 IQIYI", "300.astro", TvType.TvSeries) {
+            newAnimeSearchResponse("300 IQIYI", "300.astro", TvType.Live) {
                 this.posterUrl = "http://linear-poster.astro.com.my/prod/logo/IQIYI_2022.png"
             }
         )
@@ -32,7 +32,7 @@ class Astro : MainAPI() {
             }
         )
 
-        return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
+        return newTvSeriesLoadResponse(title, url, TvType.Live, episodes) {
             this.posterUrl = poster
             this.plot = "Astro Live Channel 300 IQIYI (ClearKey Demo)"
         }

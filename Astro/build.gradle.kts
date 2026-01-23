@@ -19,7 +19,7 @@ cloudstream {
     authors = listOf("botol")
     status = 1
     tvTypes = listOf(
-        "LiveTv",
+        "Live",
     )
     iconUrl = "https://dj7fdt04hl8tv.cloudfront.net/acm/media/contenthub/shop/icon_chinese-favourites.png"
 }
