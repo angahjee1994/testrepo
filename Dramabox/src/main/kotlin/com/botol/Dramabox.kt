@@ -105,6 +105,7 @@ class Dramabox : MainAPI() {
     data class DramaboxMedia(
         @JsonProperty("bookId") val bookId: String? = null,
         @JsonProperty("bookName") val bookName: String? = null,
+        @JsonProperty("cover") val cover: String? = null,
         @JsonProperty("coverWap") val coverWap: String? = null,
         @JsonProperty("introduction") val introduction: String? = null,
         @JsonProperty("tags") val tags: List<String>? = null,
@@ -115,7 +116,7 @@ class Dramabox : MainAPI() {
             TvType.AsianDrama,
             false
         ) {
-            this.posterUrl = coverWap
+            this.posterUrl = coverWap ?: cover
         }
     }
 
