@@ -33,6 +33,8 @@ class Dramabox : MainAPI() {
             "ko", "ko-KR" -> "/kr"
             "vi", "vi-VN" -> "/vi"
             "zh", "zh-CN", "zh-TW" -> "/zh"
+            "ar" -> "/ar"
+            "pt" -> "/pt"
             else -> "" 
         }
     }

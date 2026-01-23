@@ -24,7 +24,9 @@ class DramaboxSettings : BottomSheetDialogFragment() {
         "ไทย" to "th",
         "한국어" to "ko",
         "Tiếng Việt" to "vi",
-        "中文" to "zh"
+        "中文" to "zh",
+        "العربية" to "ar",
+        "Português" to "pt"
     )
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
@@ -53,6 +55,7 @@ class DramaboxSettings : BottomSheetDialogFragment() {
         val group = RadioGroup(context)
         languages.forEach { (name, code) ->
             val btn = RadioButton(context).apply {
+                id = View.generateViewId()
                 text = name
                 tag = code
                 isChecked = code == currentLang
@@ -67,8 +70,8 @@ class DramaboxSettings : BottomSheetDialogFragment() {
         }
         
         group.setOnCheckedChangeListener { _, checkedId ->
-            val selectedStart = group.findViewById<RadioButton>(checkedId)
-            val code = selectedStart.tag as String
+            val selected = group.findViewById<RadioButton>(checkedId) ?: return@setOnCheckedChangeListener
+            val code = selected.tag as? String ?: return@setOnCheckedChangeListener
             setKey("dramabox_language", code)
             dismiss()
         }
