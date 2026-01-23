@@ -126,15 +126,22 @@ class XMalay : MainAPI() {
 
         // 2. Parse FluidPlayer / EmbedPlayer Logic
         // Script contains variables like: a = 17999, b = "11412623afe4a3fd", u = "..."
-        val id = Regex("""var\s+a\s*=\s*(\d+)""").find(iframeText)?.groupValues?.get(1)
-        val token = Regex("""var\s+b\s*=\s*["']([^"']+)["']""").find(iframeText)?.groupValues?.get(1)
-        val auth = Regex("""var\s+u\s*=\s*["']([^"']+)["']""").find(iframeText)?.groupValues?.get(1)
+        // 2. Parse FluidPlayer / EmbedPlayer Logic
+        // Script variables are often just comma separated, so we loosen regex to not require 'var'
+        // Matches "a = 1234, ... b = '...'"
+        val id = Regex("""\ba\s*=\s*(\d+)""").find(iframeText)?.groupValues?.get(1)
+        val token = Regex("""\bb\s*=\s*["']([^"']+)["']""").find(iframeText)?.groupValues?.get(1)
+        val auth = Regex("""\bu\s*=\s*["']([^"']+)["']""").find(iframeText)?.groupValues?.get(1)
         
         if (id != null && token != null && auth != null) {
-            val apiUrl = "https://stream25.xyz/get_signed_url.php?id=$id&token=$token&auth=$auth"
+            // Determine the base domain for the API call
+            val apiDomain = if (iframeSrc.contains("stream25.xyz")) "https://stream25.xyz" else "https://embedplayer.net"
+            // Or use the one from iframeSrc directly
+             val apiBase = Regex("https?://[^/]+").find(iframeSrc)?.value ?: "https://stream25.xyz"
+
+            val apiUrl = "$apiBase/get_signed_url.php?id=$id&token=$token&auth=$auth"
             try {
                 // Request the signed URL JSON
-                // Use the iframeSrc as referer!
                 val json = app.get(apiUrl, referer = iframeSrc).parsedSafe<Stream25Response>()
                 
                 json?.video?.let { videoUrl ->
