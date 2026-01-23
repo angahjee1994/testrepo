@@ -26,14 +26,14 @@ class AstroGo : MainAPI() {
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
-        // Prevent infinite loading/duplication by only loading page 1 for now
-        if (page > 1) return newHomePageResponse(emptyList())
-
+        val offset = (page - 1) * 20
+        // Pagination for loading more rows/content
+        
         val path = if (request.data.startsWith("node:")) request.data 
                   else if (request.data.contains("Home")) "node:${request.data}" 
                   else request.data
         val endpoint = "shared/bulkContent/$path"
-        val url = "$apiUrl/$endpoint?clientToken=$clientToken"
+        val url = "$apiUrl/$endpoint?clientToken=$clientToken&offset=$offset&limit=20"
         
         val headers = mapOf(
             "Authorization" to "Bearer $bearerToken",
