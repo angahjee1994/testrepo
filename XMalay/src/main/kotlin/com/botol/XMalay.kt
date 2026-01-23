@@ -133,23 +133,37 @@ class XMalay : MainAPI() {
         // Script variables are: var a = 1234, b = '...', u = '...'
         // The regex needs to be robust enough to handle newlines or spacing differences
         
-        // Find 'a' (id) - usually a number
-        val id = Regex("""var\s+a\s*=\s*(\d+)""").find(iframeText)?.groupValues?.get(1) 
-            ?: Regex("""\ba\s*=\s*(\d+)""").find(iframeText)?.groupValues?.get(1)
+        // 2. Parse FluidPlayer / EmbedPlayer Logic
+        // Strategy 1: Strict Sequence (Reliable for standard template)
+        val scriptRegex = Regex("""var\s+a\s*=\s*(?<id>\d+)\s*,\s*b\s*=\s*["'](?<token>[^"']+)["']\s*,\s*u\s*=\s*["'](?<auth>[^"']+)["']""", RegexOption.IGNORE_CASE)
+        val match = scriptRegex.find(iframeText)
+        
+        var id = match?.groups?.get("id")?.value
+        var token = match?.groups?.get("token")?.value
+        var auth = match?.groups?.get("auth")?.value
+        
+        // Strategy 2: Fallback (Extract ID/Token from URL, Auth from script)
+        if (id == null || token == null || auth == null) {
+            val idParam = Regex("id=([a-zA-Z0-9-]+)").find(iframeSrc)?.groupValues?.get(1)
+            if (idParam != null && idParam.contains("-")) {
+                val parts = idParam.split("-")
+                id = parts[0]
+                token = parts[1]
+            } else if (idParam != null) {
+                id = idParam // Sometimes only ID is present?
+            }
             
-        // Find 'b' (token) - string
-        val token = Regex("""var\s+b\s*=\s*["']([^"']+)["']""").find(iframeText)?.groupValues?.get(1)
-            ?: Regex("""\bb\s*=\s*["']([^"']+)["']""").find(iframeText)?.groupValues?.get(1)
-            
-        // Find 'u' (auth) - string
-        val auth = Regex("""var\s+u\s*=\s*["']([^"']+)["']""").find(iframeText)?.groupValues?.get(1)
-            ?: Regex("""\bu\s*=\s*["']([^"']+)["']""").find(iframeText)?.groupValues?.get(1)
+            // Loose search for 'u' if not found in sequence
+            if (auth == null) {
+                // Look for u = "..." specifically in the var list pattern context if possible, or just loose
+                auth = Regex("""\bu\s*=\s*["']([^"']+)["']""").find(iframeText)?.groupValues?.get(1)
+            }
+        }
         
         if (id != null && token != null && auth != null) {
             // Determine the base domain for the API call
             val apiDomain = if (iframeSrc.contains("stream25.xyz")) "https://stream25.xyz" else "https://embedplayer.net"
-            // Or use the one from iframeSrc directly
-             val apiBase = Regex("https?://[^/]+").find(iframeSrc)?.value ?: "https://stream25.xyz"
+             val apiBase = Regex("https?://[^/]+").find(iframeSrc)?.value ?: apiDomain
 
             val apiUrl = "$apiBase/get_signed_url.php?id=$id&token=$token&auth=$auth"
             try {
@@ -159,6 +173,7 @@ class XMalay : MainAPI() {
                 json?.video?.let { videoUrl ->
                     val domains = listOf("pool1.embedplayer.net", "pool2.embedplayer.net")
                     val targetDomain = domains.random()
+                    // Reconstruct final URL ensuring extraction parameters are preserved
                     val finalUrl = videoUrl.replace(Regex("^(https?://)[^/]+"), "$1$targetDomain")
 
                     callback.invoke(
