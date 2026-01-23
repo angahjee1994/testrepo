@@ -1,12 +1,13 @@
-package com.botol
+package com.botol.astrogo
 
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 import com.lagradost.cloudstream3.plugins.Plugin
 import android.content.Context
 
 @CloudstreamPlugin
-class AstroPlugin: Plugin() {
+class AstroGoPlugin: Plugin() {
     override fun load(context: Context) {
-        registerMainAPI(Astro())
+        // All providers should be added in this manner
+        registerMainAPI(AstroGo())
     }
 }
