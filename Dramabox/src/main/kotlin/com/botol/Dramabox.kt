@@ -29,40 +29,40 @@ class Dramabox : MainAPI() {
             "ko" -> "/kr"
             "vi" -> "/vi"
             "zh" -> "/zh"
-            "en" -> "" // English is default, no prefix
+            "en" -> "" // English is default
             else -> ""
         }
     }
 
     override val mainPage = mainPageOf(
-        "" to "Foryou", // Homepage
         "channel/must-sees" to "Must Sees",
         "channel/trending" to "Trending",
-        "channel/hidden-gems" to "Hidden Gems" 
+        "channel/hidden-gems" to "Hidden Gems",
+        "channel/new" to "New Arrivals"
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val prefix = getLangPrefix()
-        // Ensure path starts with / if prefix exists, but handle empty logic carefully
-        // url = https://www.dramaboxdb.com + /channel/trending
-        // or https://www.dramaboxdb.com + /in + /channel/trending
-        
         val sectionPath = request.data
-        val url = if (sectionPath.isEmpty()) {
-            "$mainUrl$prefix/"
-        } else {
-            "$mainUrl$prefix/$sectionPath"
-        }
         
+        // Structure: https://www.dramaboxdb.com/es/channel/must-sees/2
+        // English: https://www.dramaboxdb.com/channel/must-sees/2
+        
+        val pageSuffix = if (page > 1) "/$page" else ""
+        
+        // Construct URL. Ensure we don't end up with double slashes if prefix is empty.
+        // If prefix is "", url is mainUrl + / + sectionPath + pageSuffix
+        // If prefix is "/es", url is mainUrl + /es + / + sectionPath + pageSuffix
+        
+        val url = "$mainUrl$prefix/$sectionPath$pageSuffix"
+
         val doc = app.get(url, headers = baseHeaders).document
         
-        // Items are usually in grid or slider.
-        // Links are /movie/{id}/name
         val home = doc.select("a[href*='/movie/']").mapNotNull {
             it.toSearchResponse()
         }.distinctBy { it.url }
 
-        return newHomePageResponse(request.name, home)
+        return newHomePageResponse(request.name, home, true)
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
@@ -77,17 +77,17 @@ class Dramabox : MainAPI() {
 
     private fun org.jsoup.nodes.Element.toSearchResponse(): SearchResponse? {
         val href = this.attr("href")
-        // href might be relative or absolute.
         val fullUrl = if (href.startsWith("http")) href else "$mainUrl$href"
         
-        // Selectors based on inspection
-        // Title: .title, or just text usually inside a div or span
-        // The structure seems to be <a><img><div title></div></a> or similar
-        // Fallback: title attribute on img, or text
-        val title = this.selectFirst(".title, h3, h4, span[class*='bookName']")?.text() 
-            ?: this.selectFirst("img")?.attr("alt") 
+        // Basic scraping for title, fallback to text if necessary
+        // Structure is often: <a> <img class="cover"> <div class="info"> <div class="title">Title</div> </div> </a>
+        val title = this.selectFirst(".title, h3, h4, span[class*='bookName'], div[class*='bookName']")?.text() 
+            ?: this.selectFirst("img")?.attr("alt")
             ?: this.text()
             
+        // If title is empty/null, skip
+        if (title.isNullOrBlank()) return null
+
         val poster = this.selectFirst("img")?.attr("src")
         
         return newAnimeSearchResponse(title, fullUrl, TvType.AsianDrama) {
@@ -96,11 +96,8 @@ class Dramabox : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse {
-        // url is like "https://www.dramaboxdb.com/in/movie/12345"
-        val fullUrl = if (url.startsWith("http")) url else "$mainUrl$url"
-        val doc = app.get(fullUrl, headers = baseHeaders).document
+        val doc = app.get(url, headers = baseHeaders).document
         
-        // Extract Metadata from DramaboxDB
         val title = doc.selectFirst("h1, .drama-title, div[class*='bookName']")?.text() ?: "Unknown"
         val poster = doc.selectFirst("img.poster, .drama-cover img, div[class*='bookImage'] img")?.attr("src") 
             ?: doc.selectFirst("meta[property='og:image']")?.attr("content")
@@ -108,15 +105,14 @@ class Dramabox : MainAPI() {
             ?: doc.selectFirst("meta[property='og:description']")?.attr("content")
         val tags = doc.select(".tags a, .genre a, div[class*='tags'] span").map { it.text() }
         
-        // Extract ID for API calls
-        // URL structure: .../movie/{bookId}/...
-        // Regex might be safer: /movie/(\d+)
-        val bookId = Regex("""/movie/(\d+)""").find(fullUrl)?.groupValues?.get(1) 
-            ?: fullUrl.substringAfterLast("/") // Fallback, likely wrong if title is at end
+        // Recommendation handling could be added here if needed
+
+        // ID extraction
+        val bookId = Regex("""/movie/(\d+)""").find(url)?.groupValues?.get(1) 
+            ?: url.trimEnd('/').substringAfterLast("/")
         
         if (bookId == null) throw ErrorLoadingException("No Book ID found")
 
-        // Fetch Episodes from Dracin API
         val episodesUrl = "$playerApiUrl/api/dramabox/allepisode/$bookId"
         val episodes = try {
             app.get(episodesUrl).parsedSafe<Array<DramaboxEpisode>>()
@@ -133,7 +129,7 @@ class Dramabox : MainAPI() {
             }
         } ?: emptyList()
 
-        return newTvSeriesLoadResponse(title, fullUrl, TvType.AsianDrama, epData) {
+        return newTvSeriesLoadResponse(title, url, TvType.AsianDrama, epData) {
             this.posterUrl = poster
             this.plot = description
             this.tags = tags
