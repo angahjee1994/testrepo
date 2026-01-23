@@ -91,20 +91,42 @@ class XMalay : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val doc = app.get(data).document
-        val iframeSrc = doc.selectFirst("iframe[src*='stream25']")?.attr("src") 
+        val text = doc.html()
+
+        val iframeSrc = Regex("""https://stream25\.xyz/player\.php\?id=[a-zA-Z0-9-]+""").find(text)?.value
+            ?: doc.selectFirst("iframe[src*='stream25']")?.attr("src")
             ?: doc.selectFirst("iframe[src*='player.php']")?.attr("src")
             ?: return false
 
         val ref = "$mainUrl/"
         
         // Fetch the iframe content
-        val iframeDoc = app.get(iframeSrc, referer = ref).text
+        val iframeDoc = app.get(iframeSrc, referer = ref).document
+        val iframeText = iframeDoc.html()
+
+        // 1. Check for video/source tags
+        iframeDoc.select("video source, video").forEach { element ->
+            val src = element.attr("src")
+            if (src.isNotBlank()) {
+                val type = if (src.contains(".m3u8")) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
+                callback.invoke(
+                    newExtractorLink(
+                        "Stream25",
+                        name,
+                        src,
+                        type
+                    ) {
+                        this.headers = mapOf("Referer" to iframeSrc)
+                    }
+                )
+            }
+        }
         
-        // Regex to find m3u8 or mp4
+        // 2. Regex fallback for scripts
         val m3u8Regex = Regex("""["'](?<url>https?://[^"']+\.m3u8[^"']*)["']""")
         val mp4Regex = Regex("""["'](?<url>https?://[^"']+\.mp4[^"']*)["']""")
         
-        m3u8Regex.findAll(iframeDoc).forEach { match ->
+        m3u8Regex.findAll(iframeText).forEach { match ->
             val url = match.groups["url"]?.value ?: return@forEach
             callback.invoke(
                 newExtractorLink(
@@ -113,12 +135,12 @@ class XMalay : MainAPI() {
                     url,
                     ExtractorLinkType.M3U8
                 ) {
-                   this.headers = mapOf("Referer" to ref)
+                   this.headers = mapOf("Referer" to iframeSrc)
                 }
             )
         }
         
-        mp4Regex.findAll(iframeDoc).forEach { match ->
+        mp4Regex.findAll(iframeText).forEach { match ->
             val url = match.groups["url"]?.value ?: return@forEach
             callback.invoke(
                 newExtractorLink(
@@ -127,7 +149,7 @@ class XMalay : MainAPI() {
                     url,
                     ExtractorLinkType.VIDEO
                 ) {
-                   this.headers = mapOf("Referer" to ref)
+                   this.headers = mapOf("Referer" to iframeSrc)
                 }
             )
         }
