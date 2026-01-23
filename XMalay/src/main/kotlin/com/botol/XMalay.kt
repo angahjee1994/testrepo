@@ -3,6 +3,8 @@ package com.botol
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 
+import com.fasterxml.jackson.annotation.JsonProperty
+
 class XMalay : MainAPI() {
     override var mainUrl = "https://xmalay.xyz"
     override var name = "XMalay"
@@ -104,7 +106,7 @@ class XMalay : MainAPI() {
         val iframeDoc = app.get(iframeSrc, referer = ref).document
         val iframeText = iframeDoc.html()
 
-        // 1. Check for video/source tags
+        // 1. Try to find direct video/source tags first (as fallback or if simple player)
         iframeDoc.select("video source, video").forEach { element ->
             val src = element.attr("src")
             if (src.isNotBlank()) {
@@ -121,8 +123,42 @@ class XMalay : MainAPI() {
                 )
             }
         }
+
+        // 2. Parse FluidPlayer / EmbedPlayer Logic
+        // Script contains variables like: a = 17999, b = "11412623afe4a3fd", u = "..."
+        val id = Regex("""var\s+a\s*=\s*(\d+)""").find(iframeText)?.groupValues?.get(1)
+        val token = Regex("""var\s+b\s*=\s*["']([^"']+)["']""").find(iframeText)?.groupValues?.get(1)
+        val auth = Regex("""var\s+u\s*=\s*["']([^"']+)["']""").find(iframeText)?.groupValues?.get(1)
         
-        // 2. Regex fallback for scripts
+        if (id != null && token != null && auth != null) {
+            val apiUrl = "https://stream25.xyz/get_signed_url.php?id=$id&token=$token&auth=$auth"
+            try {
+                // Request the signed URL JSON
+                // Use the iframeSrc as referer!
+                val json = app.get(apiUrl, referer = iframeSrc).parsedSafe<Stream25Response>()
+                
+                json?.video?.let { videoUrl ->
+                    val domains = listOf("pool1.embedplayer.net", "pool2.embedplayer.net")
+                    val targetDomain = domains.random()
+                    val finalUrl = videoUrl.replace(Regex("^(https?://)[^/]+"), "$1$targetDomain")
+
+                    callback.invoke(
+                        newExtractorLink(
+                            "Stream25",
+                            name,
+                            finalUrl,
+                            ExtractorLinkType.VIDEO
+                        ) {
+                            this.headers = mapOf("Referer" to iframeSrc)
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+               // Log or ignore failure
+            }
+        }
+        
+        // 3. Regex fallback for scripts (standard m3u8/mp4 patterns)
         val m3u8Regex = Regex("""["'](?<url>https?://[^"']+\.m3u8[^"']*)["']""")
         val mp4Regex = Regex("""["'](?<url>https?://[^"']+\.mp4[^"']*)["']""")
         
@@ -141,6 +177,7 @@ class XMalay : MainAPI() {
         }
         
         mp4Regex.findAll(iframeText).forEach { match ->
+            // Avoid duplicates if we already found it via API
             val url = match.groups["url"]?.value ?: return@forEach
             callback.invoke(
                 newExtractorLink(
@@ -156,4 +193,11 @@ class XMalay : MainAPI() {
 
         return true
     }
+
+    data class Stream25Response(
+        @JsonProperty("video") val video: String? = null,
+        @JsonProperty("thumb") val thumb: String? = null,
+        @JsonProperty("error") val error: String? = null
+    )
 }
+
