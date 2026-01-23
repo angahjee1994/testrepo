@@ -54,10 +54,10 @@ class AstroGo : MainAPI() {
                  }
             }
 
-            return HomePageResponse(items)
+            return newHomePageResponse(items)
         } catch (e: Exception) {
             e.printStackTrace()
-            return HomePageResponse(emptyList())
+            return newHomePageResponse(emptyList())
         }
     }
 
