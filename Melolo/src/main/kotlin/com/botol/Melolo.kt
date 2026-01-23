@@ -117,7 +117,9 @@ class Melolo : MainAPI() {
     
     private fun String.decodeBase64(): String? {
         return try {
-            val decoded = android.util.Base64.decode(this, android.util.Base64.DEFAULT)
+            // The API returns URL-encoded Base64 strings (e.g. %3D instead of =)
+            val unescaped = java.net.URLDecoder.decode(this, "UTF-8")
+            val decoded = android.util.Base64.decode(unescaped, android.util.Base64.DEFAULT)
             String(decoded, Charsets.UTF_8)
         } catch (e: Exception) {
             null
