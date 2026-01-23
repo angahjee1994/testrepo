@@ -100,6 +100,9 @@ class Melolo : MainAPI() {
         try {
             android.util.Log.d("Melolo", "Inner JSON keys: ${videoModelMap.keys}")
             
+            videoModelMap["video_list"]?.let { android.util.Log.d("Melolo", "video_list content: $it") }
+            videoModelMap["fallback_api"]?.let { android.util.Log.d("Melolo", "fallback_api content: $it") }
+
             // Extensive search for video information
             @Suppress("UNCHECKED_CAST")
             val videoInfo = (videoModelMap["video_info"] as? Map<String, Any?>)
@@ -109,6 +112,7 @@ class Melolo : MainAPI() {
             
             @Suppress("UNCHECKED_CAST")
             val videos = (videoInfo["data"] as? Map<String, Any?>)
+                ?: (videoInfo["video_list"] as? Map<String, Any?>)
                 ?: (if (videoInfo.containsKey("main_url") || videoInfo.containsKey("backup_url_1")) mapOf("default" to videoInfo) else null)
             
             if (videos == null) {
