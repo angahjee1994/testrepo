@@ -6,6 +6,7 @@ import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.lagradost.cloudstream3.utils.AppUtils.toJson
 import org.jsoup.nodes.Document
+import kotlinx.coroutines.delay
 
 class Dramabox : MainAPI() {
     override var mainUrl = "https://www.dramaboxdb.com"
@@ -30,7 +31,7 @@ class Dramabox : MainAPI() {
             "ko", "ko-KR" -> "/kr"
             "vi", "vi-VN" -> "/vi"
             "zh", "zh-CN", "zh-TW" -> "/zh"
-            else -> "" // Default to empty (English) if unknown or 'en'
+            else -> "" 
         }
     }
 
@@ -117,20 +118,32 @@ class Dramabox : MainAPI() {
         if (bookId == null) throw ErrorLoadingException("No Book ID found")
 
         val episodesUrl = "$playerApiUrl/api/dramabox/allepisode/$bookId"
-        val episodes = try {
-            app.get(episodesUrl).parsedSafe<Array<DramaboxEpisode>>()
-        } catch (e: Exception) {
-            null
+        var episodes: Array<DramaboxEpisode>? = null
+        
+        // Retry logic for slow API to prevent caching empty/failed responses
+        for (i in 0..2) {
+            try {
+                // Increased timeout to 45s
+                episodes = app.get(episodesUrl, timeout = 45L).parsedSafe<Array<DramaboxEpisode>>()
+                if (!episodes.isNullOrEmpty()) break
+            } catch (e: Exception) {
+                // Ignore and retry
+            }
+            if (i < 2) delay(1500)
         }
 
-        val epData = episodes?.map { ep ->
+        if (episodes.isNullOrEmpty()) {
+            throw ErrorLoadingException("Failed to fetch episodes (Timeout)")
+        }
+
+        val epData = episodes.map { ep ->
             val data = LoadLinksData(bookId, ep.chapterId ?: "").toJson()
             newEpisode(data) {
                 this.name = ep.chapterName
                 this.episode = ep.chapterIndex?.plus(1)
                 this.posterUrl = ep.chapterImg
             }
-        } ?: emptyList()
+        }
 
         return newTvSeriesLoadResponse(title, url, TvType.AsianDrama, epData) {
             this.posterUrl = poster
