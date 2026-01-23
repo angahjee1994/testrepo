@@ -88,10 +88,11 @@ class Melolo : MainAPI() {
         
         try {
             val videoModel = parseJson<MeloloVideoModel>(videoModelJson)
-            val videos = videoModel.videoInfo?.data
+            // The JSON string is like {"video_model": {"video_info": {"data": ...}}}
+            val videos = videoModel.videoModel?.videoInfo?.data
             
             if (videos == null) {
-                android.util.Log.e("Melolo", "video_info.data is null")
+                android.util.Log.e("Melolo", "videoModel.videoModel?.videoInfo?.data is null. JSON: ${videoModelJson.take(200)}")
                 return false
             }
 
@@ -227,6 +228,10 @@ class Melolo : MainAPI() {
     )
 
     data class MeloloVideoModel(
+        @JsonProperty("video_model") val videoModel: MeloloVideoModelInner? = null
+    )
+
+    data class MeloloVideoModelInner(
         @JsonProperty("video_info") val videoInfo: MeloloVideoInfoWrapper? = null
     )
 
