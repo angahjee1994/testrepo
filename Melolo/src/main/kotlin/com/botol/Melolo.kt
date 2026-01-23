@@ -66,7 +66,8 @@ class Melolo : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         // data here is the vid_id passed from load()
-        val streamUrl = "$mainUrl/api/melolo/stream/$data"
+        val vidId = data.substringAfterLast("/")
+        val streamUrl = "$mainUrl/api/melolo/stream/$vidId"
         val res = app.get(streamUrl).parsedSafe<MeloloStreamResponse>() ?: return false
         
         val streamResult = res.data ?: return false
