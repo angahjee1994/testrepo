@@ -68,8 +68,36 @@ class Dramabox : MainAPI() {
     }
 
     private fun parseItems(doc: Document): List<SearchResponse> {
+        // Strategy 1: Try to parse Next.js data (Contains ALL items including those not rendered in HTML)
+        val nextData = doc.selectFirst("#__NEXT_DATA__")?.data()
+        if (!nextData.isNullOrBlank()) {
+            try {
+                val json = parseJson<NextData>(nextData)
+                val channelList = json.props?.pageProps?.initialState?.channel?.list 
+                    ?: json.props?.pageProps?.initialState?.channel?.homeFuncList?.flatMap { it.list ?: emptyList() }
+                
+                if (!channelList.isNullOrEmpty()) {
+                    return channelList.mapNotNull { item ->
+                        val title = item.bookName
+                        val bookId = item.bookId
+                        val cover = item.cover ?: item.image
+                         
+                        if (title.isNullOrBlank() || bookId.isNullOrBlank()) return@mapNotNull null
+                        
+                        val fullUrl = "$mainUrl/movie/$bookId/${title.toSlug()}"
+                        
+                        newAnimeSearchResponse(title, fullUrl, TvType.AsianDrama) {
+                            this.posterUrl = cover
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                // Fallback to HTML parsing if JSON structure changes
+            }
+        }
+
+        // Strategy 2: Fallback to HTML Link Aggregation (Original robust logic)
         val links = doc.select("a[href*='/movie/']")
-        
         val grouped = links.groupBy { 
             val href = it.attr("href")
             val full = if (href.startsWith("http")) href else "$mainUrl$href"
@@ -101,6 +129,44 @@ class Dramabox : MainAPI() {
             }
         }
     }
+    
+    // Helper to slugify title for URL construction (mimics simple slug behavior)
+    private fun String.toSlug(): String {
+        return this.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-')
+    }
+
+    // JSON Data Structures for Next.js Data
+    data class NextData(
+        @JsonProperty("props") val props: Props? = null
+    )
+
+    data class Props(
+        @JsonProperty("pageProps") val pageProps: PageProps? = null
+    )
+
+    data class PageProps(
+        @JsonProperty("initialState") val initialState: InitialState? = null
+    )
+
+    data class InitialState(
+        @JsonProperty("channel") val channel: ChannelData? = null
+    )
+    
+    data class ChannelData(
+        @JsonProperty("list") val list: List<MovieItem>? = null,
+        @JsonProperty("homeFuncList") val homeFuncList: List<HomeSection>? = null
+    )
+    
+    data class HomeSection(
+        @JsonProperty("list") val list: List<MovieItem>? = null
+    )
+
+    data class MovieItem(
+        @JsonProperty("bookId") val bookId: String? = null,
+        @JsonProperty("bookName") val bookName: String? = null,
+        @JsonProperty("cover") val cover: String? = null,
+        @JsonProperty("image") val image: String? = null
+    )
 
     override suspend fun load(url: String): LoadResponse {
         val doc = app.get(url, headers = baseHeaders).document
