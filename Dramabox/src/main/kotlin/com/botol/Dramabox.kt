@@ -38,7 +38,7 @@ class Dramabox : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         val url = "$mainUrl/api/dramabox/search?query=$query"
-        val res = app.get(url, headers = baseHeaders).parsedSafe<Array<DramaboxMedia>>() ?: return emptyList()
+        val res = app.get(url, headers = baseHeaders, timeout = 60).parsedSafe<Array<DramaboxMedia>>() ?: return emptyList()
         return res.map { it.toSearchResponse(this) }
     }
 
