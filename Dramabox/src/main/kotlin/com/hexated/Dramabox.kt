@@ -26,10 +26,20 @@ class Dramabox : MainAPI() {
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
-        val url = if (request.data.contains("?")) {
-            "${request.data}&page=$page"
+        val isPaginated = request.data.contains("dubindo")
+        
+        if (!isPaginated && page > 1) {
+            return newHomePageResponse(request.name, emptyList())
+        }
+
+        val url = if (isPaginated) {
+            if (request.data.contains("?")) {
+                "${request.data}&page=$page"
+            } else {
+                "${request.data}?page=$page"
+            }
         } else {
-            "${request.data}?page=$page"
+            request.data
         }
 
         val text = app.get(url).text
