@@ -43,7 +43,7 @@ class Dramabox : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse {
-        val bookId = url
+        val bookId = url.substringAfterLast("/")
         val detailUrl = "$mainUrl/api/dramabox/detail/$bookId"
         val episodesUrl = "$mainUrl/api/dramabox/allepisode/$bookId"
 
@@ -114,7 +114,7 @@ class Dramabox : MainAPI() {
     ) {
         fun toSearchResponse(api: Dramabox) = api.newAnimeSearchResponse(
             bookName ?: "",
-            bookId ?: "",
+            "${api.mainUrl}/${bookId ?: ""}",
             TvType.AsianDrama,
             false
         ) {
