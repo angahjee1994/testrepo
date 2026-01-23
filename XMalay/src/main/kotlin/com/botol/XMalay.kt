@@ -34,16 +34,20 @@ class XMalay : MainAPI() {
         }
 
         val doc = app.get(realUrl).document
-        val home = doc.select(".video-item").mapNotNull {
+        val home = doc.select(".video-item, .columns .column").mapNotNull {
             it.toSearchResponse()
         }
         return newHomePageResponse(request.name, home)
     }
 
     private fun org.jsoup.nodes.Element.toSearchResponse(): SearchResponse? {
-        val title = this.selectFirst(".video-item-title, .title")?.text() ?: return null
-        val href = this.selectFirst("a")?.attr("href") ?: return null
-        val poster = this.selectFirst("img")?.attr("src")
+        val anchor = this.selectFirst("a[href]") ?: return null
+        val title = this.selectFirst(".video-item-title, .title")?.text() 
+            ?: anchor.attr("title").takeIf { it.isNotBlank() }
+            ?: return null
+            
+        val href = anchor.attr("href")
+        val poster = this.selectFirst("img")?.attr("src") ?: this.selectFirst("img")?.attr("data-src")
         
         return newMovieSearchResponse(title, href, TvType.NSFW) {
             this.posterUrl = poster
@@ -53,7 +57,7 @@ class XMalay : MainAPI() {
     override suspend fun search(query: String): List<SearchResponse> {
         val url = "$mainUrl/search/?s=$query"
         val doc = app.get(url).document
-        return doc.select(".video-item").mapNotNull {
+        return doc.select(".video-item, .columns .column").mapNotNull {
             it.toSearchResponse()
         }
     }
