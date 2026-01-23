@@ -90,7 +90,8 @@ class Dramabox : MainAPI() {
                          
                         if (title.isNullOrBlank() || bookId.isNullOrBlank()) return@mapNotNull null
                         
-                        val fullUrl = "$mainUrl/movie/$bookId/${title.toSlug()}"
+                        val prefix = getLangPrefix()
+                        val fullUrl = "$mainUrl$prefix/movie/$bookId/${title.toSlug()}"
                         
                         newAnimeSearchResponse(title, fullUrl, TvType.AsianDrama) {
                             this.posterUrl = cover
@@ -142,7 +143,8 @@ class Dramabox : MainAPI() {
                 val match = Regex("""/ep/(\d+)_([^/]+)""").find(fullUrl)
                 if (match != null) {
                     val (id, slug) = match.destructured
-                    "$mainUrl/movie/$id/$slug"
+                    val prefix = getLangPrefix()
+                    "$mainUrl$prefix/movie/$id/$slug"
                 } else fullUrl
             } else fullUrl
 
@@ -157,7 +159,12 @@ class Dramabox : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse {
-        val doc = app.get(url, headers = baseHeaders).document
+        val prefix = getLangPrefix()
+        val finalUrl = if (prefix.isNotEmpty() && !url.contains("$mainUrl$prefix")) {
+            url.replace(mainUrl, "$mainUrl$prefix")
+        } else url
+
+        val doc = app.get(finalUrl, headers = baseHeaders).document
         
         var title = "Unknown"
         var poster: String? = null
