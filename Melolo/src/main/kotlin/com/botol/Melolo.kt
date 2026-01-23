@@ -73,79 +73,103 @@ class Melolo : MainAPI() {
         
         val streamUrl = "$mainUrl/api/melolo/stream/${lid.id}"
         android.util.Log.d("Melolo", "Requesting stream: $streamUrl")
-        val res = app.get(streamUrl).parsedSafe<MeloloStreamResponse>() 
+        val responseText = app.get(streamUrl).text
         
-        if (res == null) {
-            android.util.Log.e("Melolo", "MeloloStreamResponse is null")
+        val rootMap = try { parseJson<Map<String, Any?>>(responseText) } catch(e: Exception) {
+            android.util.Log.e("Melolo", "Failed to parse root response: ${responseText.take(200)}")
             return false
         }
         
-        val videoModelJson = res.data?.videoModel
-        if (videoModelJson == null) {
-            android.util.Log.e("Melolo", "video_model is null in response")
+        val dataObj = rootMap["data"] as? Map<String, Any?> ?: rootMap
+        val videoModelRaw = dataObj["video_model"]
+        
+        val videoModelMap = when (videoModelRaw) {
+            is String -> try { parseJson<Map<String, Any?>>(videoModelRaw) } catch(e: Exception) { 
+                android.util.Log.e("Melolo", "Failed to parse video_model string")
+                null 
+            }
+            is Map<*, *> -> @Suppress("UNCHECKED_CAST") (videoModelRaw as Map<String, Any?>)
+            else -> null
+        }
+        
+        if (videoModelMap == null) {
+            android.util.Log.e("Melolo", "video_model not found or invalid. Keys: ${dataObj.keys}")
             return false
         }
         
         try {
-            val videoModel = parseJson<MeloloVideoModel>(videoModelJson)
-            // The JSON string can be {"video_info": ...} OR {"video_model": {"video_info": ...}}
-            val videos = (videoModel.videoModel?.videoInfo ?: videoModel.videoInfo)?.data
+            android.util.Log.d("Melolo", "Inner JSON keys: ${videoModelMap.keys}")
+            
+            // Extensive search for video information
+            @Suppress("UNCHECKED_CAST")
+            val videoInfo = (videoModelMap["video_info"] as? Map<String, Any?>)
+                ?: (videoModelMap["video_model"] as? Map<String, Any?>)?.get("video_info") as? Map<String, Any?>
+                ?: (videoModelMap["video"] as? Map<String, Any?>)
+                ?: videoModelMap
+            
+            @Suppress("UNCHECKED_CAST")
+            val videos = (videoInfo["data"] as? Map<String, Any?>)
+                ?: (if (videoInfo.containsKey("main_url") || videoInfo.containsKey("backup_url_1")) mapOf("default" to videoInfo) else null)
             
             if (videos == null) {
-                android.util.Log.e("Melolo", "Could not find video_info data. Inner JSON: ${videoModelJson.take(500)}")
+                android.util.Log.e("Melolo", "Could not find video data. Keys in videoModelMap: ${videoModelMap.keys}")
+                videoModelMap["video"]?.let { android.util.Log.d("Melolo", "video content: $it") }
                 return false
             }
 
-            videos.forEach { (qualityKey, videoInfo) ->
-                android.util.Log.d("Melolo", "Processing quality: $qualityKey")
-                val mainUrl = videoInfo.mainUrl?.decodeBase64()
-                if (mainUrl != null) {
-                    android.util.Log.d("Melolo", "Found URL for $qualityKey: $mainUrl")
-                    val quality = when(qualityKey) {
-                        "10" -> Qualities.P360.value
-                        "20" -> Qualities.P480.value
-                        "30" -> Qualities.P720.value
-                        else -> Qualities.Unknown.value
-                    }
+            var foundLinks = 0
+            videos.forEach { (qualityKey, videoObj) ->
+                val videoData = videoObj as? Map<String, Any?> ?: return@forEach
+                android.util.Log.d("Melolo", "Processing quality entry: $qualityKey")
+                
+                val mainUrlEncoded = videoData["main_url"] as? String
+                val backupUrlEncoded = videoData["backup_url_1"] as? String
+                
+                val quality = when(qualityKey) {
+                    "10", "360p" -> Qualities.P360.value
+                    "20", "480p" -> Qualities.P480.value
+                    "30", "720p" -> Qualities.P720.value
+                    "40", "1080p" -> Qualities.P1080.value
+                    else -> Qualities.Unknown.value
+                }
 
+                mainUrlEncoded?.decodeBase64()?.let { mainUrl ->
+                    android.util.Log.d("Melolo", "Found main ($qualityKey): $mainUrl")
                     callback.invoke(
                         newExtractorLink(
                             name,
-                            "Main $qualityKey",
+                            "Main ${if(qualityKey == "default") "" else qualityKey}".trim(),
                             mainUrl,
                             INFER_TYPE
                         ) {
                             this.quality = quality
                         }
                     )
+                    foundLinks++
                 }
 
-                videoInfo.backupUrl?.decodeBase64()?.let { backup ->
-                    android.util.Log.d("Melolo", "Found backup link: $backup")
-                    val quality = when(qualityKey) {
-                        "10" -> Qualities.P360.value
-                        "20" -> Qualities.P480.value
-                        "30" -> Qualities.P720.value
-                        else -> Qualities.Unknown.value
-                    }
+                backupUrlEncoded?.decodeBase64()?.let { backupUrl ->
+                    android.util.Log.d("Melolo", "Found backup ($qualityKey): $backupUrl")
                     callback.invoke(
                         newExtractorLink(
                             name,
-                            "Backup $qualityKey",
-                            backup,
+                            "Backup ${if(qualityKey == "default") "" else qualityKey}".trim(),
+                            backupUrl,
                             INFER_TYPE
                         ) {
                             this.quality = quality
                         }
                     )
+                    foundLinks++
                 }
             }
+            
+            android.util.Log.d("Melolo", "Total links found: $foundLinks")
+            return foundLinks > 0
         } catch (e: Exception) {
             android.util.Log.e("Melolo", "Error in link processing: $e")
             return false
         }
-
-        return true
     }
     
     private fun String.decodeBase64(): String? {
