@@ -29,8 +29,12 @@ class AstroGo : MainAPI() {
         val offset = (page - 1) * 20
         
         val dataParts = request.data.split(",")
-        val dataPath = dataParts[0]
+        var dataPath = dataParts[0]
         val sort = dataParts.getOrNull(1)
+
+        if (sort != null && dataPath == "IVP:TVShow") {
+            dataPath += ":All"
+        }
 
         val encodedToken = java.net.URLEncoder.encode(clientToken, "UTF-8")
         val encodedPath = java.net.URLEncoder.encode(dataPath, "UTF-8")
