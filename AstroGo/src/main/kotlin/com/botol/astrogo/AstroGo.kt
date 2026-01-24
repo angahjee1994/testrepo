@@ -18,8 +18,8 @@ class AstroGo : MainAPI() {
 
     override val mainPage = mainPageOf(
         "node:IVP:Home:VodForYou" to "Home",
-        "IVP:TVShow:All,-date" to "TV Shows",
-        "node:IVP:Movies:All,-date" to "Movies"
+        "IVP:TVShow,-date" to "TV Shows",
+        "node:IVP:Movies,-date" to "Movies"
     )
 
     override suspend fun getMainPage(
