@@ -26,8 +26,8 @@ class AstroGo : MainAPI() {
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
-        val offset = (page - 1) * 20
-        // Pagination for loading more rows/content
+        val start = (page - 1) * 20
+        val end = start + 19
         
         val dataParts = request.data.split(",")
         val dataPath = dataParts[0]
@@ -36,12 +36,15 @@ class AstroGo : MainAPI() {
         val path = if (dataPath.startsWith("node:")) dataPath 
                   else if (dataPath.contains("Home")) "node:${dataPath}" 
                   else dataPath
-        val endpoint = "shared/bulkContent/$path"
+        
         val encodedToken = java.net.URLEncoder.encode(clientToken, "UTF-8")
-        var url = "$apiUrl/$endpoint?clientToken=$encodedToken&offset=$offset&limit=20"
+        val url: String
         
         if (sort != null) {
-            url += "&sort=$sort"
+             url = "$apiUrl/content?categoryId=$path&clientToken=$encodedToken&start=$start&end=$end&sort=$sort"
+        } else {
+             val endpoint = "shared/bulkContent/$path"
+             url = "$apiUrl/$endpoint?clientToken=$encodedToken"
         }
         
         val headers = mapOf(
