@@ -110,14 +110,109 @@ class AstroGo : MainAPI() {
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
-        // Implement search based on finding the proper endpoint
-        return emptyList()
+        val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
+        // Based on browser capture, search uses agg/content with source=vod
+        val url = "$apiUrl/agg/content?limit=40&q=$encodedQuery&source=vod&sort=relevancy&isErotic=false&isAdult=false"
+        
+        val headers = mapOf(
+            "Authorization" to "Bearer $bearerToken",
+            "Accept" to "application/json"
+        )
+
+        return try {
+            val response = app.get(url, headers = headers).parsedSafe<AstroResponse>()
+            response?.content?.mapNotNull { it.toSearchResponse() } ?: emptyList()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
     }
 
     override suspend fun load(url: String): LoadResponse {
-        // url here acts as the ID from toSearchResponse
-        // We need to fetch details. For now, basic placeholder.
-        return newMovieLoadResponse("Details Placeholder", url, TvType.Movie, url) {
+        // url is the ID
+        val detailUrl = "$apiUrl/contentInstances/$url"
+         val headers = mapOf(
+            "Authorization" to "Bearer $bearerToken",
+            "Accept" to "application/json"
+        )
+        
+        val response = app.get(detailUrl, headers = headers).parsedSafe<AstroContent>()
+            ?: throw ErrorLoadingException("Failed to load details")
+
+        val title = response.title ?: "No Title"
+        val plot = response.synopsis
+        val poster = response.media?.firstOrNull()?.url
+        val year = response.releaseDate?.substringBefore("-")?.toIntOrNull()
+        
+        // Handle TV Series vs Movie
+        // Astro contentType: "Movie", "Program" (Show), "Episode"
+        val isTv = response.contentType?.equals("Program", true) == true || 
+                   response.contentType?.equals("TVShow", true) == true
+
+        if (isTv) {
+            val episodes = ArrayList<Episode>()
+            val encodedToken = java.net.URLEncoder.encode(clientToken, "UTF-8")
+            
+            // 1. Try to fetch Seasons first
+            val seasonsUrl = "$apiUrl/shared/content?showId=$url&sort=seasonNumber&limit=255&offset=0&clientToken=$encodedToken"
+            var seasonResponse = try {
+                 app.get(seasonsUrl, headers = headers).parsedSafe<AstroResponse>()
+            } catch (e: Exception) { null }
+            
+            val validSeasons = seasonResponse?.content?.filter { 
+                it.contentType?.contains("Season", true) == true 
+            }
+
+            if (!validSeasons.isNullOrEmpty()) {
+                // It has seasons, fetch episodes for each
+                validSeasons.forEach { season ->
+                    val seasonId = season.id ?: return@forEach
+                    val seasonNum = season.title?.filter { it.isDigit() }?.toIntOrNull() ?: 1
+                    
+                    val episodesUrl = "$apiUrl/shared/content?seasonId=$seasonId&sort=episodeNumber&limit=255&offset=0&clientToken=$encodedToken"
+                    val episodesResp = try {
+                         app.get(episodesUrl, headers = headers).parsedSafe<AstroResponse>()
+                    } catch (e: Exception) { null }
+                    
+                    episodesResp?.content?.forEach { ep ->
+                        episodes.add(ep.toEpisode(seasonNum))
+                    }
+                }
+            } else {
+                // No seasons found, might be a flat list of episodes (like Running Man) or just episodes directly
+                 val flatEpisodesUrl = "$apiUrl/shared/content?showId=$url&source=vod&limit=255&offset=0&sort=episodeNumber&isCollapsed=false&clientToken=$encodedToken"
+                 val flatResp = try {
+                         app.get(flatEpisodesUrl, headers = headers).parsedSafe<AstroResponse>()
+                    } catch (e: Exception) { null }
+                    
+                 flatResp?.content?.forEach { ep ->
+                     episodes.add(ep.toEpisode(1))
+                 }
+            }
+            
+            return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
+                this.posterUrl = poster
+                this.plot = plot
+                this.year = year
+            }
+        } else {
+            return newMovieLoadResponse(title, url, TvType.Movie, url) {
+                this.posterUrl = poster
+                this.plot = plot
+                this.year = year
+            }
+        }
+    }
+    
+    private fun AstroContent.toEpisode(season: Int?): Episode {
+        val epNum = this.title?.substringBefore(" ")?.toIntOrNull() // Heuristic if title is "1. Episode Name"
+        // Better to use metadata if available, but for now map basic fields
+        return newEpisode(this.id ?: "") {
+            this.name = this@toEpisode.title
+            this.season = season
+            this.posterUrl = this@toEpisode.media?.firstOrNull()?.url
+            this.description = this@toEpisode.synopsis
+            // this.episode = epNum // If we can parse it reliably
         }
     }
 
@@ -127,6 +222,7 @@ class AstroGo : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
+        // Placeholder for next step
         return false
     }
 
@@ -146,7 +242,9 @@ class AstroGo : MainAPI() {
         @JsonProperty("title") val title: String? = null,
         @JsonProperty("synopsis") val synopsis: String? = null,
         @JsonProperty("media") val media: List<AstroMedia>? = null,
-        @JsonProperty("contentType") val contentType: String? = null
+        @JsonProperty("contentType") val contentType: String? = null,
+        @JsonProperty("releaseDate") val releaseDate: String? = null,
+        @JsonProperty("duration") val duration: String? = null
     )
 
     data class AstroMedia(
