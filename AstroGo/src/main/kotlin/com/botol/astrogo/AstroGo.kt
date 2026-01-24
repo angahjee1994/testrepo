@@ -18,8 +18,8 @@ class AstroGo : MainAPI() {
 
     override val mainPage = mainPageOf(
         "IVP:Home" to "Home",
-        "IVP:TVShow" to "TV Shows",
-        "node:IVP:Movies" to "Movies"
+        "IVP:TVShow,-date:" to "TV Shows",
+        "node:IVP:Movies,-date" to "Movies"
     )
 
     override suspend fun getMainPage(
@@ -29,11 +29,19 @@ class AstroGo : MainAPI() {
         val offset = (page - 1) * 20
         // Pagination for loading more rows/content
         
-        val path = if (request.data.startsWith("node:")) request.data 
-                  else if (request.data.contains("Home")) "node:${request.data}" 
-                  else request.data
+        val dataParts = request.data.split(",")
+        val dataPath = dataParts[0]
+        val sort = dataParts.getOrNull(1)
+
+        val path = if (dataPath.startsWith("node:")) dataPath 
+                  else if (dataPath.contains("Home")) "node:${dataPath}" 
+                  else dataPath
         val endpoint = "shared/bulkContent/$path"
-        val url = "$apiUrl/$endpoint?clientToken=$clientToken&offset=$offset&limit=20"
+        var url = "$apiUrl/$endpoint?clientToken=$clientToken&offset=$offset&limit=20"
+        
+        if (sort != null) {
+            url += "&sort=$sort"
+        }
         
         val headers = mapOf(
             "Authorization" to "Bearer $bearerToken",
