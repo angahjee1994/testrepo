@@ -18,7 +18,7 @@ class AstroGo : MainAPI() {
 
     override val mainPage = mainPageOf(
         "IVP:Home" to "Home",
-        "IVP:TVShow,-date:" to "TV Shows",
+        "IVP:TVShow,-date" to "TV Shows",
         "node:IVP:Movies,-date" to "Movies"
     )
 
@@ -37,7 +37,8 @@ class AstroGo : MainAPI() {
                   else if (dataPath.contains("Home")) "node:${dataPath}" 
                   else dataPath
         val endpoint = "shared/bulkContent/$path"
-        var url = "$apiUrl/$endpoint?clientToken=$clientToken&offset=$offset&limit=20"
+        val encodedToken = java.net.URLEncoder.encode(clientToken, "UTF-8")
+        var url = "$apiUrl/$endpoint?clientToken=$encodedToken&offset=$offset&limit=20"
         
         if (sort != null) {
             url += "&sort=$sort"
