@@ -6,7 +6,7 @@ cloudstream {
     language = "ms"
     // All of these properties are optional, you can safely remove them
 
-    description = "Astro Go Provider"
+    description = "Astro Go TESTING BELOM SIAP SABAR"
     authors = listOf("botol")
 
     /**
@@ -19,5 +19,5 @@ cloudstream {
     status = 3 // will be 3 if unspecified
     tvTypes = listOf("LiveTV", "Movies", "TvSeries")
 
-    // iconUrl = ""
+    iconUrl = "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/AstroGo/logo.png"
 }
