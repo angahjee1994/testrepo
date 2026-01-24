@@ -33,17 +33,18 @@ class AstroGo : MainAPI() {
         val sort = dataParts.getOrNull(1)
 
         val encodedToken = java.net.URLEncoder.encode(clientToken, "UTF-8")
+        val encodedPath = java.net.URLEncoder.encode(dataPath, "UTF-8")
         val url: String
         
         if (dataPath.contains("Home")) {
              // Home aggregation endpoint
-             url = "$apiUrl/agg/content?categoryId=$dataPath&clientToken=$encodedToken&limit=20"
+             url = "$apiUrl/agg/content?categoryId=$encodedPath&clientToken=$encodedToken&limit=20"
         } else if (sort != null) {
              // Sorted content lists (Movies/TV)
-             url = "$apiUrl/shared/content?categoryId=$dataPath&clientToken=$encodedToken&offset=$offset&limit=20&sort=$sort"
+             url = "$apiUrl/shared/content?categoryId=$encodedPath&clientToken=$encodedToken&offset=$offset&limit=20&sort=$sort"
         } else {
              // Fallback for standard swimlanes
-             val endpoint = "shared/bulkContent/$dataPath"
+             val endpoint = "shared/bulkContent/$encodedPath"
              url = "$apiUrl/$endpoint?clientToken=$encodedToken"
         }
         
