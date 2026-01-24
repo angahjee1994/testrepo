@@ -38,7 +38,7 @@ class AstroGo : MainAPI() {
         
         if (dataPath.contains("Home")) {
              // Home aggregation endpoint
-             url = "$apiUrl/agg/content?categoryId=$encodedPath&clientToken=$encodedToken&limit=20"
+             url = "$apiUrl/agg/content?categoryId=$encodedPath&limit=20"
         } else if (sort != null) {
              // Sorted content lists (Movies/TV)
              url = "$apiUrl/shared/content?categoryId=$encodedPath&clientToken=$encodedToken&offset=$offset&limit=20&sort=$sort"
