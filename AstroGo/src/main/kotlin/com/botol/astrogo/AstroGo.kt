@@ -17,9 +17,9 @@ class AstroGo : MainAPI() {
     private val bearerToken = "eyJraWQiOiIyOGI4YTM0OC0wNWUxLTQxMWMtYWY4Ny03YWZhNjg5NTA5NzQiLCJqa3UiOiJodHRwczovL3NnLXNnLXNnLmFzdHJvLmNvbS5teTo5NDQzL29hdXRoMi9qd2tzP2tpZD0yOGI4YTM0OC0wNWUxLTQxMWMtYWY4Ny03YWZhNjg5NTA5NzQiLCJhbGciOiJSUzI1NiJ9.eyJpYXQiOjE3NjkyMTE5MzksInN1YiI6Ijg2MjIwMzM4IiwiYXVkIjoiaXZwLnNlc3Npb25ndWFyZCIsImV4cCI6MTc2OTIyMjczOSwic2Vzc2lvbl9kYXRhIjp7InNlc3Npb24iOnsiZGV2SWQiOiI4NjIyMDMzOC4wODEyZDdiNy1mYjJkLTQ3NDYtYWI2Yy1kZTlkMTcyNzdkOGQiLCJndWVzdE1vZGUiOmZhbHNlLCJoaElkIjoiODYyMjAzMzgiLCJidXNVbml0SWQiOiJBU1RSTyJ9fSwiZGV2aWNlRnVsbFR5cGUiOiJCcm93c2VyLURlZmF1bHQiLCJzY29wZSI6ImJyb3dzZSBwbGF5YmFjayIsInRva2VuX3R5cGUiOiJhY2Nlc3NfdG9rZW4iLCJzc2FfanRpIjoiYnJvd3NlciIsImNsaWVudF9pZCI6ImJyb3dzZXIiLCJqdGkiOiIzYTA4N2VlNC02ZTUyLTRhYzAtYjY1Mi1jYjc5NTJhZDQ0NWIifQ.hBaFxA-rSm56RZYunE-BUEVHxNrf09019OIIQ2BrkJePcqKmXwmQr5ZlJFCOzyOS_BJr_qbluC4tPbHC2naQi-77PahnR1p9s-UTiA92vn5_VMFKjHrZwAEQ6KAo1rqZCyirJ36m1se6GvOEgkdUISSM4znrA3LF91awcICsudbD9Ut_kds3xPErAh8eowmHIFgXDC9l6tdCvttPEa61wwNtvEJDDNJXLFPyMIiiiv9ZeZYeQ86IQcY1GhBBbwJIJapnK6uYMn8Wv7VUoPC8j6ywzs_0R9hhhRfpDOzT5VEe03Uz6WP-g2W9Yq8LAopn4MELyI2t1-LlCwFeeHZ0vg"
 
     override val mainPage = mainPageOf(
-        "IVP:Home" to "Home",
-        "IVP:TVShow,-date" to "TV Shows",
-        "node:IVP:Movies,-date" to "Movies"
+        "node:IVP:Home:VodForYou" to "Home",
+        "IVP:TVShow:All,-date" to "TV Shows",
+        "node:IVP:Movies:All,-date" to "Movies"
     )
 
     override suspend fun getMainPage(
@@ -29,19 +29,20 @@ class AstroGo : MainAPI() {
         val offset = (page - 1) * 20
         
         val dataParts = request.data.split(",")
-        var dataPath = dataParts[0]
+        val dataPath = dataParts[0]
         val sort = dataParts.getOrNull(1)
 
-        if (!dataPath.startsWith("node:")) {
-            dataPath = "node:$dataPath"
-        }
-        
         val encodedToken = java.net.URLEncoder.encode(clientToken, "UTF-8")
         val url: String
         
-        if (sort != null) {
+        if (dataPath.contains("Home")) {
+             // Home aggregation endpoint
+             url = "$apiUrl/agg/content?categoryId=$dataPath&clientToken=$encodedToken&limit=20"
+        } else if (sort != null) {
+             // Sorted content lists (Movies/TV)
              url = "$apiUrl/shared/content?categoryId=$dataPath&clientToken=$encodedToken&offset=$offset&limit=20&sort=$sort"
         } else {
+             // Fallback for standard swimlanes
              val endpoint = "shared/bulkContent/$dataPath"
              url = "$apiUrl/$endpoint?clientToken=$encodedToken"
         }
