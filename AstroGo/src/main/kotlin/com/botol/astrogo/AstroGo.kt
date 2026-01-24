@@ -129,15 +129,26 @@ class AstroGo : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse {
-        // url is the ID
-        val detailUrl = "$apiUrl/contentInstances/$url"
-         val headers = mapOf(
+        val encodedToken = java.net.URLEncoder.encode(clientToken, "UTF-8")
+        val headers = mapOf(
             "Authorization" to "Bearer $bearerToken",
             "Accept" to "application/json"
         )
         
-        val response = app.get(detailUrl, headers = headers).parsedSafe<AstroContent>()
-            ?: throw ErrorLoadingException("Failed to load details")
+        // Try contentInstances first (standard for Movies/Episodes)
+        var detailUrl = "$apiUrl/contentInstances/$url?clientToken=$encodedToken"
+        
+        var response = try {
+            app.get(detailUrl, headers = headers).parsedSafe<AstroContent>()
+        } catch (e: Exception) { null }
+
+        // If that failed or returned empty, try content/show (standard for TV Series)
+        if (response == null || response.title == null) {
+             detailUrl = "$apiUrl/content/show/$url?clientToken=$encodedToken"
+             response = app.get(detailUrl, headers = headers).parsedSafe<AstroContent>()
+        }
+
+        if (response == null) throw ErrorLoadingException("Failed to load details")
 
         val title = response.title ?: "No Title"
         val plot = response.synopsis
