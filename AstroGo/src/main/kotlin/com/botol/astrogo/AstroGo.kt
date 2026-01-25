@@ -243,8 +243,8 @@ class AstroGo : MainAPI() {
                 this.tags = tags
                 this.actors = response.cast?.mapNotNull { member ->
                     val name = member.name ?: return@mapNotNull null
-                    ActorData(name, role = member.role)
-                } ?: response.actors?.map { ActorData(it) }
+                    ActorData(Actor(name, image = null), role = ActorRole.Main)
+                } ?: response.actors?.map { ActorData(Actor(it, image = null), role = ActorRole.Main) }
             }
         } else {
             return newMovieLoadResponse(title, cleanId, TvType.Movie, cleanId) {
@@ -255,8 +255,8 @@ class AstroGo : MainAPI() {
                 this.tags = tags
                 this.actors = response.cast?.mapNotNull { member ->
                     val name = member.name ?: return@mapNotNull null
-                    ActorData(name, role = member.role)
-                } ?: response.actors?.map { ActorData(it) }
+                    ActorData(Actor(name, image = null), role = ActorRole.Main)
+                } ?: response.actors?.map { ActorData(Actor(it, image = null), role = ActorRole.Main) }
             }
         }
     }
