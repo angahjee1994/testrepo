@@ -18,7 +18,7 @@ class AstroGo : MainAPI() {
 
     override val mainPage = mainPageOf(
         "node:IVP:Home:VodForYou" to "Home",
-        "IVP:TVShow,-date" to "TV Shows",
+        "node:IVP:TVShow,-date" to "TV Shows",
         "node:IVP:Movies,-date" to "Movies"
     )
 
@@ -88,12 +88,8 @@ class AstroGo : MainAPI() {
         val offset = (page - 1) * 20
         
         val dataParts = request.data.split(",")
-        var dataPath = dataParts[0]
+        val dataPath = dataParts[0]
         val sort = dataParts.getOrNull(1)
-
-        if (sort != null && dataPath == "IVP:TVShow") {
-            dataPath += ":All"
-        }
 
         val encodedToken = java.net.URLEncoder.encode(clientToken, "UTF-8")
         val encodedPath = java.net.URLEncoder.encode(dataPath, "UTF-8")
@@ -101,7 +97,7 @@ class AstroGo : MainAPI() {
         
         if (dataPath.contains("Home")) {
              // Home aggregation endpoint
-             url = "$apiUrl/agg/content?categoryId=$encodedPath&limit=20"
+             url = "$apiUrl/agg/content?categoryId=$encodedPath&limit=20&clientToken=$encodedToken"
         } else if (sort != null) {
              // Sorted content lists (Movies/TV)
              url = "$apiUrl/shared/content?categoryId=$encodedPath&clientToken=$encodedToken&offset=$offset&limit=20&sort=$sort"
