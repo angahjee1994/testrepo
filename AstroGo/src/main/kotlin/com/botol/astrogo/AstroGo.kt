@@ -170,6 +170,20 @@ class AstroGo : MainAPI() {
              } catch (e: Exception) { null }
         }
         
+        // Final fallback: Search by title if we have it
+        if ((response == null || response.title == null) && titleParam != null) {
+            try {
+                // Determine type based on URL or previous clues? Default to finding anything.
+                val searchResults = search(titleParam)
+                val bestMatch = searchResults.firstOrNull { it.name.trim().equals(titleParam.trim(), true) } 
+                                ?: searchResults.firstOrNull()
+                                
+                if (bestMatch != null && bestMatch.url != url) {
+                    return load(bestMatch.url)
+                }
+            } catch (e: Exception) { }
+        }
+        
         if (response == null && titleParam != null) {
             // Create dummy response from params to avoid error
             response = AstroContent(id = rawId, title = titleParam, synopsis = plotParam, contentType = "Movie") 
