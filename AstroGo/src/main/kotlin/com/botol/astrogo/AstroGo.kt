@@ -214,6 +214,18 @@ class AstroGo : MainAPI() {
                 directors?.forEach { 
                     if (it is String) actorsList.add(ActorData(Actor(it.trim(), image = null), roleString = "Director"))
                 }
+                
+                val cast = creds["cast"] as? List<*>
+                cast?.forEach { 
+                    if (it is Map<*, *>) {
+                        val name = it["name"] as? String ?: it["originalName"] as? String
+                        val role = it["character"] as? String ?: "Actor"
+                        val image = it["profilePath"] as? String
+                        if (name != null) {
+                             actorsList.add(ActorData(Actor(name.trim(), image = image), roleString = role))
+                        }
+                    }
+                }
             }
         } catch (e: Exception) { }
 
