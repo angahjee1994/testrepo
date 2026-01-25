@@ -205,8 +205,9 @@ class AstroGo : MainAPI() {
             if (!seasonContent.isNullOrEmpty()) {
                 // It has seasons, fetch episodes for each
                 seasonContent.forEach { season ->
-                    val seasonId = season.id ?: return@forEach
-                    val seasonNum = season.title?.filter { it.isDigit() }?.toIntOrNull() ?: 1
+                    // Use seasonId if available (clean ID without ~vod), else fallback to id
+                    val seasonId = season.seasonId ?: season.id ?: return@forEach
+                    val seasonNum = season.title?.filter { it.isDigit() }?.toIntOrNull() ?: season.seasonNumber ?: 1
                     
                     val episodesUrl = "$apiUrl/shared/content?seasonId=$seasonId&sort=episodeNumber&limit=255&offset=0&isErotic=false&isAdult=false&source=vod&clientToken=$encodedToken"
                     val episodesContent = fetchContent(episodesUrl)
@@ -322,7 +323,9 @@ class AstroGo : MainAPI() {
         @JsonProperty("cast") val cast: List<AstroCast>? = null,
         @JsonProperty("actors") val actors: List<String>? = null,
         @JsonProperty("episodeNumber") val episodeNumber: Int? = null,
-        @JsonProperty("seasonNumber") val seasonNumber: Int? = null
+        @JsonProperty("seasonNumber") val seasonNumber: Int? = null,
+        @JsonProperty("showId") val showId: String? = null,
+        @JsonProperty("seasonId") val seasonId: String? = null
     )
     
     data class AstroCast(
