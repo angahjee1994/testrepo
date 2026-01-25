@@ -174,8 +174,11 @@ class AstroGo : MainAPI() {
             val episodes = ArrayList<Episode>()
             val encodedToken = java.net.URLEncoder.encode(clientToken, "UTF-8")
             
+            // Use the ID from the response, as it might be the canonical Show ID (e.g. PACK...) needed for both Seasons and Episodes
+            val showId = response.packId ?: response.externalId ?: response.id ?: cleanId
+
             // 1. Try to fetch Seasons first
-            val seasonsUrl = "$apiUrl/shared/content?showId=$cleanId&sort=seasonNumber&limit=255&offset=0&clientToken=$encodedToken"
+            val seasonsUrl = "$apiUrl/shared/content?showId=$showId&sort=seasonNumber&limit=255&offset=0&clientToken=$encodedToken"
             var seasonResponse = try {
                  app.get(seasonsUrl, headers = headers).parsedSafe<AstroResponse>()
             } catch (e: Exception) { null }
@@ -201,8 +204,6 @@ class AstroGo : MainAPI() {
                 }
             } else {
                 // No seasons found, might be a flat list of episodes (like Running Man) or just episodes directly
-                // Use the ID from the response, as it might be the canonical Show ID (e.g. PACK...) needed for episodes
-                val showId = response.packId ?: response.externalId ?: response.id ?: cleanId
                 
                  val flatEpisodesUrl = "$apiUrl/shared/content?showId=$showId&source=vod&limit=255&offset=0&sort=episodeNumber&isCollapsed=false&clientToken=$encodedToken"
                  val flatResp = try {
