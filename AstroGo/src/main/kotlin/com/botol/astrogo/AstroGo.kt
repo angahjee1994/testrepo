@@ -97,7 +97,7 @@ class AstroGo : MainAPI() {
     }
 
     private fun AstroContent.toSearchResponse(): SearchResponse? {
-        val id = this.id ?: return null
+        val id = this.packId ?: this.externalId ?: this.id ?: return null
         val title = this.title ?: return null
         val poster = this.media?.firstOrNull()?.url
         
