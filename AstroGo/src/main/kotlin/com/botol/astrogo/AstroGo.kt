@@ -159,21 +159,47 @@ class AstroGo : MainAPI() {
         } catch (e: Exception) { null }
 
         // If that failed or returned empty title, try content/show (standard for TV Series PACK ID)
+        // Try parsing as Direct Content first, then as Wrapper
         if (response == null || response.title == null) {
              detailUrl = "$apiUrl/content/show/$cleanId"
-             response = try { app.get(detailUrl, headers = headers).parsedSafe<AstroContent>() } catch(e: Exception) { null }
+             try {
+                 val text = app.get(detailUrl, headers = headers).text
+                 response = AppUtils.parseJson<AstroContent>(text)
+                 if (response.title == null) {
+                     // Try as wrapper
+                     val wrapper = AppUtils.parseJson<AstroResponse>(text)
+                     response = wrapper.content?.firstOrNull()
+                 }
+             } catch(e: Exception) { 
+                 e.printStackTrace()
+                 response = null 
+             }
         }
 
         // Fallback: content/series (Sometimes PACK ID works here)
         if (response == null || response.title == null) {
              detailUrl = "$apiUrl/content/series/$cleanId"
-             response = try { app.get(detailUrl, headers = headers).parsedSafe<AstroContent>() } catch(e: Exception) { null }
+             try {
+                 val text = app.get(detailUrl, headers = headers).text
+                 response = AppUtils.parseJson<AstroContent>(text)
+                 if (response.title == null) {
+                     val wrapper = AppUtils.parseJson<AstroResponse>(text)
+                     response = wrapper.content?.firstOrNull()
+                 }
+             } catch(e: Exception) { response = null }
         }
 
         // Fallback: content/movie (Sometimes TITL/PACK ID works here)
         if (response == null || response.title == null) {
              detailUrl = "$apiUrl/content/movie/$cleanId"
-             response = try { app.get(detailUrl, headers = headers).parsedSafe<AstroContent>() } catch(e: Exception) { null }
+             try {
+                 val text = app.get(detailUrl, headers = headers).text
+                 response = AppUtils.parseJson<AstroContent>(text)
+                 if (response.title == null) {
+                     val wrapper = AppUtils.parseJson<AstroResponse>(text)
+                     response = wrapper.content?.firstOrNull()
+                 }
+             } catch(e: Exception) { response = null }
         }
         
         // Fallback 2: shared/content (for Movies/Content where we only have PACK ID)
