@@ -172,7 +172,9 @@ class AstroGo : MainAPI() {
 
         if (isTv) {
             val episodes = ArrayList<Episode>()
-            val encodedToken = java.net.URLEncoder.encode(clientToken, "UTF-8").replace("+", "%20")
+            // Ensure we don't double encode if user pasted an encoded token
+            val rawToken = clientToken.replace("%20", " ")
+            val encodedToken = java.net.URLEncoder.encode(rawToken, "UTF-8").replace("+", "%20")
             
             // Use the ID from the response, as it might be the canonical Show ID (e.g. PACK...) needed for both Seasons and Episodes
             val showId = response.packId ?: response.externalId ?: response.id ?: cleanId
@@ -197,13 +199,10 @@ class AstroGo : MainAPI() {
             
             val seasonContent = fetchContent(seasonsUrl)
             
-            val validSeasons = seasonContent?.filter { 
-                it.contentType?.contains("Season", true) == true 
-            }
-
-            if (!validSeasons.isNullOrEmpty()) {
+            // Assume any content returned by sort=seasonNumber IS a season (don't specific filter by type)
+            if (!seasonContent.isNullOrEmpty()) {
                 // It has seasons, fetch episodes for each
-                validSeasons.forEach { season ->
+                seasonContent.forEach { season ->
                     val seasonId = season.id ?: return@forEach
                     val seasonNum = season.title?.filter { it.isDigit() }?.toIntOrNull() ?: 1
                     
