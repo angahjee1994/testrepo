@@ -104,7 +104,11 @@ class AstroGo : MainAPI() {
         // Pass minimal metadata in URL to handle "No Title" fallback
         val encodedTitle = java.net.URLEncoder.encode(title, "UTF-8")
         val encodedPoster = if (poster != null) java.net.URLEncoder.encode(poster, "UTF-8") else ""
-        val data = "$id?title=$encodedTitle&poster=$encodedPoster"
+        // Pass synopsis as well (truncated to avoid URL length issues)
+        val synopsis = this.synopsis ?: ""
+        val encodedPlot = if (synopsis.isNotEmpty()) java.net.URLEncoder.encode(synopsis.take(800), "UTF-8") else ""
+        
+        val data = "$id?title=$encodedTitle&poster=$encodedPoster&plot=$encodedPlot"
 
         return newMovieSearchResponse(title, data, TvType.Movie) {
             this.posterUrl = poster
@@ -135,6 +139,7 @@ class AstroGo : MainAPI() {
         val baseId = url.substringBefore("?")
         val titleParam = if (url.contains("title=")) java.net.URLDecoder.decode(url.substringAfter("title=").substringBefore("&"), "UTF-8") else null
         val posterParam = if (url.contains("poster=")) java.net.URLDecoder.decode(url.substringAfter("poster=").substringBefore("&"), "UTF-8") else null
+        val plotParam = if (url.contains("plot=")) java.net.URLDecoder.decode(url.substringAfter("plot=").substringBefore("&"), "UTF-8") else null
 
         // Sanitize the URL in case it includes the main URL
         val rawId = baseId.removePrefix(mainUrl).removePrefix("/")
@@ -167,13 +172,13 @@ class AstroGo : MainAPI() {
         
         if (response == null && titleParam != null) {
             // Create dummy response from params to avoid error
-            response = AstroContent(id = rawId, title = titleParam, contentType = "Movie") 
+            response = AstroContent(id = rawId, title = titleParam, synopsis = plotParam, contentType = "Movie") 
         }
 
         if (response == null) throw ErrorLoadingException("Failed to load details")
 
         val title = response.title ?: titleParam ?: "No Title"
-        val plot = response.synopsis
+        val plot = response.synopsis ?: plotParam
         val poster = response.media?.firstOrNull()?.url ?: posterParam
         val year = response.releaseDate?.substringBefore("-")?.toIntOrNull()
 
