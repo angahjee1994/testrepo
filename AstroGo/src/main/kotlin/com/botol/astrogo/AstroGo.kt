@@ -156,7 +156,7 @@ class AstroGo : MainAPI() {
         
         // Try contentInstances first (standard for Movies/Episodes)
         // Movies often require the full ID (with ~...)
-        var detailUrl = "$apiUrl/contentInstances/$rawId"
+        var detailUrl = "$apiUrl/contentInstances/$rawId?clientToken=$encodedToken"
         
         var response: AstroContent? = null
         try {
@@ -187,18 +187,13 @@ class AstroGo : MainAPI() {
 
         // If that failed or returned empty, try content/show (standard for TV Series)
         if (response == null || response.title == null) {
-             detailUrl = "$apiUrl/content/show/$cleanId"
+             detailUrl = "$apiUrl/content/show/$cleanId?clientToken=$encodedToken"
              response = try {
                  app.get(detailUrl, headers = headers).parsedSafe<AstroContent>()
              } catch (e: Exception) { null }
         }
         
-        if (response == null || response.title == null) {
-             detailUrl = "$apiUrl/content/show/$cleanId"
-             response = try {
-                 app.get(detailUrl, headers = headers).parsedSafe<AstroContent>()
-             } catch (e: Exception) { null }
-        }
+
         
         // Parse Actors (Early check for sparsity)
         val actorsList = ArrayList<ActorData>()
@@ -238,7 +233,7 @@ class AstroGo : MainAPI() {
 
         if (response == null) throw ErrorLoadingException("Failed to load details")
 
-        val title = response.title ?: titleParam ?: "No Title"
+        val title = response.title ?: response.name ?: titleParam ?: "No Title"
         val plot = response.synopsis ?: plotParam
         val poster = response.media?.firstOrNull()?.url ?: posterParam
         val year = response.releaseDate?.substringBefore("-")?.toIntOrNull()
@@ -418,6 +413,7 @@ class AstroGo : MainAPI() {
         @JsonProperty("packId") val packId: String? = null,
         @JsonProperty("externalId") val externalId: String? = null,
         @JsonProperty("title") val title: String? = null,
+        @JsonProperty("name") val name: String? = null,
         @JsonProperty("synopsis") val synopsis: String? = null,
         @JsonProperty("media") val media: List<AstroMedia>? = null,
         @JsonProperty("contentType") val contentType: String? = null,
