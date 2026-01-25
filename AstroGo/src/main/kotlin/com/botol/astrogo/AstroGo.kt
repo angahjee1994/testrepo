@@ -14,7 +14,7 @@ class AstroGo : MainAPI() {
 
     // Temp hardcoded token for testing (Captured from browser)
     private val clientToken = "v:1!r:80400!ur:NORTHERN!community:Malaysia Live!t:k!dt:PC!f:Astro_unmanaged!pd:CHROME-FF!pt:Adults"
-    private val bearerToken = "eyJraWQiOiJjNWM3ZmFkMC1lZWZmLTRjNmItYTczMC0zNjc3YTBjMTgyODEiLCJqa3UiOiJodHRwczovL3NnLXNnLXNnLmFzdHJvLmNvbS5teTo5NDQzL29hdXRoMi9qd2tzP2tpZD1jNWM3ZmFkMC1lZWZmLTRjNmItYTczMC0zNjc3YTBjMTgyODEiLCJhbGciOiJSUzI1NiJ9.eyJpYXQiOjE3NjkzMzcyNTgsInN1YiI6IkdVRVNULjA4MTJkN2I3LWZiMmQtNDc0Ni1hYjZjLWRlOWQxNzI3N2Q4ZCIsImF1ZCI6Iml2cC5zZXNzaW9uZ3VhcmQiLCJleHAiOjE3NjkzNDgwNTgsInNlc3Npb25fZGF0YSI6eyJzZXNzaW9uIjp7ImRldklkIjoiR1VFU1QuQnJvd3Nlci1EZWZhdWx0LjA4MTJkN2I3LWZiMmQtNDc0Ni1hYjZjLWRlOWQxNzI3N2Q4ZCIsImd1ZXN0TW9kZSI6dHJ1ZSwiaGhJZCI6IkdVRVNULjA4MTJkN2I3LWZiMmQtNDc0Ni1hYjZjLWRlOWQxNzI3N2Q4ZCIsImJ1c1VuaXRJZCI6IkFTVFJPIn19LCJzY29wZSI6ImJyb3dzZSBwbGF5YmFjayB1cm46c3luYW1lZGlhOnZjczpvdnA6Z3Vlc3QtdXNlciIsInRva2VuX3R5cGUiOiJhY2Nlc3NfdG9rZW4iLCJzc2FfanRpIjoiYnJvd3NlciIsImNsaWVudF9pZCI6ImJyb3dzZXIiLCJqdGkiOiJkYjkwZjAyMC01ODUxLTQ0MTEtYjQxMy1lYmNkMjNiOWJlOWQifQ.DR4zb8jHBQMnFUHir_dF1qbkTEbiZFrkEhRv7R8oP33AGIvo8zgO2TrinnL5SZvqPCzYFpMkcitB1uNMCbgyFFH3fuijQl3b6xLOGjUBgUGnrLT47nv9HywujKndnqALK6wAGopovDi9Jz6o3nPtslczhtuPkoCqVBLgE6cUGX5zQKzlZclS0HNvWCwI1fSq9frz8vSKK_J09NVfume5zP-ZByLG4DaCt77S3wE6mus-h_na-TfX8pLadGu3J3lf3-KNNoHE0YKG2lDJa347fzSWDCG8KPLnZ68z9q8bifZdFP1QQ8Lh9_gN9P-uAB194G8UyAtxHmFu_TNqsEtWNA"
+    private val bearerToken = "eyJraWQiOiI0OGNiOWNjNy03YmVlLTRkNGMtYTU0OS02YzVlYmI2NGQ4YmIiLCJqa3UiOiJodHRwczovL3NnLXNnLXNnLmFzdHJvLmNvbS5teTo5NDQzL29hdXRoMi9qd2tzP2tpZD00OGNiOWNjNy03YmVlLTRkNGMtYTU0OS02YzVlYmI2NGQ4YmIiLCJhbGciOiJSUzI1NiJ9.eyJpYXQiOjE3NjkzMzA4MzMsInN1YiI6Ijg2MjIwMzM4IiwiYXVkIjoiaXZwLnNlc3Npb25ndWFyZCIsImV4cCI6MTc2OTM0MTYzMywic2Vzc2lvbl9kYXRhIjp7InNlc3Npb24iOnsiZGV2SWQiOiI4NjIyMDMzOC4wODEyZDdiNy1mYjJkLTQ3NDYtYWI2Yy1kZTlkMTcyNzdkOGQiLCJndWVzdE1vZGUiOmZhbHNlLCJoaElkIjoiODYyMjAzMzgiLCJidXNVbml0SWQiOiJBU1RSTyJ9fSwiZGV2aWNlRnVsbFR5cGUiOiJCcm93c2VyLURlZmF1bHQiLCJzY29wZSI6ImJyb3dzZSBwbGF5YmFjayIsInRva2VuX3R5cGUiOiJhY2Nlc3NfdG9rZW4iLCJzc2FfanRpIjoiYnJvd3NlciIsImNsaWVudF9pZCI6ImJyb3dzZXIiLCJqdGkiOiJiNGY4OTUxYi1jNWRlLTQ0ZjgtODJmZi0zZTUzNjcxMjM3NzUifQ.hD15EWJN7L9X6MtlOX-vOreS4cj_SuphcnEGje5cPO7QtkxPoY-PBGjsLkCYdWtJaV6sD3F70q_4VDYygnZ3u4CFp5dQXdjyIUPILdW0_r9kjIEz6uerpRewu_5m62o6-XZKGtmKCJQmkDtE7bjd5RhsFXUfhAi69II372sj_XRU2uP4a-JHl_lpzLMF6VdOs1bzw6l8mQyDsPvCAPHIlP30i50P-kxGe1shu-tGWhTeIHvOwMOoi99KCdL0Bc8-_y2MWlgVrhptoubJGRwLT2kK_3LfodLi60JPtzPe55rthg-QqGTB7mLoPjvcTPle2aOFPF7RryuNVpmT2F31TA"
 
     override val mainPage = mainPageOf(
         "node:IVP:Home:VodForYou" to "Home",
@@ -97,15 +97,15 @@ class AstroGo : MainAPI() {
     }
 
     private fun AstroContent.toSearchResponse(): SearchResponse? {
-        // Prefer externalId (UUID) if available, as contentInstances endpoint likes it better.
-        // Fallback to id (PACK ID)
-        val id = this.externalId ?: this.id ?: return null
+        val id = this.id ?: return null
         val title = this.title ?: return null
         // Find the best quality poster
         val poster = this.media?.firstOrNull()?.url
 
         return newMovieSearchResponse(title, id, TvType.Movie) {
             this.posterUrl = poster
+            // Plot is often not available or settable in search response builder in some versions,
+            // or requires specific casting. Omitting for now to fix build.
         }
     }
 
@@ -130,9 +130,8 @@ class AstroGo : MainAPI() {
 
     override suspend fun load(url: String): LoadResponse {
         // Sanitize the URL in case it includes the main URL
-        // Remove everything before the last slash (e.g. series/, actionMenu/, movie/)
-        // Then remove suffix if present (e.g. ~vod)
-        val cleanId = url.substringAfterLast("/").substringBefore("~")
+        // Remove prefix, then remove suffix if present (e.g. ~vod)
+        val cleanId = url.removePrefix(mainUrl).removePrefix("/").substringBefore("~")
         
         val encodedToken = java.net.URLEncoder.encode(clientToken, "UTF-8")
         val headers = mapOf(
@@ -140,24 +139,18 @@ class AstroGo : MainAPI() {
             "Accept" to "application/json"
         )
         
-        // Try contentInstances first (standard for Movies/Episodes with UUID)
+        // Try contentInstances first (standard for Movies/Episodes)
+        // Browser trace shows this uses Bearer token ONLY, no clientToken query param
         var detailUrl = "$apiUrl/contentInstances/$cleanId"
         
         var response = try {
             app.get(detailUrl, headers = headers).parsedSafe<AstroContent>()
         } catch (e: Exception) { null }
 
-        // If that failed or returned empty title, try content/show (standard for TV Series PACK ID)
+        // If that failed or returned empty, try content/show (standard for TV Series)
         if (response == null || response.title == null) {
              detailUrl = "$apiUrl/content/show/$cleanId"
-             response = try { app.get(detailUrl, headers = headers).parsedSafe<AstroContent>() } catch(e: Exception) { null }
-        }
-        
-        // Fallback 2: shared/content (for Movies/Content where we only have PACK ID)
-        if (response == null || response.title == null) {
-             val sharedUrl = "$apiUrl/shared/content?showId=$cleanId&source=vod&limit=1&clientToken=$encodedToken"
-             val sharedResp = try { app.get(sharedUrl, headers = headers).parsedSafe<AstroResponse>() } catch(e: Exception) { null }
-             response = sharedResp?.content?.firstOrNull()
+             response = app.get(detailUrl, headers = headers).parsedSafe<AstroContent>()
         }
 
         if (response == null) throw ErrorLoadingException("Failed to load details")
