@@ -162,6 +162,39 @@ class AstroGo : MainAPI() {
         val plot = response.synopsis
         val poster = response.media?.firstOrNull()?.url
         val year = response.releaseDate?.substringBefore("-")?.toIntOrNull()
+
+        // Parse Duration
+        var durationMin: Int? = null
+        if (response.duration != null) {
+            val parts = response.duration.split(":")
+            if (parts.size == 3) {
+                 durationMin = (parts[0].toIntOrNull() ?: 0) * 60 + (parts[1].toIntOrNull() ?: 0)
+            } else if (parts.size == 2) {
+                 durationMin = (parts[0].toIntOrNull() ?: 0)
+            } else {
+                 durationMin = (response.duration.toIntOrNull() ?: 0) / 60
+            }
+        }
+
+        // Parse Actors
+        val actorsList = ArrayList<ActorData>()
+        response.credits?.actors?.forEach { 
+             actorsList.add(ActorData(Actor(it.trim(), image = null), role = ActorRole.Main)) 
+        }
+        response.credits?.directors?.forEach { 
+             actorsList.add(ActorData(Actor(it.trim(), image = null), role = ActorRole.Director)) 
+        }
+        if (actorsList.isEmpty()) {
+            response.cast?.forEach { member ->
+                val name = member.name ?: return@forEach
+                actorsList.add(ActorData(Actor(name, image = null), role = ActorRole.Main))
+            }
+        }
+        if (actorsList.isEmpty()) {
+            response.actors?.forEach { 
+                actorsList.add(ActorData(Actor(it, image = null), role = ActorRole.Main)) 
+            }
+        }
         
         // Handle TV Series vs Movie
         // Astro contentType: "Movie", "Program" (Show), "Episode", "show", "Series"
@@ -257,10 +290,8 @@ class AstroGo : MainAPI() {
                 this.plot = plot
                 this.year = year
                 this.tags = tags
-                this.actors = response.cast?.mapNotNull { member ->
-                    val name = member.name ?: return@mapNotNull null
-                    ActorData(Actor(name, image = null), role = ActorRole.Main)
-                } ?: response.actors?.map { ActorData(Actor(it, image = null), role = ActorRole.Main) }
+                this.duration = durationMin
+                this.actors = actorsList
             }
         } else {
             return newMovieLoadResponse(title, cleanId, TvType.Movie, cleanId) {
@@ -269,10 +300,8 @@ class AstroGo : MainAPI() {
                 this.plot = plot
                 this.year = year
                 this.tags = tags
-                this.actors = response.cast?.mapNotNull { member ->
-                    val name = member.name ?: return@mapNotNull null
-                    ActorData(Actor(name, image = null), role = ActorRole.Main)
-                } ?: response.actors?.map { ActorData(Actor(it, image = null), role = ActorRole.Main) }
+                this.duration = durationMin
+                this.actors = actorsList
             }
         }
     }
@@ -328,7 +357,14 @@ class AstroGo : MainAPI() {
         @JsonProperty("episodeNumber") val episodeNumber: Int? = null,
         @JsonProperty("seasonNumber") val seasonNumber: Int? = null,
         @JsonProperty("showId") val showId: String? = null,
-        @JsonProperty("seasonId") val seasonId: String? = null
+        @JsonProperty("showId") val showId: String? = null,
+        @JsonProperty("seasonId") val seasonId: String? = null,
+        @JsonProperty("credits") val credits: AstroCredits? = null
+    )
+    
+    data class AstroCredits(
+        @JsonProperty("actors") val actors: List<String>? = null,
+        @JsonProperty("directors") val directors: List<String>? = null
     )
     
     data class AstroCast(
