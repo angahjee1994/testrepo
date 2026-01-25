@@ -182,7 +182,7 @@ class AstroGo : MainAPI() {
              actorsList.add(ActorData(Actor(it.trim(), image = null), role = ActorRole.Main)) 
         }
         response.credits?.directors?.forEach { 
-             actorsList.add(ActorData(Actor(it.trim(), image = null), role = ActorRole.Director)) 
+             actorsList.add(ActorData(Actor(it.trim(), image = null), role = ActorRole.Main)) 
         }
         if (actorsList.isEmpty()) {
             response.cast?.forEach { member ->
@@ -356,7 +356,6 @@ class AstroGo : MainAPI() {
         @JsonProperty("actors") val actors: List<String>? = null,
         @JsonProperty("episodeNumber") val episodeNumber: Int? = null,
         @JsonProperty("seasonNumber") val seasonNumber: Int? = null,
-        @JsonProperty("showId") val showId: String? = null,
         @JsonProperty("showId") val showId: String? = null,
         @JsonProperty("seasonId") val seasonId: String? = null,
         @JsonProperty("credits") val credits: AstroCredits? = null
