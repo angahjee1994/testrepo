@@ -102,10 +102,11 @@ class AstroGo : MainAPI() {
         // Find the best quality poster
         val poster = this.media?.firstOrNull()?.url
 
-        return newMovieSearchResponse(title, id, TvType.Movie) {
+        // Encode the content as JSON to pass to load()
+        val data = "json:${mapper.writeValueAsString(this)}"
+
+        return newMovieSearchResponse(title, data, TvType.Movie) {
             this.posterUrl = poster
-            // Plot is often not available or settable in search response builder in some versions,
-            // or requires specific casting. Omitting for now to fix build.
         }
     }
 
@@ -129,8 +130,18 @@ class AstroGo : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse {
+        var seedResponse: AstroContent? = null
+        var realUrl = url
+        
+        if (url.startsWith("json:")) {
+            try {
+                seedResponse = AppUtils.parseJson<AstroContent>(url.removePrefix("json:"))
+                realUrl = seedResponse.id ?: url
+            } catch (e: Exception) { }
+        }
+
         // Sanitize the URL in case it includes the main URL
-        val rawId = url.removePrefix(mainUrl).removePrefix("/")
+        val rawId = realUrl.removePrefix(mainUrl).removePrefix("/")
         // Remove suffix for clean ID (used for checking types, etc)
         val cleanId = rawId.substringBefore("~")
         
@@ -153,7 +164,14 @@ class AstroGo : MainAPI() {
         // If that failed or returned empty, try content/show (standard for TV Series)
         if (response == null || response.title == null) {
              detailUrl = "$apiUrl/content/show/$cleanId"
-             response = app.get(detailUrl, headers = headers).parsedSafe<AstroContent>()
+             response = try {
+                 app.get(detailUrl, headers = headers).parsedSafe<AstroContent>()
+             } catch (e: Exception) { null }
+        }
+        
+        // Fallback to seed if API loaded nothing
+        if ((response == null || response.title == null) && seedResponse != null) {
+            response = seedResponse
         }
 
         if (response == null) throw ErrorLoadingException("Failed to load details")
