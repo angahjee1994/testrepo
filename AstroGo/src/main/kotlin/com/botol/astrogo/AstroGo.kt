@@ -13,7 +13,7 @@ class AstroGo : MainAPI() {
     override val supportedTypes = setOf(TvType.Live, TvType.Movie, TvType.TvSeries)
 
     // configuration
-    private val clientToken = "v:1!r:80200!ur:SARAWAK!community:Malaysia%20Live!t:k!dt:PC!f:Astro_unmanaged!pd:CHROME-FF!pt:Adults"
+    private var clientToken = ""
     private var bearerToken = ""
 
     override val mainPage = mainPageOf(
@@ -24,7 +24,17 @@ class AstroGo : MainAPI() {
 
     private suspend fun refreshAccessToken() {
         try {
-            // Initiate OAuth2 Guest Flow directly (bypassing JS logic on main page)
+            // 1. Scrape Client Token if missing
+            if (clientToken.isEmpty()) {
+                val mainPageResp = app.get("https://astrogo.astro.com.my").text
+                val pattern = "v:1!r:[^\"']+".toRegex()
+                val match = pattern.find(mainPageResp)
+                if (match != null) {
+                    clientToken = match.value
+                }
+            }
+
+            // 2. Initiate OAuth2 Guest Flow directly (bypassing JS logic on main page)
             // URL discovered via browser analysis
             val authUrl = "https://sg-sg-sg.astro.com.my:9443/oauth2/authorize?client_id=browser&state=guestUserLogin&redirect_uri=https://astrogo.astro.com.my&response_type=token&prompt=none&scope=urn:synamedia:vcs:ovp:guest-user"
             
