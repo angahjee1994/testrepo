@@ -161,18 +161,28 @@ class AstroGo : MainAPI() {
         var response: AstroContent? = null
         try {
             val rawText = app.get(detailUrl, headers = headers).text
-            // Try direct parse
-            response = AppUtils.parseJson<AstroContent>(rawText)
+            val tree = mapper.readTree(rawText)
             
-            // If direct parse yields no title, it might be wrapped in AstroResponse
-            if (response?.title == null) {
-                try {
-                    val wrapper = AppUtils.parseJson<AstroResponse>(rawText)
-                    response = wrapper.content?.firstOrNull() ?: response
-                } catch (e: Exception) { }
+            // Heuristic to find the content node
+            // 1. Check "response" field
+            // 2. Check "content" field
+            // 3. Use root
+            var node = tree.get("response") ?: tree.get("content") ?: tree
+            
+            // If node is an array, take the first element (if not empty)
+            if (node.isArray && node.size() > 0) {
+                 node = node.get(0)
+            } else if (node.isArray) {
+                 // Empty array
+                 node = null
+            }
+            
+            if (node != null && !node.isEmpty) {
+                 response = mapper.treeToValue(node, AstroContent::class.java)
             }
         } catch (e: Exception) { 
             response = null
+            e.printStackTrace()
         }
 
         // If that failed or returned empty, try content/show (standard for TV Series)
@@ -207,20 +217,7 @@ class AstroGo : MainAPI() {
             }
         } catch (e: Exception) { }
 
-        // Final fallback: Search by title if we have it OR if result is sparse (no actors)
-        val isSparse = response?.title != null && actorsList.isEmpty()
-        if ((response == null || response.title == null || isSparse) && titleParam != null) {
-            try {
-                // Determine type based on URL or previous clues? Default to finding anything.
-                val searchResults = search(titleParam)
-                val bestMatch = searchResults.firstOrNull { it.name.trim().equals(titleParam.trim(), true) } 
-                                ?: searchResults.firstOrNull()
-                                
-                if (bestMatch != null && bestMatch.url != url) {
-                    return load(bestMatch.url)
-                }
-            } catch (e: Exception) { }
-        }
+
         
         if (response == null && titleParam != null) {
             // Create dummy response from params to avoid error
