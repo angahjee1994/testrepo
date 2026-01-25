@@ -103,20 +103,9 @@ class AstroGo : MainAPI() {
         val title = this.title ?: return null
         // Find the best quality poster
         val poster = this.media?.firstOrNull()?.url
-        
-        val typeStr = this.showType ?: this.contentType
-        val type = if (typeStr?.equals("Series", true) == true || 
-                       typeStr?.equals("Program", true) == true ||
-                       typeStr?.equals("TVShow", true) == true) TvType.TvSeries else TvType.Movie
 
-        if (type == TvType.TvSeries) {
-             return newTvSeriesSearchResponse(title, id, type) {
-                 this.posterUrl = poster
-             }
-        } else {
-             return newMovieSearchResponse(title, id, type) {
-                 this.posterUrl = poster
-             }
+        return newMovieSearchResponse(title, id, TvType.Movie) {
+            this.posterUrl = poster
         }
     }
 
@@ -159,121 +148,44 @@ class AstroGo : MainAPI() {
         } catch (e: Exception) { null }
 
         // If that failed or returned empty title, try content/show (standard for TV Series PACK ID)
-        // Try parsing as Direct Content first, then as Wrapper
         if (response == null || response.title == null) {
              detailUrl = "$apiUrl/content/show/$cleanId"
-             try {
-                 val text = app.get(detailUrl, headers = headers).text
-                 response = AppUtils.parseJson<AstroContent>(text)
-                 if (response.title == null) {
-                     // Try as wrapper
-                     val wrapper = AppUtils.parseJson<AstroResponse>(text)
-                     response = wrapper.content?.firstOrNull()
-                 }
-             } catch(e: Exception) { 
-                 e.printStackTrace()
-                 response = null 
-             }
-        }
-
-        // Fallback: content/series (Sometimes PACK ID works here)
-        if (response == null || response.title == null) {
-             detailUrl = "$apiUrl/content/series/$cleanId"
-             try {
-                 val text = app.get(detailUrl, headers = headers).text
-                 response = AppUtils.parseJson<AstroContent>(text)
-                 if (response.title == null) {
-                     val wrapper = AppUtils.parseJson<AstroResponse>(text)
-                     response = wrapper.content?.firstOrNull()
-                 }
-             } catch(e: Exception) { response = null }
-        }
-
-        // Fallback: content/movie (Sometimes TITL/PACK ID works here)
-        if (response == null || response.title == null) {
-             detailUrl = "$apiUrl/content/movie/$cleanId"
-             try {
-                 val text = app.get(detailUrl, headers = headers).text
-                 response = AppUtils.parseJson<AstroContent>(text)
-                 if (response.title == null) {
-                     val wrapper = AppUtils.parseJson<AstroResponse>(text)
-                     response = wrapper.content?.firstOrNull()
-                 }
-             } catch(e: Exception) { response = null }
+             response = try { app.get(detailUrl, headers = headers).parsedSafe<AstroContent>() } catch(e: Exception) { null }
         }
         
         // Fallback 2: shared/content (for Movies/Content where we only have PACK ID)
         if (response == null || response.title == null) {
-             val sharedUrl = "$apiUrl/shared/content?showId=$cleanId&source=vod&limit=1&offset=0&clientToken=$encodedToken"
+             val sharedUrl = "$apiUrl/shared/content?showId=$cleanId&source=vod&limit=1&clientToken=$encodedToken"
              val sharedResp = try { app.get(sharedUrl, headers = headers).parsedSafe<AstroResponse>() } catch(e: Exception) { null }
              response = sharedResp?.content?.firstOrNull()
         }
 
-        // Fallback 3: shared/content with 'id' (for UUIDs if showId failed)
-        if (response == null || response.title == null) {
-             val sharedUrl = "$apiUrl/shared/content?id=$cleanId&source=vod&limit=1&offset=0&clientToken=$encodedToken"
-             val sharedResp = try { app.get(sharedUrl, headers = headers).parsedSafe<AstroResponse>() } catch(e: Exception) { null }
-             response = sharedResp?.content?.firstOrNull()
-        }
-
-        // Fallback 4: shared/content with 'packId'
-        if (response == null || response.title == null) {
-             val sharedUrl = "$apiUrl/shared/content?packId=$cleanId&source=vod&limit=1&offset=0&clientToken=$encodedToken"
-             val sharedResp = try { app.get(sharedUrl, headers = headers).parsedSafe<AstroResponse>() } 
-             catch(e: Exception) { 
-                 System.out.println("AstroGo Debug: Fallback 7 (shared/content packId) failed for $cleanId : ${e.message}")
-                 null 
-             }
-             response = sharedResp?.content?.firstOrNull()
-        }
-
-        // Fallback 5: shared/content with 'externalId'
-        if (response == null || response.title == null) {
-             val sharedUrl = "$apiUrl/shared/content?externalId=$cleanId&source=vod&limit=1&offset=0&clientToken=$encodedToken"
-             val sharedResp = try { app.get(sharedUrl, headers = headers).parsedSafe<AstroResponse>() } 
-             catch(e: Exception) { 
-                 System.out.println("AstroGo Debug: Fallback 8 (shared/content externalId) failed for $cleanId : ${e.message}")
-                 null 
-             }
-             response = sharedResp?.content?.firstOrNull()
-        }
-
-        if (response == null) {
-            System.out.println("AstroGo Debug: ALL fallbacks failed for $cleanId")
-            throw ErrorLoadingException("Failed to load details")
-        }
+        if (response == null) throw ErrorLoadingException("Failed to load details")
 
         val title = response.title ?: "No Title"
-        val plot = response.synopsis ?: ""
+        val plot = response.synopsis
         val poster = response.media?.firstOrNull()?.url
-        val backdrop = response.media?.firstOrNull { it.width == 1920 }?.url ?: poster
+        val year = response.releaseDate?.substringBefore("-")?.toIntOrNull()
         
-        System.out.println("AstroGo Debug: Loaded $title. ContentType=${response.contentType} ShowType=${response.showType}")
+        // Handle TV Series vs Movie
+        // Astro contentType: "Movie", "Program" (Show), "Episode", "show", "Series"
+        val type = response.contentType
+        val isTv = type.equals("Program", true) || 
+                   type.equals("TVShow", true) ||
+                   type.equals("show", true) ||
+                   type.equals("Series", true)
 
-        // Determine type based on contentType or showType
-        // Astro contentType: "Movie", "Program", "Episode", "Series"
-        // showType: "Series", "Movie"
-        val typeStr = response.showType ?: response.contentType
-        val type = if (typeStr?.equals("Series", true) == true || 
-                       typeStr?.equals("Program", true) == true ||
-                       typeStr?.equals("TVShow", true) == true) TvType.TvSeries else TvType.Movie
-        
-        // Use the ID from response if it looks like a PACK ID (preferred for episodes), otherwise cleanId
-        // This handles cases where we loaded details via UUID but need PACK ID for episodes.
-        val responseId = response.id
-        val episodeQueryId = if (responseId != null && responseId.startsWith("astro", ignoreCase = true)) responseId else cleanId
+        val tags = response.genres?.mapNotNull { it.name }
 
-        if (type == TvType.TvSeries) {
-            val episodes = mutableListOf<Episode>()
+        if (isTv) {
+            val episodes = ArrayList<Episode>()
+            val encodedToken = java.net.URLEncoder.encode(clientToken, "UTF-8")
             
             // 1. Try to fetch Seasons first
-            val seasonsUrl = "$apiUrl/shared/content?showId=$episodeQueryId&sort=seasonNumber&limit=255&offset=0&source=vod&clientToken=$encodedToken"
+            val seasonsUrl = "$apiUrl/shared/content?showId=$cleanId&sort=seasonNumber&limit=255&offset=0&clientToken=$encodedToken"
             var seasonResponse = try {
                  app.get(seasonsUrl, headers = headers).parsedSafe<AstroResponse>()
-            } catch (e: Exception) { 
-                e.printStackTrace()
-                null 
-            }
+            } catch (e: Exception) { null }
             
             val validSeasons = seasonResponse?.content?.filter { 
                 it.contentType?.contains("Season", true) == true 
@@ -285,7 +197,7 @@ class AstroGo : MainAPI() {
                     val seasonId = season.id ?: return@forEach
                     val seasonNum = season.title?.filter { it.isDigit() }?.toIntOrNull() ?: 1
                     
-                    val episodesUrl = "$apiUrl/shared/content?seasonId=$seasonId&sort=episodeNumber&limit=255&offset=0&source=vod&clientToken=$encodedToken"
+                    val episodesUrl = "$apiUrl/shared/content?seasonId=$seasonId&sort=episodeNumber&limit=255&offset=0&clientToken=$encodedToken"
                     val episodesResp = try {
                          app.get(episodesUrl, headers = headers).parsedSafe<AstroResponse>()
                     } catch (e: Exception) { null }
@@ -310,7 +222,7 @@ class AstroGo : MainAPI() {
                      }
                  } else {
                      // Fallback: Try content/children (standard for some series like Pak Su Ammara)
-                     val childrenUrl = "$apiUrl/content/$showId/children?clientToken=$encodedToken&limit=100&offset=0&source=vod"
+                     val childrenUrl = "$apiUrl/content/$showId/children?clientToken=$encodedToken&limit=100&offset=0"
                      try {
                          // Parse as a wrapper first (if it has 'content' field)
                          val asRepo = app.get(childrenUrl, headers = headers).parsedSafe<AstroResponse>()
@@ -333,10 +245,10 @@ class AstroGo : MainAPI() {
             
             return newTvSeriesLoadResponse(title, cleanId, TvType.TvSeries, episodes) {
                 this.posterUrl = poster
-                this.backgroundPosterUrl = backdrop
+                this.backgroundPosterUrl = response.media?.find { it.url?.contains("LAND") == true || it.url?.contains("backdrop") == true }?.url
                 this.plot = plot
-                // this.year = year
-                // this.tags = tags
+                this.year = year
+                this.tags = tags
                 this.actors = response.cast?.mapNotNull { member ->
                     val name = member.name ?: return@mapNotNull null
                     ActorData(Actor(name, image = null), role = ActorRole.Main)
@@ -345,10 +257,10 @@ class AstroGo : MainAPI() {
         } else {
             return newMovieLoadResponse(title, cleanId, TvType.Movie, cleanId) {
                 this.posterUrl = poster
-                this.backgroundPosterUrl = backdrop
+                this.backgroundPosterUrl = response.media?.find { it.url?.contains("LAND") == true || it.url?.contains("backdrop") == true }?.url
                 this.plot = plot
-                // this.year = year
-                // this.tags = tags
+                this.year = year
+                this.tags = tags
                 this.actors = response.cast?.mapNotNull { member ->
                     val name = member.name ?: return@mapNotNull null
                     ActorData(Actor(name, image = null), role = ActorRole.Main)
@@ -398,7 +310,6 @@ class AstroGo : MainAPI() {
         @JsonProperty("synopsis") val synopsis: String? = null,
         @JsonProperty("media") val media: List<AstroMedia>? = null,
         @JsonProperty("contentType") val contentType: String? = null,
-        @JsonProperty("showType") val showType: String? = null,
         @JsonProperty("releaseDate") val releaseDate: String? = null,
         @JsonProperty("duration") val duration: String? = null,
         @JsonProperty("genres") val genres: List<AstroGenre>? = null,
