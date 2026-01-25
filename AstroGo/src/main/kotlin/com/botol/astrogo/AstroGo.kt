@@ -158,9 +158,22 @@ class AstroGo : MainAPI() {
         // Movies often require the full ID (with ~...)
         var detailUrl = "$apiUrl/contentInstances/$rawId"
         
-        var response = try {
-            app.get(detailUrl, headers = headers).parsedSafe<AstroContent>()
-        } catch (e: Exception) { null }
+        var response: AstroContent? = null
+        try {
+            val rawText = app.get(detailUrl, headers = headers).text
+            // Try direct parse
+            response = AppUtils.parseJson<AstroContent>(rawText)
+            
+            // If direct parse yields no title, it might be wrapped in AstroResponse
+            if (response?.title == null) {
+                try {
+                    val wrapper = AppUtils.parseJson<AstroResponse>(rawText)
+                    response = wrapper.response?.firstOrNull() ?: response
+                } catch (e: Exception) { }
+            }
+        } catch (e: Exception) { 
+            response = null
+        }
 
         // If that failed or returned empty, try content/show (standard for TV Series)
         if (response == null || response.title == null) {
