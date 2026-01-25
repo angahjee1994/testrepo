@@ -12,9 +12,9 @@ class AstroGo : MainAPI() {
     override var lang = "ms"
     override val supportedTypes = setOf(TvType.Live, TvType.Movie, TvType.TvSeries)
 
-    // Temp hardcoded token for testing (Captured from browser)
+    // configuration
     private val clientToken = "v:1!r:80200!ur:SARAWAK!community:Malaysia%20Live!t:k!dt:PC!f:Astro_unmanaged!pd:CHROME-FF!pt:Adults"
-    private val bearerToken = "eyJraWQiOiI0OGNiOWNjNy03YmVlLTRkNGMtYTU0OS02YzVlYmI2NGQ4YmIiLCJqa3UiOiJodHRwczovL3NnLXNnLXNnLmFzdHJvLmNvbS5teTo5NDQzL29hdXRoMi9qd2tzP2tpZD00OGNiOWNjNy03YmVlLTRkNGMtYTU0OS02YzVlYmI2NGQ4YmIiLCJhbGciOiJSUzI1NiJ9.eyJpYXQiOjE3NjkzNTkwOTEsInN1YiI6IjgzOTk0NjI4IiwiYXVkIjoiaXZwLnNlc3Npb25ndWFyZCIsImV4cCI6MTc2OTM2OTg5MSwic2Vzc2lvbl9kYXRhIjp7InNlc3Npb24iOnsiZGV2SWQiOiI4Mzk5NDYyOC4wODEyZDdiNy1mYjJkLTQ3NDYtYWI2Yy1kZTlkMTcyNzdkOGQiLCJndWVzdE1vZGUiOmZhbHNlLCJoaElkIjoiODM5OTQ2MjgiLCJidXNVbml0SWQiOiJBU1RSTyJ9fSwiZGV2aWNlRnVsbFR5cGUiOiJCcm93c2VyLURlZmF1bHQiLCJzY29wZSI6ImJyb3dzZSBwbGF5YmFjayIsInRva2VuX3R5cGUiOiJhY2Nlc3NfdG9rZW4iLCJzc2FfanRpIjoiYnJvd3NlciIsImNsaWVudF9pZCI6ImJyb3dzZXIiLCJqdGkiOiJhZTY5NmI3YS05N2QzLTQyMDQtOTg5NC03MjVlMmZmOGQxODIifQ.TeZH-vm9FJpWhma7TsQj3XYteeALnn28mNLHSe47s8SBSYJC9h4-OGaBlzMPY7VLMCgnfwGPCIYRp0srMIUgivtz7oPSbkXaEnte6ijK8zqH5RzjkaPhoMFMtpaCVlL6uGvZe604brsddf7XopIp8wehQ27Brh2wJRvp9Hif7_B7AhWZwEdK9UQ_ZGF0Yjx8auEL7KAVwlfEDchAqslc-zwXfJ9RATd2StBaCxdNTkMFi_HW5QbBszK7TSYK8xaOEBv3b5Z2JVyVW-btPwoPHfnEwrsIsBa4zry7JHtOe1OpIjablhCi4I3g17OLYiM00Zs0UpfrNmSJtmYEPPFkGw"
+    private var bearerToken = ""
 
     override val mainPage = mainPageOf(
         "node:IVP:Home:VodForYou" to "Home",
@@ -22,10 +22,35 @@ class AstroGo : MainAPI() {
         "node:IVP:Movies,-date" to "Movies"
     )
 
+    private suspend fun refreshAccessToken() {
+        try {
+            // Attempt to simulate Guest Visit to capture token from redirect
+            val response = app.get("https://astrogo.astro.com.my", allowRedirects = true)
+            val url = response.url
+            // Check for access_token in URL fragment or query
+            // URL might be "https://astrogo.astro.com.my/#access_token=..."
+            if (url.contains("access_token")) {
+                val token = url.substringAfter("access_token=").substringBefore("&")
+                if (token.isNotEmpty()) {
+                    bearerToken = token
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     override suspend fun getMainPage(
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
+        // Refresh token if needed (simple check: always try once per session or just lazy)
+        // For now, let's try refreshing if the hardcoded one looks old or just always?
+        // Always refreshing might slow down. Let's try it.
+        // Actually, better to only refresh if API fails?
+        // But mainPage is the entry point.
+        refreshAccessToken()
+        
         val offset = (page - 1) * 20
         
         val dataParts = request.data.split(",")
