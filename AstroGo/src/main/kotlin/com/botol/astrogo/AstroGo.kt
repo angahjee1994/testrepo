@@ -103,9 +103,17 @@ class AstroGo : MainAPI() {
         val title = this.title ?: return null
         // Find the best quality poster
         val poster = this.media?.firstOrNull()?.url
+        
+        val type = if (this.showType == "Series") TvType.TvSeries else TvType.Movie
 
-        return newMovieSearchResponse(title, id, TvType.Movie) {
-            this.posterUrl = poster
+        if (type == TvType.TvSeries) {
+             return newTvSeriesSearchResponse(title, id, type) {
+                 this.posterUrl = poster
+             }
+        } else {
+             return newMovieSearchResponse(title, id, type) {
+                 this.posterUrl = poster
+             }
         }
     }
 
@@ -167,7 +175,14 @@ class AstroGo : MainAPI() {
         
         // Fallback 2: shared/content (for Movies/Content where we only have PACK ID)
         if (response == null || response.title == null) {
-             val sharedUrl = "$apiUrl/shared/content?showId=$cleanId&source=vod&limit=1&clientToken=$encodedToken"
+             val sharedUrl = "$apiUrl/shared/content?showId=$cleanId&source=vod&limit=1&offset=0&clientToken=$encodedToken"
+             val sharedResp = try { app.get(sharedUrl, headers = headers).parsedSafe<AstroResponse>() } catch(e: Exception) { null }
+             response = sharedResp?.content?.firstOrNull()
+        }
+
+        // Fallback 3: shared/content with 'id' (for UUIDs if showId failed)
+        if (response == null || response.title == null) {
+             val sharedUrl = "$apiUrl/shared/content?id=$cleanId&source=vod&limit=1&offset=0&clientToken=$encodedToken"
              val sharedResp = try { app.get(sharedUrl, headers = headers).parsedSafe<AstroResponse>() } catch(e: Exception) { null }
              response = sharedResp?.content?.firstOrNull()
         }
@@ -175,26 +190,23 @@ class AstroGo : MainAPI() {
         if (response == null) throw ErrorLoadingException("Failed to load details")
 
         val title = response.title ?: "No Title"
-        val plot = response.synopsis
+        val plot = response.plot ?: ""
         val poster = response.media?.firstOrNull()?.url
-        val year = response.releaseDate?.substringBefore("-")?.toIntOrNull()
+        val backdrop = response.media?.firstOrNull { it.width == 1920 }?.url ?: poster
         
-        // Handle TV Series vs Movie
-        // Astro contentType: "Movie", "Program" (Show), "Episode", "show", "Series"
-        val type = response.contentType
-        val isTv = type.equals("Program", true) || 
-                   type.equals("TVShow", true) ||
-                   type.equals("show", true) ||
-                   type.equals("Series", true)
+        // Determine type based on showType
+        val type = if (response.showType == "Series" || response.contentType == "Series") TvType.TvSeries else TvType.Movie
+        
+        // Use the ID from response if it looks like a PACK ID (preferred for episodes), otherwise cleanId
+        // This handles cases where we loaded details via UUID but need PACK ID for episodes.
+        val responseId = response.id
+        val episodeQueryId = if (responseId != null && responseId.startsWith("astro", ignoreCase = true)) responseId else cleanId
 
-        val tags = response.genres?.mapNotNull { it.name }
-
-        if (isTv) {
-            val episodes = ArrayList<Episode>()
-            val encodedToken = java.net.URLEncoder.encode(clientToken, "UTF-8")
+        if (type == TvType.TvSeries) {
+            val episodes = mutableListOf<Episode>()
             
             // 1. Try to fetch Seasons first
-            val seasonsUrl = "$apiUrl/shared/content?showId=$cleanId&sort=seasonNumber&limit=255&offset=0&clientToken=$encodedToken"
+            val seasonsUrl = "$apiUrl/shared/content?showId=$episodeQueryId&sort=seasonNumber&limit=255&offset=0&clientToken=$encodedToken"
             var seasonResponse = try {
                  app.get(seasonsUrl, headers = headers).parsedSafe<AstroResponse>()
             } catch (e: Exception) { null }
