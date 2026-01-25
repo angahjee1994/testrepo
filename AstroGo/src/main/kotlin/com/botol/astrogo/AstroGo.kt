@@ -160,9 +160,14 @@ class AstroGo : MainAPI() {
         val year = response.releaseDate?.substringBefore("-")?.toIntOrNull()
         
         // Handle TV Series vs Movie
-        // Astro contentType: "Movie", "Program" (Show), "Episode"
-        val isTv = response.contentType?.equals("Program", true) == true || 
-                   response.contentType?.equals("TVShow", true) == true
+        // Astro contentType: "Movie", "Program" (Show), "Episode", "show", "Series"
+        val type = response.contentType
+        val isTv = type.equals("Program", true) || 
+                   type.equals("TVShow", true) ||
+                   type.equals("show", true) ||
+                   type.equals("Series", true)
+
+        val tags = response.genres?.mapNotNull { it.name }
 
         if (isTv) {
             val episodes = ArrayList<Episode>()
@@ -209,12 +214,14 @@ class AstroGo : MainAPI() {
                 this.posterUrl = poster
                 this.plot = plot
                 this.year = year
+                this.tags = tags
             }
         } else {
-            return newMovieLoadResponse(title, url, TvType.Movie, url) {
+            return newMovieLoadResponse(title, cleanId, TvType.Movie, cleanId) {
                 this.posterUrl = poster
                 this.plot = plot
                 this.year = year
+                this.tags = tags
             }
         }
     }
@@ -259,7 +266,12 @@ class AstroGo : MainAPI() {
         @JsonProperty("media") val media: List<AstroMedia>? = null,
         @JsonProperty("contentType") val contentType: String? = null,
         @JsonProperty("releaseDate") val releaseDate: String? = null,
-        @JsonProperty("duration") val duration: String? = null
+        @JsonProperty("duration") val duration: String? = null,
+        @JsonProperty("genres") val genres: List<AstroGenre>? = null
+    )
+
+    data class AstroGenre(
+        @JsonProperty("name") val name: String? = null
     )
 
     data class AstroMedia(
