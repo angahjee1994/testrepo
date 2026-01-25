@@ -139,7 +139,8 @@ class AstroGo : MainAPI() {
         )
         
         // Try contentInstances first (standard for Movies/Episodes)
-        var detailUrl = "$apiUrl/contentInstances/$cleanId?clientToken=$encodedToken"
+        // Browser trace shows this uses Bearer token ONLY, no clientToken query param
+        var detailUrl = "$apiUrl/contentInstances/$cleanId"
         
         var response = try {
             app.get(detailUrl, headers = headers).parsedSafe<AstroContent>()
@@ -147,7 +148,7 @@ class AstroGo : MainAPI() {
 
         // If that failed or returned empty, try content/show (standard for TV Series)
         if (response == null || response.title == null) {
-             detailUrl = "$apiUrl/content/show/$cleanId?clientToken=$encodedToken"
+             detailUrl = "$apiUrl/content/show/$cleanId"
              response = app.get(detailUrl, headers = headers).parsedSafe<AstroContent>()
         }
 
