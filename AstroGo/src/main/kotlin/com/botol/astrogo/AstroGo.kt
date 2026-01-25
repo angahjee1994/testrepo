@@ -205,23 +205,49 @@ class AstroGo : MainAPI() {
                          app.get(flatEpisodesUrl, headers = headers).parsedSafe<AstroResponse>()
                     } catch (e: Exception) { null }
                     
-                 flatResp?.content?.forEach { ep ->
-                     episodes.add(ep.toEpisode(1))
+                 if (flatResp?.content?.isNotEmpty() == true) {
+                     flatResp.content.forEach { ep ->
+                         episodes.add(ep.toEpisode(1))
+                     }
+                 } else {
+                     // Fallback: Try content/children (standard for some series like Pak Su Ammara)
+                     val childrenUrl = "$apiUrl/content/$cleanId/children?clientToken=$encodedToken&limit=100&offset=0"
+                     try {
+                         // Parse as a wrapper first (if it has 'content' field)
+                         val asRepo = app.get(childrenUrl, headers = headers).parsedSafe<AstroResponse>()
+                         if (asRepo?.content?.isNotEmpty() == true) {
+                             asRepo.content.forEach { ep ->
+                                 episodes.add(ep.toEpisode(1))
+                             }
+                         } else {
+                             // Try parsing as a direct List
+                             val asList = app.get(childrenUrl, headers = headers).parsedSafe<List<AstroContent>>()
+                             asList?.forEach { ep ->
+                                 episodes.add(ep.toEpisode(1))
+                             }
+                         }
+                     } catch (e: Exception) { 
+                         e.printStackTrace()
+                     }
                  }
             }
             
             return newTvSeriesLoadResponse(title, cleanId, TvType.TvSeries, episodes) {
                 this.posterUrl = poster
+                this.backgroundPosterUrl = response.media?.find { it.url?.contains("LAND") == true || it.url?.contains("backdrop") == true }?.url
                 this.plot = plot
                 this.year = year
                 this.tags = tags
+                // this.actors = ... (commented out to fix build)
             }
         } else {
             return newMovieLoadResponse(title, cleanId, TvType.Movie, cleanId) {
                 this.posterUrl = poster
+                this.backgroundPosterUrl = response.media?.find { it.url?.contains("LAND") == true || it.url?.contains("backdrop") == true }?.url
                 this.plot = plot
                 this.year = year
                 this.tags = tags
+                // this.actors = ...
             }
         }
     }
@@ -267,7 +293,14 @@ class AstroGo : MainAPI() {
         @JsonProperty("contentType") val contentType: String? = null,
         @JsonProperty("releaseDate") val releaseDate: String? = null,
         @JsonProperty("duration") val duration: String? = null,
-        @JsonProperty("genres") val genres: List<AstroGenre>? = null
+        @JsonProperty("genres") val genres: List<AstroGenre>? = null,
+        @JsonProperty("cast") val cast: List<AstroCast>? = null,
+        @JsonProperty("actors") val actors: List<String>? = null
+    )
+    
+    data class AstroCast(
+        @JsonProperty("name") val name: String? = null,
+        @JsonProperty("role") val role: String? = null
     )
 
     data class AstroGenre(
@@ -277,6 +310,7 @@ class AstroGo : MainAPI() {
     data class AstroMedia(
         @JsonProperty("url") val url: String? = null,
         @JsonProperty("width") val width: Int? = null,
-        @JsonProperty("height") val height: Int? = null
+        @JsonProperty("height") val height: Int? = null,
+        @JsonProperty("type") val type: String? = null
     )
 }
