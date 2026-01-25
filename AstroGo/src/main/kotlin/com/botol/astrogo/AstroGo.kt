@@ -136,7 +136,9 @@ class AstroGo : MainAPI() {
         val encodedToken = java.net.URLEncoder.encode(clientToken, "UTF-8")
         val headers = mapOf(
             "Authorization" to "Bearer $bearerToken",
-            "Accept" to "application/json"
+            "Accept" to "application/json",
+            "Cache-Control" to "no-cache",
+            "Pragma" to "no-cache"
         )
         
         // Try contentInstances first (standard for Movies/Episodes)
