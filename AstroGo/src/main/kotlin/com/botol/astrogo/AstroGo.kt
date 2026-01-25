@@ -130,8 +130,9 @@ class AstroGo : MainAPI() {
 
     override suspend fun load(url: String): LoadResponse {
         // Sanitize the URL in case it includes the main URL
-        // Remove prefix, then remove suffix if present (e.g. ~vod)
-        val cleanId = url.removePrefix(mainUrl).removePrefix("/").substringBefore("~")
+        // Remove everything before the last slash (e.g. series/, actionMenu/, movie/)
+        // Then remove suffix if present (e.g. ~vod)
+        val cleanId = url.substringAfterLast("/").substringBefore("~")
         
         val encodedToken = java.net.URLEncoder.encode(clientToken, "UTF-8")
         val headers = mapOf(
