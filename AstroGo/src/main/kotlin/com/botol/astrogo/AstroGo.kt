@@ -221,7 +221,7 @@ class AstroGo : MainAPI() {
                 }
             } else {
                 // No seasons found, might be a flat list of episodes
-                val flatEpisodesUrl = "$apiUrl/shared/content?showId=$baseId&source=vod&limit=255&offset=0&sort=episodeNumber&isCollapsed=false&isErotic=false&isAdult=false&clientToken=$encodedToken"
+                val flatEpisodesUrl = "$apiUrl/shared/content?showId=$showId&source=vod&limit=255&offset=0&sort=episodeNumber&isCollapsed=false&isErotic=false&isAdult=false&clientToken=$encodedToken"
                 val flatContent = fetchContent(flatEpisodesUrl)
                     
                  if (!flatContent.isNullOrEmpty()) {
