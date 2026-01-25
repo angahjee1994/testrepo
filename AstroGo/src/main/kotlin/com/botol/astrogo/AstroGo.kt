@@ -172,13 +172,13 @@ class AstroGo : MainAPI() {
 
         if (isTv) {
             val episodes = ArrayList<Episode>()
-            val encodedToken = java.net.URLEncoder.encode(clientToken, "UTF-8")
+            val encodedToken = java.net.URLEncoder.encode(clientToken, "UTF-8").replace("+", "%20")
             
             // Use the ID from the response, as it might be the canonical Show ID (e.g. PACK...) needed for both Seasons and Episodes
             val showId = response.packId ?: response.externalId ?: response.id ?: cleanId
 
             // 1. Try to fetch Seasons first
-            val seasonsUrl = "$apiUrl/shared/content?showId=$showId&sort=seasonNumber&limit=255&offset=0&clientToken=$encodedToken"
+            val seasonsUrl = "$apiUrl/shared/content?showId=$showId&sort=seasonNumber&limit=255&offset=0&isErotic=false&isAdult=false&source=vod&clientToken=$encodedToken"
             var seasonResponse = try {
                  app.get(seasonsUrl, headers = headers).parsedSafe<AstroResponse>()
             } catch (e: Exception) { null }
@@ -193,7 +193,7 @@ class AstroGo : MainAPI() {
                     val seasonId = season.id ?: return@forEach
                     val seasonNum = season.title?.filter { it.isDigit() }?.toIntOrNull() ?: 1
                     
-                    val episodesUrl = "$apiUrl/shared/content?seasonId=$seasonId&sort=episodeNumber&limit=255&offset=0&clientToken=$encodedToken"
+                    val episodesUrl = "$apiUrl/shared/content?seasonId=$seasonId&sort=episodeNumber&limit=255&offset=0&isErotic=false&isAdult=false&source=vod&clientToken=$encodedToken"
                     val episodesResp = try {
                          app.get(episodesUrl, headers = headers).parsedSafe<AstroResponse>()
                     } catch (e: Exception) { null }
@@ -205,7 +205,7 @@ class AstroGo : MainAPI() {
             } else {
                 // No seasons found, might be a flat list of episodes (like Running Man) or just episodes directly
                 
-                 val flatEpisodesUrl = "$apiUrl/shared/content?showId=$showId&source=vod&limit=255&offset=0&sort=episodeNumber&isCollapsed=false&clientToken=$encodedToken"
+                 val flatEpisodesUrl = "$apiUrl/shared/content?showId=$showId&source=vod&limit=255&offset=0&sort=episodeNumber&isCollapsed=false&isErotic=false&isAdult=false&clientToken=$encodedToken"
                  val flatResp = try {
                          app.get(flatEpisodesUrl, headers = headers).parsedSafe<AstroResponse>()
                     } catch (e: Exception) { null }
