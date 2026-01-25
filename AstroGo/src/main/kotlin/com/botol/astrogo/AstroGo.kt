@@ -13,8 +13,8 @@ class AstroGo : MainAPI() {
     override val supportedTypes = setOf(TvType.Live, TvType.Movie, TvType.TvSeries)
 
     // Temp hardcoded token for testing (Captured from browser)
-    private val clientToken = "v:1!r:80400!ur:NORTHERN!community:Malaysia Live!t:k!dt:PC!f:Astro_unmanaged!pd:CHROME-FF!pt:Adults"
-    private val bearerToken = "eyJraWQiOiIwMDU5Y2JjMS1lYzBlLTQ1YmYtYTA1Yy1jZmM2NWQzM2I0MDgiLCJqa3UiOiJodHRwczovL3NnLXNnLXNnLmFzdHJvLmNvbS5teTo5NDQzL29hdXRoMi9qd2tzP2tpZD0wMDU5Y2JjMS1lYzBlLTQ1YmYtYTA1Yy1jZmM2NWQzM2I0MDgiLCJhbGciOiJSUzI1NiJ9.eyJpYXQiOjE3NjkzNDIxNzUsInN1YiI6IkdVRVNULjA4MTJkN2I3LWZiMmQtNDc0Ni1hYjZjLWRlOWQxNzI3N2Q4ZCIsImF1ZCI6Iml2cC5zZXNzaW9uZ3VhcmQiLCJleHAiOjE3NjkzNTI5NzUsInNlc3Npb25fZGF0YSI6eyJzZXNzaW9uIjp7ImRldklkIjoiR1VFU1QuQnJvd3Nlci1EZWZhdWx0LjA4MTJkN2I3LWZiMmQtNDc0Ni1hYjZjLWRlOWQxNzI3N2Q4ZCIsImd1ZXN0TW9kZSI6dHJ1ZSwiaGhJZCI6IkdVRVNULjA4MTJkN2I3LWZiMmQtNDc0Ni1hYjZjLWRlOWQxNzI3N2Q4ZCIsImJ1c1VuaXRJZCI6IkFTVFJPIn19LCJzY29wZSI6ImJyb3dzZSBwbGF5YmFjayB1cm46c3luYW1lZGlhOnZjczpvdnA6Z3Vlc3QtdXNlciIsInRva2VuX3R5cGUiOiJhY2Nlc3NfdG9rZW4iLCJzc2FfanRpIjoiYnJvd3NlciIsImNsaWVudF9pZCI6ImJyb3dzZXIiLCJqdGkiOiJkNTZhZjBkMS00OGI0LTQ2YTYtODFmOS00ZDg3MGUxOGNjYTgifQ.Y4fVUYaQCvHqJTda0J-f3BQrO0Pha-FpeayeR0_U5Gr6Fk0WfyL2XXql_L3JXcgePuF3JfdEND8fYVNQGniNF8-2U61jDcnAuQZJw4qEYCOtH_qoj80qj5tJjD874ti6JxuRjrK-XvQ7cWDcUtNsE8FWDndmo4eQ-yrn8TzwqnXUuF0-hhSEGx1WDCmSLDSqWwF3y85fQa9lufhz3em7Ql28c7tPElM2d0WdiClBw0g2ivP7rcCBwwHaKDi0SWvqRyGhmz8Jk-30Rv_aF4CZt91r27dxo__ezzNUOqZOxLxbzLv0fImc-94VgWI2MHsre1dD89kj_KVFbRgmXt_UVA"
+    private val clientToken = "v:1!r:80800!ur:GUEST_REGION!community:Malaysia%20Live!t:k!dt:PC!f:Astro_unmanaged!pd:CHROME-FF!pt:Adults"
+    private val bearerToken = "eyJraWQiOiJjNWM3ZmFkMC1lZWZmLTRjNmItYTczMC0zNjc3YTBjMTgyODEiLCJqa3UiOiJodHRwczovL3NnLXNnLXNnLmFzdHJvLmNvbS5teTo5NDQzL29hdXRoMi9qd2tzP2tpZD1jNWM3ZmFkMC1lZWZmLTRjNmItYTczMC0zNjc3YTBjMTgyODEiLCJhbGciOiJSUzI1NiJ9.eyJpYXQiOjE3NjkzNDYyNjYsInN1YiI6IkdVRVNULjA4MTJkN2I3LWZiMmQtNDc0Ni1hYjZjLWRlOWQxNzI3N2Q4ZCIsImF1ZCI6Iml2cC5zZXNzaW9uZ3VhcmQiLCJleHAiOjE3NjkzNTcwNjYsInNlc3Npb25fZGF0YSI6eyJzZXNzaW9uIjp7ImRldklkIjoiR1VFU1QuQnJvd3Nlci1EZWZhdWx0LjA4MTJkN2I3LWZiMmQtNDc0Ni1hYjZjLWRlOWQxNzI3N2Q4ZCIsImd1ZXN0TW9kZSI6dHJ1ZSwiaGhJZCI6IkdVRVNULjA4MTJkN2I3LWZiMmQtNDc0Ni1hYjZjLWRlOWQxNzI3N2Q4ZCIsImJ1c1VuaXRJZCI6IkFTVFJPIn19LCJzY29wZSI6ImJyb3dzZSBwbGF5YmFjayB1cm46c3luYW1lZGlhOnZjczpvdnA6Z3Vlc3QtdXNlciIsInRva2VuX3R5cGUiOiJhY2Nlc3NfdG9rZW4iLCJzc2FfanRpIjoiYnJvd3NlciIsImNsaWVudF9pZCI6ImJyb3dzZXIiLCJqdGkiOiI0ZTkwOGI0NC00ZWJiLTRkZjUtOWVkZi1iOGI3MWM1NjQwYmQifQ.NXTOCiI4YePjbeIhN6ihx75NMPJIgls2GUC80OhMVfyRn8dBUINYRHuVD6NlbIWOCksYQWEBGpahKi764YBln8ZR2hnefSQ7tWXmoJhukzymuSs6dFn2wMymOKE3ke3efc4zpZ98zm9aSSOMA74u_1jYp9LZPG-9Zw-0x1AsnGw5skSIO82DTxWYHqyMSOpVT2lfhvhQwifJNW3DPU6izXFl9iz7DETmOGAxfj8QgEOr1fXeF_KJ8c2puftKZHZ6ueW9D_Kk3GiXhl3ZAOvu3Pjtv_3jXW3DymAKlHdked921EyAvz_YA046w4l3uy0m311LsKpH0OBNpAv03ZTr8A"
 
     override val mainPage = mainPageOf(
         "node:IVP:Home:VodForYou" to "Home",
@@ -177,13 +177,27 @@ class AstroGo : MainAPI() {
             // Use the ID from the response, as it might be the canonical Show ID (e.g. PACK...) needed for both Seasons and Episodes
             val showId = response.packId ?: response.externalId ?: response.id ?: cleanId
 
+            // Helper to parse response
+            suspend fun fetchContent(url: String): List<AstroContent>? {
+                return try {
+                    val text = app.get(url, headers = headers).text
+                    // Try parsing as wrapper
+                    val wrapper = AppUtils.parseJson<AstroResponse>(text)
+                    if (!wrapper.content.isNullOrEmpty()) return wrapper.content
+                    
+                    // Try parsing as list
+                    return AppUtils.parseJson<List<AstroContent>>(text)
+                } catch (e: Exception) { 
+                    null 
+                }
+            }
+
             // 1. Try to fetch Seasons first
             val seasonsUrl = "$apiUrl/shared/content?showId=$showId&sort=seasonNumber&limit=255&offset=0&isErotic=false&isAdult=false&source=vod&clientToken=$encodedToken"
-            var seasonResponse = try {
-                 app.get(seasonsUrl, headers = headers).parsedSafe<AstroResponse>()
-            } catch (e: Exception) { null }
             
-            val validSeasons = seasonResponse?.content?.filter { 
+            val seasonContent = fetchContent(seasonsUrl)
+            
+            val validSeasons = seasonContent?.filter { 
                 it.contentType?.contains("Season", true) == true 
             }
 
@@ -194,24 +208,19 @@ class AstroGo : MainAPI() {
                     val seasonNum = season.title?.filter { it.isDigit() }?.toIntOrNull() ?: 1
                     
                     val episodesUrl = "$apiUrl/shared/content?seasonId=$seasonId&sort=episodeNumber&limit=255&offset=0&isErotic=false&isAdult=false&source=vod&clientToken=$encodedToken"
-                    val episodesResp = try {
-                         app.get(episodesUrl, headers = headers).parsedSafe<AstroResponse>()
-                    } catch (e: Exception) { null }
+                    val episodesContent = fetchContent(episodesUrl)
                     
-                    episodesResp?.content?.forEach { ep ->
+                    episodesContent?.forEach { ep ->
                         episodes.add(ep.toEpisode(seasonNum))
                     }
                 }
             } else {
-                // No seasons found, might be a flat list of episodes (like Running Man) or just episodes directly
-                
-                 val flatEpisodesUrl = "$apiUrl/shared/content?showId=$showId&source=vod&limit=255&offset=0&sort=episodeNumber&isCollapsed=false&isErotic=false&isAdult=false&clientToken=$encodedToken"
-                 val flatResp = try {
-                         app.get(flatEpisodesUrl, headers = headers).parsedSafe<AstroResponse>()
-                    } catch (e: Exception) { null }
+                // No seasons found, might be a flat list of episodes
+                val flatEpisodesUrl = "$apiUrl/shared/content?showId=$showId&source=vod&limit=255&offset=0&sort=episodeNumber&isCollapsed=false&isErotic=false&isAdult=false&clientToken=$encodedToken"
+                val flatContent = fetchContent(flatEpisodesUrl)
                     
-                 if (flatResp?.content?.isNotEmpty() == true) {
-                     flatResp.content.forEach { ep ->
+                 if (!flatContent.isNullOrEmpty()) {
+                     flatContent.forEach { ep ->
                          episodes.add(ep.toEpisode(1))
                      }
                  } else {
