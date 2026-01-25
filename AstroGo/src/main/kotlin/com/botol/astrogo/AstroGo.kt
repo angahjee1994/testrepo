@@ -24,15 +24,39 @@ class AstroGo : MainAPI() {
 
     private suspend fun refreshAccessToken() {
         try {
-            // Attempt to simulate Guest Visit to capture token from redirect
-            val response = app.get("https://astrogo.astro.com.my", allowRedirects = true)
-            val url = response.url
-            // Check for access_token in URL fragment or query
-            // URL might be "https://astrogo.astro.com.my/#access_token=..."
-            if (url.contains("access_token")) {
-                val token = url.substringAfter("access_token=").substringBefore("&")
-                if (token.isNotEmpty()) {
-                    bearerToken = token
+            // Initiate OAuth2 Guest Flow directly (bypassing JS logic on main page)
+            // URL discovered via browser analysis
+            val authUrl = "https://sg-sg-sg.astro.com.my:9443/oauth2/authorize?client_id=browser&state=guestUserLogin&redirect_uri=https://astrogo.astro.com.my&response_type=token&prompt=none&scope=urn:synamedia:vcs:ovp:guest-user"
+            
+            var currentUrl = authUrl
+            var attempts = 0
+            while (attempts < 10) {
+                // Cloudfront/providers might require a browser UA
+                val headers = mapOf("User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                
+                val response = app.get(currentUrl, headers = headers, allowRedirects = false)
+                if (response.code in 300..308) {
+                    val location = response.headers["Location"] ?: break
+                    if (location.contains("access_token")) {
+                        val token = location.substringAfter("access_token=").substringBefore("&")
+                        if (token.isNotEmpty()) {
+                            bearerToken = token
+                            break
+                        }
+                    }
+                    
+                    // Handle relative redirects
+                    val nextUrl = if (location.startsWith("/")) {
+                        val uri = java.net.URI(currentUrl)
+                        "${uri.scheme}://${uri.host}${if (uri.port != -1) ":${uri.port}" else ""}$location"
+                    } else {
+                        location
+                    }
+                    currentUrl = nextUrl
+                    attempts++
+                } else {
+                    // Non-redirect response? Maybe we reached the end or blocked
+                    break
                 }
             }
         } catch (e: Exception) {
