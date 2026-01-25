@@ -168,7 +168,7 @@ class AstroGo : MainAPI() {
             if (response?.title == null) {
                 try {
                     val wrapper = AppUtils.parseJson<AstroResponse>(rawText)
-                    response = wrapper.response?.firstOrNull() ?: response
+                    response = wrapper.content?.firstOrNull() ?: response
                 } catch (e: Exception) { }
             }
         } catch (e: Exception) { 
