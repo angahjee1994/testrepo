@@ -13,8 +13,8 @@ class AstroGo : MainAPI() {
     override val supportedTypes = setOf(TvType.Live, TvType.Movie, TvType.TvSeries)
 
     // Temp hardcoded token for testing (Captured from browser)
-    private val clientToken = "v:1!r:80800!ur:GUEST_REGION!community:Malaysia%20Live!t:k!dt:PC!f:Astro_unmanaged!pd:CHROME-FF!pt:Adults"
-    private val bearerToken = "eyJraWQiOiJjNWM3ZmFkMC1lZWZmLTRjNmItYTczMC0zNjc3YTBjMTgyODEiLCJqa3UiOiJodHRwczovL3NnLXNnLXNnLmFzdHJvLmNvbS5teTo5NDQzL29hdXRoMi9qd2tzP2tpZD1jNWM3ZmFkMC1lZWZmLTRjNmItYTczMC0zNjc3YTBjMTgyODEiLCJhbGciOiJSUzI1NiJ9.eyJpYXQiOjE3NjkzNDYyNjYsInN1YiI6IkdVRVNULjA4MTJkN2I3LWZiMmQtNDc0Ni1hYjZjLWRlOWQxNzI3N2Q4ZCIsImF1ZCI6Iml2cC5zZXNzaW9uZ3VhcmQiLCJleHAiOjE3NjkzNTcwNjYsInNlc3Npb25fZGF0YSI6eyJzZXNzaW9uIjp7ImRldklkIjoiR1VFU1QuQnJvd3Nlci1EZWZhdWx0LjA4MTJkN2I3LWZiMmQtNDc0Ni1hYjZjLWRlOWQxNzI3N2Q4ZCIsImd1ZXN0TW9kZSI6dHJ1ZSwiaGhJZCI6IkdVRVNULjA4MTJkN2I3LWZiMmQtNDc0Ni1hYjZjLWRlOWQxNzI3N2Q4ZCIsImJ1c1VuaXRJZCI6IkFTVFJPIn19LCJzY29wZSI6ImJyb3dzZSBwbGF5YmFjayB1cm46c3luYW1lZGlhOnZjczpvdnA6Z3Vlc3QtdXNlciIsInRva2VuX3R5cGUiOiJhY2Nlc3NfdG9rZW4iLCJzc2FfanRpIjoiYnJvd3NlciIsImNsaWVudF9pZCI6ImJyb3dzZXIiLCJqdGkiOiI0ZTkwOGI0NC00ZWJiLTRkZjUtOWVkZi1iOGI3MWM1NjQwYmQifQ.NXTOCiI4YePjbeIhN6ihx75NMPJIgls2GUC80OhMVfyRn8dBUINYRHuVD6NlbIWOCksYQWEBGpahKi764YBln8ZR2hnefSQ7tWXmoJhukzymuSs6dFn2wMymOKE3ke3efc4zpZ98zm9aSSOMA74u_1jYp9LZPG-9Zw-0x1AsnGw5skSIO82DTxWYHqyMSOpVT2lfhvhQwifJNW3DPU6izXFl9iz7DETmOGAxfj8QgEOr1fXeF_KJ8c2puftKZHZ6ueW9D_Kk3GiXhl3ZAOvu3Pjtv_3jXW3DymAKlHdked921EyAvz_YA046w4l3uy0m311LsKpH0OBNpAv03ZTr8A"
+    private val clientToken = "v:1!r:80200!ur:SARAWAK!community:Malaysia%20Live!t:k!dt:PC!f:Astro_unmanaged!pd:CHROME-FF!pt:Adults"
+    private val bearerToken = "eyJraWQiOiI0OGNiOWNjNy03YmVlLTRkNGMtYTU0OS02YzVlYmI2NGQ4YmIiLCJqa3UiOiJodHRwczovL3NnLXNnLXNnLmFzdHJvLmNvbS5teTo5NDQzL29hdXRoMi9qd2tzP2tpZD00OGNiOWNjNy03YmVlLTRkNGMtYTU0OS02YzVlYmI2NGQ4YmIiLCJhbGciOiJSUzI1NiJ9.eyJpYXQiOjE3NjkzNTkwOTEsInN1YiI6IjgzOTk0NjI4IiwiYXVkIjoiaXZwLnNlc3Npb25ndWFyZCIsImV4cCI6MTc2OTM2OTg5MSwic2Vzc2lvbl9kYXRhIjp7InNlc3Npb24iOnsiZGV2SWQiOiI4Mzk5NDYyOC4wODEyZDdiNy1mYjJkLTQ3NDYtYWI2Yy1kZTlkMTcyNzdkOGQiLCJndWVzdE1vZGUiOmZhbHNlLCJoaElkIjoiODM5OTQ2MjgiLCJidXNVbml0SWQiOiJBU1RSTyJ9fSwiZGV2aWNlRnVsbFR5cGUiOiJCcm93c2VyLURlZmF1bHQiLCJzY29wZSI6ImJyb3dzZSBwbGF5YmFjayIsInRva2VuX3R5cGUiOiJhY2Nlc3NfdG9rZW4iLCJzc2FfanRpIjoiYnJvd3NlciIsImNsaWVudF9pZCI6ImJyb3dzZXIiLCJqdGkiOiJhZTY5NmI3YS05N2QzLTQyMDQtOTg5NC03MjVlMmZmOGQxODIifQ.TeZH-vm9FJpWhma7TsQj3XYteeALnn28mNLHSe47s8SBSYJC9h4-OGaBlzMPY7VLMCgnfwGPCIYRp0srMIUgivtz7oPSbkXaEnte6ijK8zqH5RzjkaPhoMFMtpaCVlL6uGvZe604brsddf7XopIp8wehQ27Brh2wJRvp9Hif7_B7AhWZwEdK9UQ_ZGF0Yjx8auEL7KAVwlfEDchAqslc-zwXfJ9RATd2StBaCxdNTkMFi_HW5QbBszK7TSYK8xaOEBv3b5Z2JVyVW-btPwoPHfnEwrsIsBa4zry7JHtOe1OpIjablhCi4I3g17OLYiM00Zs0UpfrNmSJtmYEPPFkGw"
 
     override val mainPage = mainPageOf(
         "node:IVP:Home:VodForYou" to "Home",
@@ -211,12 +211,12 @@ class AstroGo : MainAPI() {
 
         // Parse Actors
         val actorsList = ArrayList<ActorData>()
-        response.credits?.actors?.forEach { 
+        /*response.credits?.actors?.forEach { 
              actorsList.add(ActorData(Actor(it.trim(), image = null), role = ActorRole.Main)) 
         }
         response.credits?.directors?.forEach { 
              actorsList.add(ActorData(Actor(it.trim(), image = null), role = ActorRole.Main)) 
-        }
+        }*/
         if (actorsList.isEmpty()) {
             response.cast?.forEach { member ->
                 val name = member.name ?: return@forEach
@@ -390,14 +390,14 @@ class AstroGo : MainAPI() {
         @JsonProperty("episodeNumber") val episodeNumber: Int? = null,
         @JsonProperty("seasonNumber") val seasonNumber: Int? = null,
         @JsonProperty("showId") val showId: String? = null,
-        @JsonProperty("seasonId") val seasonId: String? = null,
-        @JsonProperty("credits") val credits: AstroCredits? = null
+        @JsonProperty("seasonId") val seasonId: String? = null
+        //@JsonProperty("credits") val credits: AstroCredits? = null
     )
     
-    data class AstroCredits(
+    /*data class AstroCredits(
         @JsonProperty("actors") val actors: List<String>? = null,
         @JsonProperty("directors") val directors: List<String>? = null
-    )
+    )*/
     
     data class AstroCast(
         @JsonProperty("name") val name: String? = null,
