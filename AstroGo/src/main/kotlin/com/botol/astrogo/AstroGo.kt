@@ -130,8 +130,9 @@ class AstroGo : MainAPI() {
 
     override suspend fun load(url: String): LoadResponse {
         // Sanitize the URL in case it includes the main URL
-        // Remove prefix, then remove suffix if present (e.g. ~vod)
-        val cleanId = url.removePrefix(mainUrl).removePrefix("/").substringBefore("~")
+        val rawId = url.removePrefix(mainUrl).removePrefix("/")
+        // Remove suffix for clean ID (used for checking types, etc)
+        val cleanId = rawId.substringBefore("~")
         
         val encodedToken = java.net.URLEncoder.encode(clientToken, "UTF-8")
         val headers = mapOf(
@@ -142,8 +143,8 @@ class AstroGo : MainAPI() {
         )
         
         // Try contentInstances first (standard for Movies/Episodes)
-        // Browser trace shows this uses Bearer token ONLY, no clientToken query param
-        var detailUrl = "$apiUrl/contentInstances/$cleanId"
+        // Movies often require the full ID (with ~...)
+        var detailUrl = "$apiUrl/contentInstances/$rawId"
         
         var response = try {
             app.get(detailUrl, headers = headers).parsedSafe<AstroContent>()
@@ -179,7 +180,9 @@ class AstroGo : MainAPI() {
             val encodedToken = java.net.URLEncoder.encode(rawToken, "UTF-8").replace("+", "%20")
             
             // Use the ID from the response, as it might be the canonical Show ID (e.g. PACK...) needed for both Seasons and Episodes
-            val showId = response.packId ?: response.externalId ?: response.id ?: cleanId
+            // Ensure we strip any suffix for the Show ID used in 'shared/content' calls (Upin needs clean ID)
+            val baseId = response.packId ?: response.externalId ?: response.id ?: cleanId
+            val showId = baseId.substringBefore("~")
 
             // Helper to parse response
             suspend fun fetchContent(url: String): List<AstroContent>? {
@@ -218,7 +221,7 @@ class AstroGo : MainAPI() {
                 }
             } else {
                 // No seasons found, might be a flat list of episodes
-                val flatEpisodesUrl = "$apiUrl/shared/content?showId=$showId&source=vod&limit=255&offset=0&sort=episodeNumber&isCollapsed=false&isErotic=false&isAdult=false&clientToken=$encodedToken"
+                val flatEpisodesUrl = "$apiUrl/shared/content?showId=$baseId&source=vod&limit=255&offset=0&sort=episodeNumber&isCollapsed=false&isErotic=false&isAdult=false&clientToken=$encodedToken"
                 val flatContent = fetchContent(flatEpisodesUrl)
                     
                  if (!flatContent.isNullOrEmpty()) {
