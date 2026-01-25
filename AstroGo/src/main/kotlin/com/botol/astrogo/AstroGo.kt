@@ -264,14 +264,16 @@ class AstroGo : MainAPI() {
     }
     
     private fun AstroContent.toEpisode(season: Int?): Episode {
-        val epNum = this.title?.substringBefore(" ")?.toIntOrNull() // Heuristic if title is "1. Episode Name"
-        // Better to use metadata if available, but for now map basic fields
+        // Use metadata if available, fall back to heuristic or passed season
+        val epVal = this.episodeNumber ?: this.title?.substringBefore(" ")?.toIntOrNull()
+        val seasonVal = this.seasonNumber ?: season
+        
         return newEpisode(this.id ?: "") {
             this.name = this@toEpisode.title
-            this.season = season
+            this.season = seasonVal
+            this.episode = epVal
             this.posterUrl = this@toEpisode.media?.firstOrNull()?.url
             this.description = this@toEpisode.synopsis
-            // this.episode = epNum // If we can parse it reliably
         }
     }
 
@@ -308,7 +310,9 @@ class AstroGo : MainAPI() {
         @JsonProperty("duration") val duration: String? = null,
         @JsonProperty("genres") val genres: List<AstroGenre>? = null,
         @JsonProperty("cast") val cast: List<AstroCast>? = null,
-        @JsonProperty("actors") val actors: List<String>? = null
+        @JsonProperty("actors") val actors: List<String>? = null,
+        @JsonProperty("episodeNumber") val episodeNumber: Int? = null,
+        @JsonProperty("seasonNumber") val seasonNumber: Int? = null
     )
     
     data class AstroCast(
