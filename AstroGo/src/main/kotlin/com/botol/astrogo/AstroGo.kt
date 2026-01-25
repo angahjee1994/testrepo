@@ -170,8 +170,33 @@ class AstroGo : MainAPI() {
              } catch (e: Exception) { null }
         }
         
-        // Final fallback: Search by title if we have it
-        if ((response == null || response.title == null) && titleParam != null) {
+        if (response == null || response.title == null) {
+             detailUrl = "$apiUrl/content/show/$cleanId"
+             response = try {
+                 app.get(detailUrl, headers = headers).parsedSafe<AstroContent>()
+             } catch (e: Exception) { null }
+        }
+        
+        // Parse Actors (Early check for sparsity)
+        val actorsList = ArrayList<ActorData>()
+        try {
+            val creds = response?.credits
+            if (creds is Map<*, *>) {
+                val actors = creds["actors"] as? List<*>
+                actors?.forEach { 
+                    if (it is String) actorsList.add(ActorData(Actor(it.trim(), image = null), roleString = "Actor"))
+                }
+                
+                val directors = creds["directors"] as? List<*>
+                directors?.forEach { 
+                    if (it is String) actorsList.add(ActorData(Actor(it.trim(), image = null), roleString = "Director"))
+                }
+            }
+        } catch (e: Exception) { }
+
+        // Final fallback: Search by title if we have it OR if result is sparse (no actors)
+        val isSparse = response?.title != null && actorsList.isEmpty()
+        if ((response == null || response.title == null || isSparse) && titleParam != null) {
             try {
                 // Determine type based on URL or previous clues? Default to finding anything.
                 val searchResults = search(titleParam)
@@ -208,22 +233,6 @@ class AstroGo : MainAPI() {
                  durationMin = (response.duration.toIntOrNull() ?: 0) / 60
             }
         }
-
-        // Parse Actors
-        val actorsList = ArrayList<ActorData>()
-        try {
-            if (response.credits is Map<*, *>) {
-                val actors = response.credits["actors"] as? List<*>
-                actors?.forEach { 
-                    if (it is String) actorsList.add(ActorData(Actor(it.trim(), image = null), roleString = "Actor"))
-                }
-                
-                val directors = response.credits["directors"] as? List<*>
-                directors?.forEach { 
-                    if (it is String) actorsList.add(ActorData(Actor(it.trim(), image = null), roleString = "Director"))
-                }
-            }
-        } catch (e: Exception) { }
 
         if (actorsList.isEmpty()) {
             response.cast?.forEach { member ->
