@@ -104,7 +104,7 @@ class AstroGo : MainAPI() {
         // Find the best quality poster
         val poster = this.media?.firstOrNull()?.url
         
-        val type = if (this.showType == "Series") TvType.TvSeries else TvType.Movie
+        val type = if (this.contentType == "Series") TvType.TvSeries else TvType.Movie
 
         if (type == TvType.TvSeries) {
              return newTvSeriesSearchResponse(title, id, type) {
@@ -190,12 +190,13 @@ class AstroGo : MainAPI() {
         if (response == null) throw ErrorLoadingException("Failed to load details")
 
         val title = response.title ?: "No Title"
-        val plot = response.plot ?: ""
+        val plot = response.synopsis ?: ""
         val poster = response.media?.firstOrNull()?.url
         val backdrop = response.media?.firstOrNull { it.width == 1920 }?.url ?: poster
         
-        // Determine type based on showType
-        val type = if (response.showType == "Series" || response.contentType == "Series") TvType.TvSeries else TvType.Movie
+        // Determine type based on contentType
+        // Astro contentType: "Movie", "Program", "Episode", "Series"
+        val type = if (response.contentType == "Series" || response.contentType == "Program") TvType.TvSeries else TvType.Movie
         
         // Use the ID from response if it looks like a PACK ID (preferred for episodes), otherwise cleanId
         // This handles cases where we loaded details via UUID but need PACK ID for episodes.
