@@ -97,15 +97,15 @@ class AstroGo : MainAPI() {
     }
 
     private fun AstroContent.toSearchResponse(): SearchResponse? {
-        val id = this.id ?: return null
+        // Prefer externalId (UUID) if available, as contentInstances endpoint likes it better.
+        // Fallback to id (PACK ID)
+        val id = this.externalId ?: this.id ?: return null
         val title = this.title ?: return null
         // Find the best quality poster
         val poster = this.media?.firstOrNull()?.url
 
         return newMovieSearchResponse(title, id, TvType.Movie) {
             this.posterUrl = poster
-            // Plot is often not available or settable in search response builder in some versions,
-            // or requires specific casting. Omitting for now to fix build.
         }
     }
 
@@ -140,18 +140,24 @@ class AstroGo : MainAPI() {
             "Accept" to "application/json"
         )
         
-        // Try contentInstances first (standard for Movies/Episodes)
-        // Browser trace shows this uses Bearer token ONLY, no clientToken query param
+        // Try contentInstances first (standard for Movies/Episodes with UUID)
         var detailUrl = "$apiUrl/contentInstances/$cleanId"
         
         var response = try {
             app.get(detailUrl, headers = headers).parsedSafe<AstroContent>()
         } catch (e: Exception) { null }
 
-        // If that failed or returned empty, try content/show (standard for TV Series)
+        // If that failed or returned empty title, try content/show (standard for TV Series PACK ID)
         if (response == null || response.title == null) {
              detailUrl = "$apiUrl/content/show/$cleanId"
-             response = app.get(detailUrl, headers = headers).parsedSafe<AstroContent>()
+             response = try { app.get(detailUrl, headers = headers).parsedSafe<AstroContent>() } catch(e: Exception) { null }
+        }
+        
+        // Fallback 2: shared/content (for Movies/Content where we only have PACK ID)
+        if (response == null || response.title == null) {
+             val sharedUrl = "$apiUrl/shared/content?showId=$cleanId&source=vod&limit=1&clientToken=$encodedToken"
+             val sharedResp = try { app.get(sharedUrl, headers = headers).parsedSafe<AstroResponse>() } catch(e: Exception) { null }
+             response = sharedResp?.content?.firstOrNull()
         }
 
         if (response == null) throw ErrorLoadingException("Failed to load details")
