@@ -211,12 +211,20 @@ class AstroGo : MainAPI() {
 
         // Parse Actors
         val actorsList = ArrayList<ActorData>()
-        /*response.credits?.actors?.forEach { 
-             actorsList.add(ActorData(Actor(it.trim(), image = null), role = ActorRole.Main)) 
-        }
-        response.credits?.directors?.forEach { 
-             actorsList.add(ActorData(Actor(it.trim(), image = null), role = ActorRole.Main)) 
-        }*/
+        try {
+            if (response.credits is Map<*, *>) {
+                val actors = response.credits["actors"] as? List<*>
+                actors?.forEach { 
+                    if (it is String) actorsList.add(ActorData(Actor(it.trim(), image = null), roleString = "Actor"))
+                }
+                
+                val directors = response.credits["directors"] as? List<*>
+                directors?.forEach { 
+                    if (it is String) actorsList.add(ActorData(Actor(it.trim(), image = null), roleString = "Director"))
+                }
+            }
+        } catch (e: Exception) { }
+
         if (actorsList.isEmpty()) {
             response.cast?.forEach { member ->
                 val name = member.name ?: return@forEach
@@ -390,14 +398,9 @@ class AstroGo : MainAPI() {
         @JsonProperty("episodeNumber") val episodeNumber: Int? = null,
         @JsonProperty("seasonNumber") val seasonNumber: Int? = null,
         @JsonProperty("showId") val showId: String? = null,
-        @JsonProperty("seasonId") val seasonId: String? = null
-        //@JsonProperty("credits") val credits: AstroCredits? = null
+        @JsonProperty("seasonId") val seasonId: String? = null,
+        @JsonProperty("credits") val credits: Any? = null
     )
-    
-    /*data class AstroCredits(
-        @JsonProperty("actors") val actors: List<String>? = null,
-        @JsonProperty("directors") val directors: List<String>? = null
-    )*/
     
     data class AstroCast(
         @JsonProperty("name") val name: String? = null,
