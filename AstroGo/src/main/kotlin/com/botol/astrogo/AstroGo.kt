@@ -201,7 +201,7 @@ class AstroGo : MainAPI() {
             } else {
                 // No seasons found, might be a flat list of episodes (like Running Man) or just episodes directly
                 // Use the ID from the response, as it might be the canonical Show ID (e.g. PACK...) needed for episodes
-                val showId = response.id ?: cleanId
+                val showId = response.packId ?: response.externalId ?: response.id ?: cleanId
                 
                  val flatEpisodesUrl = "$apiUrl/shared/content?showId=$showId&source=vod&limit=255&offset=0&sort=episodeNumber&isCollapsed=false&clientToken=$encodedToken"
                  val flatResp = try {
@@ -296,6 +296,8 @@ class AstroGo : MainAPI() {
 
     data class AstroContent(
         @JsonProperty("id") val id: String? = null,
+        @JsonProperty("packId") val packId: String? = null,
+        @JsonProperty("externalId") val externalId: String? = null,
         @JsonProperty("title") val title: String? = null,
         @JsonProperty("synopsis") val synopsis: String? = null,
         @JsonProperty("media") val media: List<AstroMedia>? = null,
