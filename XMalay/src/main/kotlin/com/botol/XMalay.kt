@@ -15,7 +15,8 @@ class XMalay : MainAPI() {
     override val mainPage = mainPageOf(
         "" to "Latest Updates",
         "?sort=popular" to "Popular Videos",
-        "?sort=oldest" to "Oldest Videos"
+        "?sort=oldest" to "Oldest Videos",
+        "?filter=premium" to "VIP"
     )
 
     override suspend fun getMainPage(
