@@ -27,8 +27,31 @@ class AstroGo : MainAPI() {
             // 1. Scrape Client Token if missing
             if (clientToken.isEmpty()) {
                 val mainPageResp = app.get("https://astrogo.astro.com.my").text
-                val pattern = "v:1!r:[^\"']+".toRegex()
-                val match = pattern.find(mainPageResp)
+                var pattern = "v:1!r:[^\"']+".toRegex()
+                var match = pattern.find(mainPageResp)
+                
+                if (match == null) {
+                    // Try to find appLoader.js
+                    val loaderPattern = "src=\"([^\"]*appLoader\\.js[^\"]*)\"".toRegex()
+                    val loaderMatch = loaderPattern.find(mainPageResp)
+                    if (loaderMatch != null) {
+                        var loaderUrl = loaderMatch.groupValues[1]
+                        if (!loaderUrl.startsWith("http")) {
+                            loaderUrl = "https://astrogo.astro.com.my/$loaderUrl"
+                        }
+                        val loaderResp = app.get(loaderUrl).text
+                        match = pattern.find(loaderResp)
+                        // Also try clientToken key
+                        if (match == null) {
+                             val tokenPattern = "clientToken\\s*[:=]\\s*[\"']([^\"']+)[\"']".toRegex()
+                             val tokenMatch = tokenPattern.find(loaderResp)
+                             if (tokenMatch != null) {
+                                  clientToken = tokenMatch.groupValues[1]
+                             }
+                        }
+                    }
+                }
+                
                 if (match != null) {
                     clientToken = match.value
                 }
@@ -78,13 +101,12 @@ class AstroGo : MainAPI() {
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
-        // Refresh token if needed (simple check: always try once per session or just lazy)
-        // For now, let's try refreshing if the hardcoded one looks old or just always?
-        // Always refreshing might slow down. Let's try it.
-        // Actually, better to only refresh if API fails?
-        // But mainPage is the entry point.
         refreshAccessToken()
         
+        if (clientToken.isEmpty()) {
+            System.out.println("No clientToken found")
+        }
+
         val offset = (page - 1) * 20
         
         val dataParts = request.data.split(",")
@@ -103,8 +125,14 @@ class AstroGo : MainAPI() {
              url = "$apiUrl/shared/content?categoryId=$encodedPath&clientToken=$encodedToken&offset=$offset&limit=20&sort=$sort"
         } else {
              // Fallback for standard swimlanes
-             val endpoint = "shared/bulkContent/$encodedPath"
-             url = "$apiUrl/$endpoint?clientToken=$encodedToken"
+             // Check if it's "Movies" or "TV Shows" without sort ( shouldn't happen with current mainPage definitions)
+             // But if so, try adding sort=-date 
+             if (dataPath.contains("Movies") || dataPath.contains("TVShow")) {
+                 url = "$apiUrl/shared/content?categoryId=$encodedPath&clientToken=$encodedToken&offset=$offset&limit=20&sort=-date"
+             } else {
+                 val endpoint = "shared/bulkContent/$encodedPath"
+                 url = "$apiUrl/$endpoint?clientToken=$encodedToken"
+             }
         }
         
         val headers = mapOf(
@@ -135,8 +163,6 @@ class AstroGo : MainAPI() {
             if (response?.content != null) {
                  val contents = response.content.mapNotNull { it.toSearchResponse() }
                  if (contents.isNotEmpty()) {
-                     // If we already have categories, this might be a "Featured" section or similar.
-                     // If it's the ONLY thing (like in Movies tab potentially), use the request name.
                      var title = if (items.isEmpty()) request.name else "Featured"
                      if (addedTitles.contains(title)) title = "$title List"
                      
