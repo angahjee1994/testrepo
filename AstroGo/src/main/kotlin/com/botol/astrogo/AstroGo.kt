@@ -14,7 +14,7 @@ class AstroGo : MainAPI() {
 
     // Temp hardcoded token for testing (Captured from browser)
     private val clientToken = "v:1!r:80400!ur:NORTHERN!community:Malaysia Live!t:k!dt:PC!f:Astro_unmanaged!pd:CHROME-FF!pt:Adults"
-    private val bearerToken = "eyJraWQiOiIyOGI4YTM0OC0wNWUxLTQxMWMtYWY4Ny03YWZhNjg5NTA5NzQiLCJqa3UiOiJodHRwczovL3NnLXNnLXNnLmFzdHJvLmNvbS5teTo5NDQzL29hdXRoMi9qd2tzP2tpZD0yOGI4YTM0OC0wNWUxLTQxMWMtYWY4Ny03YWZhNjg5NTA5NzQiLCJhbGciOiJSUzI1NiJ9.eyJpYXQiOjE3NjkyMTE5MzksInN1YiI6Ijg2MjIwMzM4IiwiYXVkIjoiaXZwLnNlc3Npb25ndWFyZCIsImV4cCI6MTc2OTIyMjczOSwic2Vzc2lvbl9kYXRhIjp7InNlc3Npb24iOnsiZGV2SWQiOiI4NjIyMDMzOC4wODEyZDdiNy1mYjJkLTQ3NDYtYWI2Yy1kZTlkMTcyNzdkOGQiLCJndWVzdE1vZGUiOmZhbHNlLCJoaElkIjoiODYyMjAzMzgiLCJidXNVbml0SWQiOiJBU1RSTyJ9fSwiZGV2aWNlRnVsbFR5cGUiOiJCcm93c2VyLURlZmF1bHQiLCJzY29wZSI6ImJyb3dzZSBwbGF5YmFjayIsInRva2VuX3R5cGUiOiJhY2Nlc3NfdG9rZW4iLCJzc2FfanRpIjoiYnJvd3NlciIsImNsaWVudF9pZCI6ImJyb3dzZXIiLCJqdGkiOiIzYTA4N2VlNC02ZTUyLTRhYzAtYjY1Mi1jYjc5NTJhZDQ0NWIifQ.hBaFxA-rSm56RZYunE-BUEVHxNrf09019OIIQ2BrkJePcqKmXwmQr5ZlJFCOzyOS_BJr_qbluC4tPbHC2naQi-77PahnR1p9s-UTiA92vn5_VMFKjHrZwAEQ6KAo1rqZCyirJ36m1se6GvOEgkdUISSM4znrA3LF91awcICsudbD9Ut_kds3xPErAh8eowmHIFgXDC9l6tdCvttPEa61wwNtvEJDDNJXLFPyMIiiiv9ZeZYeQ86IQcY1GhBBbwJIJapnK6uYMn8Wv7VUoPC8j6ywzs_0R9hhhRfpDOzT5VEe03Uz6WP-g2W9Yq8LAopn4MELyI2t1-LlCwFeeHZ0vg"
+    private val bearerToken = "eyJraWQiOiI0OGNiOWNjNy03YmVlLTRkNGMtYTU0OS02YzVlYmI2NGQ4YmIiLCJqa3UiOiJodHRwczovL3NnLXNnLXNnLmFzdHJvLmNvbS5teTo5NDQzL29hdXRoMi9qd2tzP2tpZD00OGNiOWNjNy03YmVlLTRkNGMtYTU0OS02YzVlYmI2NGQ4YmIiLCJhbGciOiJSUzI1NiJ9.eyJpYXQiOjE3NjkzMzA4MzMsInN1YiI6Ijg2MjIwMzM4IiwiYXVkIjoiaXZwLnNlc3Npb25ndWFyZCIsImV4cCI6MTc2OTM0MTYzMywic2Vzc2lvbl9kYXRhIjp7InNlc3Npb24iOnsiZGV2SWQiOiI4NjIyMDMzOC4wODEyZDdiNy1mYjJkLTQ3NDYtYWI2Yy1kZTlkMTcyNzdkOGQiLCJndWVzdE1vZGUiOmZhbHNlLCJoaElkIjoiODYyMjAzMzgiLCJidXNVbml0SWQiOiJBU1RSTyJ9fSwiZGV2aWNlRnVsbFR5cGUiOiJCcm93c2VyLURlZmF1bHQiLCJzY29wZSI6ImJyb3dzZSBwbGF5YmFjayIsInRva2VuX3R5cGUiOiJhY2Nlc3NfdG9rZW4iLCJzc2FfanRpIjoiYnJvd3NlciIsImNsaWVudF9pZCI6ImJyb3dzZXIiLCJqdGkiOiJiNGY4OTUxYi1jNWRlLTQ0ZjgtODJmZi0zZTUzNjcxMjM3NzUifQ.hD15EWJN7L9X6MtlOX-vOreS4cj_SuphcnEGje5cPO7QtkxPoY-PBGjsLkCYdWtJaV6sD3F70q_4VDYygnZ3u4CFp5dQXdjyIUPILdW0_r9kjIEz6uerpRewu_5m62o6-XZKGtmKCJQmkDtE7bjd5RhsFXUfhAi69II372sj_XRU2uP4a-JHl_lpzLMF6VdOs1bzw6l8mQyDsPvCAPHIlP30i50P-kxGe1shu-tGWhTeIHvOwMOoi99KCdL0Bc8-_y2MWlgVrhptoubJGRwLT2kK_3LfodLi60JPtzPe55rthg-QqGTB7mLoPjvcTPle2aOFPF7RryuNVpmT2F31TA"
 
     override val mainPage = mainPageOf(
         "node:IVP:Home:VodForYou" to "Home",
@@ -139,7 +139,7 @@ class AstroGo : MainAPI() {
         )
         
         // Try contentInstances first (standard for Movies/Episodes)
-        var detailUrl = "$apiUrl/contentInstances/$url?clientToken=$encodedToken"
+        var detailUrl = "$apiUrl/contentInstances/$cleanId?clientToken=$encodedToken"
         
         var response = try {
             app.get(detailUrl, headers = headers).parsedSafe<AstroContent>()
@@ -147,7 +147,7 @@ class AstroGo : MainAPI() {
 
         // If that failed or returned empty, try content/show (standard for TV Series)
         if (response == null || response.title == null) {
-             detailUrl = "$apiUrl/content/show/$url?clientToken=$encodedToken"
+             detailUrl = "$apiUrl/content/show/$cleanId?clientToken=$encodedToken"
              response = app.get(detailUrl, headers = headers).parsedSafe<AstroContent>()
         }
 
@@ -168,7 +168,7 @@ class AstroGo : MainAPI() {
             val encodedToken = java.net.URLEncoder.encode(clientToken, "UTF-8")
             
             // 1. Try to fetch Seasons first
-            val seasonsUrl = "$apiUrl/shared/content?showId=$url&sort=seasonNumber&limit=255&offset=0&clientToken=$encodedToken"
+            val seasonsUrl = "$apiUrl/shared/content?showId=$cleanId&sort=seasonNumber&limit=255&offset=0&clientToken=$encodedToken"
             var seasonResponse = try {
                  app.get(seasonsUrl, headers = headers).parsedSafe<AstroResponse>()
             } catch (e: Exception) { null }
@@ -194,7 +194,7 @@ class AstroGo : MainAPI() {
                 }
             } else {
                 // No seasons found, might be a flat list of episodes (like Running Man) or just episodes directly
-                 val flatEpisodesUrl = "$apiUrl/shared/content?showId=$url&source=vod&limit=255&offset=0&sort=episodeNumber&isCollapsed=false&clientToken=$encodedToken"
+                 val flatEpisodesUrl = "$apiUrl/shared/content?showId=$cleanId&source=vod&limit=255&offset=0&sort=episodeNumber&isCollapsed=false&clientToken=$encodedToken"
                  val flatResp = try {
                          app.get(flatEpisodesUrl, headers = headers).parsedSafe<AstroResponse>()
                     } catch (e: Exception) { null }
@@ -204,7 +204,7 @@ class AstroGo : MainAPI() {
                  }
             }
             
-            return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
+            return newTvSeriesLoadResponse(title, cleanId, TvType.TvSeries, episodes) {
                 this.posterUrl = poster
                 this.plot = plot
                 this.year = year
