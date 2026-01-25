@@ -200,7 +200,10 @@ class AstroGo : MainAPI() {
                 }
             } else {
                 // No seasons found, might be a flat list of episodes (like Running Man) or just episodes directly
-                 val flatEpisodesUrl = "$apiUrl/shared/content?showId=$cleanId&source=vod&limit=255&offset=0&sort=episodeNumber&isCollapsed=false&clientToken=$encodedToken"
+                // Use the ID from the response, as it might be the canonical Show ID (e.g. PACK...) needed for episodes
+                val showId = response.id ?: cleanId
+                
+                 val flatEpisodesUrl = "$apiUrl/shared/content?showId=$showId&source=vod&limit=255&offset=0&sort=episodeNumber&isCollapsed=false&clientToken=$encodedToken"
                  val flatResp = try {
                          app.get(flatEpisodesUrl, headers = headers).parsedSafe<AstroResponse>()
                     } catch (e: Exception) { null }
@@ -211,7 +214,7 @@ class AstroGo : MainAPI() {
                      }
                  } else {
                      // Fallback: Try content/children (standard for some series like Pak Su Ammara)
-                     val childrenUrl = "$apiUrl/content/$cleanId/children?clientToken=$encodedToken&limit=100&offset=0"
+                     val childrenUrl = "$apiUrl/content/$showId/children?clientToken=$encodedToken&limit=100&offset=0"
                      try {
                          // Parse as a wrapper first (if it has 'content' field)
                          val asRepo = app.get(childrenUrl, headers = headers).parsedSafe<AstroResponse>()
@@ -238,7 +241,10 @@ class AstroGo : MainAPI() {
                 this.plot = plot
                 this.year = year
                 this.tags = tags
-                // this.actors = ... (commented out to fix build)
+                this.actors = response.cast?.mapNotNull { member ->
+                    val name = member.name ?: return@mapNotNull null
+                    ActorData(name, role = member.role)
+                } ?: response.actors?.map { ActorData(it) }
             }
         } else {
             return newMovieLoadResponse(title, cleanId, TvType.Movie, cleanId) {
@@ -247,7 +253,10 @@ class AstroGo : MainAPI() {
                 this.plot = plot
                 this.year = year
                 this.tags = tags
-                // this.actors = ...
+                this.actors = response.cast?.mapNotNull { member ->
+                    val name = member.name ?: return@mapNotNull null
+                    ActorData(name, role = member.role)
+                } ?: response.actors?.map { ActorData(it) }
             }
         }
     }
