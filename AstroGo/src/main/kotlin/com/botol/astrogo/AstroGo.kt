@@ -156,7 +156,7 @@ class AstroGo : MainAPI() {
         
         // Try contentInstances first (standard for Movies/Episodes)
         // Movies often require the full ID (with ~...)
-        var detailUrl = "$apiUrl/contentInstances/$rawId?clientToken=$encodedToken"
+        var detailUrl = "$apiUrl/contentInstances/$rawId"
         
         var response: AstroContent? = null
         try {
@@ -187,7 +187,7 @@ class AstroGo : MainAPI() {
 
         // If that failed or returned empty, try content/show (standard for TV Series)
         if (response == null || response.title == null) {
-             detailUrl = "$apiUrl/content/show/$cleanId?clientToken=$encodedToken"
+             detailUrl = "$apiUrl/content/show/$cleanId"
              response = try {
                  app.get(detailUrl, headers = headers).parsedSafe<AstroContent>()
              } catch (e: Exception) { null }
