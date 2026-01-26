@@ -258,7 +258,9 @@ class AstroGo : MainAPI() {
               ?: candidates.firstOrNull() 
               ?: return null
         val title = this.title ?: return null
-        val poster = this.media?.firstOrNull()?.url
+        val poster = this.media?.find { it.url?.contains("PORT_750x1126") == true }?.url 
+             ?: this.media?.find { it.url?.contains("PORT") == true }?.url 
+             ?: this.media?.firstOrNull()?.url
         
         val encodedTitle = java.net.URLEncoder.encode(title, "UTF-8")
         val encodedPoster = if (poster != null) java.net.URLEncoder.encode(poster, "UTF-8") else ""
@@ -374,7 +376,9 @@ class AstroGo : MainAPI() {
 
         val title = response.title ?: response.name ?: titleParam ?: "No Title"
         val plot = response.synopsis ?: plotParam
-        val poster = response.media?.firstOrNull()?.url ?: posterParam
+        val poster = response.media?.find { it.url?.contains("PORT_750x1126") == true }?.url 
+             ?: response.media?.find { it.url?.contains("PORT") == true }?.url 
+             ?: posterParam
         val year = response.releaseDate?.substringBefore("-")?.toIntOrNull()
 
         var durationMin: Int? = null
@@ -472,7 +476,8 @@ class AstroGo : MainAPI() {
             
             return newTvSeriesLoadResponse(title, rawId, TvType.TvSeries, episodes) {
                 this.posterUrl = poster
-                this.backgroundPosterUrl = response.media?.find { it.url?.contains("LAND") == true || it.url?.contains("backdrop") == true }?.url
+                this.backgroundPosterUrl = response.media?.find { it.url?.contains("LAND_917x516") == true }?.url 
+                                           ?: response.media?.find { it.url?.contains("LAND") == true || it.url?.contains("backdrop") == true }?.url
                 this.plot = plot
                 this.year = year
                 this.tags = tags
@@ -482,7 +487,8 @@ class AstroGo : MainAPI() {
         } else {
             return newMovieLoadResponse(title, rawId, TvType.Movie, response.id ?: rawId) {
                 this.posterUrl = poster
-                this.backgroundPosterUrl = response.media?.find { it.url?.contains("LAND") == true || it.url?.contains("backdrop") == true }?.url
+                this.backgroundPosterUrl = response.media?.find { it.url?.contains("LAND_917x516") == true }?.url 
+                                           ?: response.media?.find { it.url?.contains("LAND") == true || it.url?.contains("backdrop") == true }?.url
                 this.plot = plot
                 this.year = year
                 this.tags = tags
