@@ -13,8 +13,7 @@ class AstroGo : MainAPI() {
     override val supportedTypes = setOf(TvType.Live, TvType.Movie, TvType.TvSeries)
 
     // configuration
-    // Default client token found via browser inspection (Guest User)
-    private var clientToken = "v:1!r:80800!ur:GUEST_REGION!community:Malaysia Live!t:k!dt:PC!f:Astro_unmanaged!pd:CHROME-FF!pt:Adults"
+    private var clientToken = ""
     private var bearerToken = ""
 
     override val mainPage = mainPageOf(
@@ -25,6 +24,16 @@ class AstroGo : MainAPI() {
 
     private suspend fun refreshAccessToken() {
         try {
+            // 1. Scrape Client Token if missing
+            if (clientToken.isEmpty()) {
+                val mainPageResp = app.get("https://astrogo.astro.com.my").text
+                val pattern = "v:1!r:[^\"']+".toRegex()
+                val match = pattern.find(mainPageResp)
+                if (match != null) {
+                    clientToken = match.value
+                }
+            }
+
             // 2. Initiate OAuth2 Guest Flow directly (bypassing JS logic on main page)
             // URL discovered via browser analysis
             val authUrl = "https://sg-sg-sg.astro.com.my:9443/oauth2/authorize?client_id=browser&state=guestUserLogin&redirect_uri=https://astrogo.astro.com.my&response_type=token&prompt=none&scope=urn:synamedia:vcs:ovp:guest-user"
@@ -69,6 +78,11 @@ class AstroGo : MainAPI() {
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
+        // Refresh token if needed (simple check: always try once per session or just lazy)
+        // For now, let's try refreshing if the hardcoded one looks old or just always?
+        // Always refreshing might slow down. Let's try it.
+        // Actually, better to only refresh if API fails?
+        // But mainPage is the entry point.
         refreshAccessToken()
         
         val offset = (page - 1) * 20
@@ -77,7 +91,7 @@ class AstroGo : MainAPI() {
         val dataPath = dataParts[0]
         val sort = dataParts.getOrNull(1)
 
-        val encodedToken = java.net.URLEncoder.encode(clientToken, "UTF-8").replace("+", "%20")
+        val encodedToken = java.net.URLEncoder.encode(clientToken, "UTF-8")
         val encodedPath = java.net.URLEncoder.encode(dataPath, "UTF-8")
         val url: String
         
@@ -89,14 +103,8 @@ class AstroGo : MainAPI() {
              url = "$apiUrl/shared/content?categoryId=$encodedPath&clientToken=$encodedToken&offset=$offset&limit=20&sort=$sort"
         } else {
              // Fallback for standard swimlanes
-             // Check if it's "Movies" or "TV Shows" without sort ( shouldn't happen with current mainPage definitions)
-             // But if so, try adding sort=-date 
-             if (dataPath.contains("Movies") || dataPath.contains("TVShow")) {
-                 url = "$apiUrl/shared/content?categoryId=$encodedPath&clientToken=$encodedToken&offset=$offset&limit=20&sort=-date"
-             } else {
-                 val endpoint = "shared/bulkContent/$encodedPath"
-                 url = "$apiUrl/$endpoint?clientToken=$encodedToken"
-             }
+             val endpoint = "shared/bulkContent/$encodedPath"
+             url = "$apiUrl/$endpoint?clientToken=$encodedToken"
         }
         
         val headers = mapOf(
@@ -127,6 +135,8 @@ class AstroGo : MainAPI() {
             if (response?.content != null) {
                  val contents = response.content.mapNotNull { it.toSearchResponse() }
                  if (contents.isNotEmpty()) {
+                     // If we already have categories, this might be a "Featured" section or similar.
+                     // If it's the ONLY thing (like in Movies tab potentially), use the request name.
                      var title = if (items.isEmpty()) request.name else "Featured"
                      if (addedTitles.contains(title)) title = "$title List"
                      
