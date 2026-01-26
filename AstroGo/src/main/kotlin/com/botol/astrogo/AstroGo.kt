@@ -25,13 +25,14 @@ class AstroGo : MainAPI() {
     )
 
     private suspend fun refreshAccessToken() {
+        // Ensure clientToken is always populated
+        if (clientToken.isEmpty()) {
+            clientToken = generateClientToken()
+        }
+
         if (bearerToken.isNotEmpty()) return // Simple cache
         
         try {
-            if (clientToken.isEmpty()) {
-                clientToken = generateClientToken()
-            }
-
             // URL discovered via user feedback (port 9443 removed)
             val authUrl = "https://sg-sg-sg.astro.com.my/oauth2/authorize?client_id=browser&state=guestUserLogin&redirect_uri=https://astrogo.astro.com.my&response_type=token&prompt=none&scope=urn:synamedia:vcs:ovp:guest-user"
             
