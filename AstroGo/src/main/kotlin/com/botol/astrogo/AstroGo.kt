@@ -172,7 +172,8 @@ class AstroGo : MainAPI() {
         }
         refreshAccessToken()
         
-        val offset = (page - 1) * 20
+        val limit = 40
+        val offset = (page - 1) * limit
         
         val dataParts = request.data.split(",")
         val dataPath = dataParts[0]
@@ -197,7 +198,7 @@ class AstroGo : MainAPI() {
         if (dataPath.contains("Home") || sort != null || dataPath.contains("TVShow")) {
              // Use shared/content for Home and sorted lists/TVShows
              // Ensure defaults for offset/limit if not present (though offset is calc above)
-             url = "$apiUrl/shared/content?categoryId=$encodedPath&clientToken=$encodedToken&offset=$offset&limit=40&sort=${sort ?: "-date"}&$extraParams"
+             url = "$apiUrl/shared/content?categoryId=$encodedPath&clientToken=$encodedToken&offset=$offset&limit=$limit&sort=${sort ?: "-date"}&$extraParams"
         } else {
              // Fallback for others that might need bulkContent (though maybe deprecated for these main categories)
              val endpoint = "shared/bulkContent/$encodedPath"
