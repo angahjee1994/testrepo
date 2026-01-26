@@ -13,7 +13,8 @@ class AstroGo : MainAPI() {
     override val supportedTypes = setOf(TvType.Live, TvType.Movie, TvType.TvSeries)
 
     // configuration
-    private var clientToken = ""
+    // Default client token found via browser inspection (Guest User)
+    private var clientToken = "v:1!r:80800!ur:GUEST_REGION!community:Malaysia Live!t:k!dt:PC!f:Astro_unmanaged!pd:CHROME-FF!pt:Adults"
     private var bearerToken = ""
 
     override val mainPage = mainPageOf(
@@ -24,39 +25,6 @@ class AstroGo : MainAPI() {
 
     private suspend fun refreshAccessToken() {
         try {
-            // 1. Scrape Client Token if missing
-            if (clientToken.isEmpty()) {
-                val mainPageResp = app.get("https://astrogo.astro.com.my").text
-                var pattern = "v:1!r:[^\"']+".toRegex()
-                var match = pattern.find(mainPageResp)
-                
-                if (match == null) {
-                    // Try to find appLoader.js
-                    val loaderPattern = "src=\"([^\"]*appLoader\\.js[^\"]*)\"".toRegex()
-                    val loaderMatch = loaderPattern.find(mainPageResp)
-                    if (loaderMatch != null) {
-                        var loaderUrl = loaderMatch.groupValues[1]
-                        if (!loaderUrl.startsWith("http")) {
-                            loaderUrl = "https://astrogo.astro.com.my/$loaderUrl"
-                        }
-                        val loaderResp = app.get(loaderUrl).text
-                        match = pattern.find(loaderResp)
-                        // Also try clientToken key
-                        if (match == null) {
-                             val tokenPattern = "clientToken\\s*[:=]\\s*[\"']([^\"']+)[\"']".toRegex()
-                             val tokenMatch = tokenPattern.find(loaderResp)
-                             if (tokenMatch != null) {
-                                  clientToken = tokenMatch.groupValues[1]
-                             }
-                        }
-                    }
-                }
-                
-                if (match != null) {
-                    clientToken = match.value
-                }
-            }
-
             // 2. Initiate OAuth2 Guest Flow directly (bypassing JS logic on main page)
             // URL discovered via browser analysis
             val authUrl = "https://sg-sg-sg.astro.com.my:9443/oauth2/authorize?client_id=browser&state=guestUserLogin&redirect_uri=https://astrogo.astro.com.my&response_type=token&prompt=none&scope=urn:synamedia:vcs:ovp:guest-user"
@@ -103,17 +71,13 @@ class AstroGo : MainAPI() {
     ): HomePageResponse {
         refreshAccessToken()
         
-        if (clientToken.isEmpty()) {
-            System.out.println("No clientToken found")
-        }
-
         val offset = (page - 1) * 20
         
         val dataParts = request.data.split(",")
         val dataPath = dataParts[0]
         val sort = dataParts.getOrNull(1)
 
-        val encodedToken = java.net.URLEncoder.encode(clientToken, "UTF-8")
+        val encodedToken = java.net.URLEncoder.encode(clientToken, "UTF-8").replace("+", "%20")
         val encodedPath = java.net.URLEncoder.encode(dataPath, "UTF-8")
         val url: String
         
