@@ -432,8 +432,8 @@ class AstroGo : MainAPI() {
 
     private fun generateClientToken(): String {
         val version = "1"
-        val regionId = "80800"
-        val userRegion = "GUEST_REGION"
+        val regionId = "80200"
+        val userRegion = "SARAWAK"
         val community = "Malaysia%20Live"
         val type = "k"
         val deviceType = "PC"
