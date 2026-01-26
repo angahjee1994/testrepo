@@ -24,25 +24,9 @@ class AstroGo : MainAPI() {
 
     private suspend fun refreshAccessToken() {
         try {
-            // 1. Scrape Client Token if missing
+            // 1. Client Token (Hardcoded from browser inspection as scraping is unreliable)
             if (clientToken.isEmpty()) {
-                val mainPageResp = app.get("https://astrogo.astro.com.my").text
-                val pattern = "v:1!r:[^\"']+".toRegex()
-                var match = pattern.find(mainPageResp)
-                
-                if (match == null) {
-                    try {
-                        // Fallback to main.js
-                        val jsResp = app.get("https://astrogo.astro.com.my/build/main.js").text
-                        match = pattern.find(jsResp)
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
-                }
-                
-                if (match != null) {
-                    clientToken = match.value
-                }
+                clientToken = "v:1!r:80800!ur:GUEST_REGION!community:Malaysia%20Live!t:k!dt:PC!f:Astro_unmanaged!pd:CHROME-FF!pt:Adults"
             }
 
             // 2. Initiate OAuth2 Guest Flow directly (bypassing JS logic on main page)
