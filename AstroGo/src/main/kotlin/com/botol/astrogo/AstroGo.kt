@@ -3,7 +3,14 @@ package com.botol.astrogo
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.fasterxml.jackson.annotation.JsonProperty
+
 import java.util.UUID
+import okhttp3.Interceptor
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.ResponseBody.Companion.toResponseBody
+import android.util.Base64
+import okio.Buffer
 
 class AstroGo : MainAPI() {
     override var mainUrl = "https://astrogo.astro.com.my"
@@ -23,6 +30,67 @@ class AstroGo : MainAPI() {
         "node:IVP:TVShow,-date" to "TV Shows",
         "node:IVP:Movies,-date" to "Movies"
     )
+
+    override fun getVideoInterceptor(extractorLink: ExtractorLink): Interceptor {
+        return Interceptor { chain ->
+            val request = chain.request()
+            val url = request.url.toString()
+            
+            if (url.contains("vgemultidrm/v1/widevine/license")) {
+                // Get stored headers from extractorLink
+                val contentId = extractorLink.headers["X-Astro-Content-ID"] ?: ""
+                val authKey = extractorLink.headers["X-Astro-Auth"] ?: ""
+                
+                // Read original binary body (the raw challenge)
+                val originalBodyBytes = request.body?.let { body ->
+                    val buffer = Buffer()
+                    body.writeTo(buffer)
+                    buffer.readByteArray()
+                } ?: ByteArray(0)
+                
+                val challengeBase64 = Base64.encodeToString(originalBodyBytes, Base64.NO_WRAP)
+                
+                // Construct JSON body
+                val req = mapOf(
+                    "contentID" to contentId,
+                    "contentType" to 1,
+                    "authorizationToken" to authKey,
+                    "authorizationTokenType" to "1",
+                    "licenseChallenge" to challengeBase64,
+                    "playbackSessionCookie" to null
+                )
+                
+                val jsonBody = mapper.writeValueAsString(req)
+                
+                val newRequest = request.newBuilder()
+                    .post(jsonBody.toRequestBody("application/json".toMediaTypeOrNull()))
+                    .build()
+                
+                val response = chain.proceed(newRequest)
+                
+                if (response.isSuccessful) {
+                    val responseBody = response.body?.string() ?: ""
+                    // Parse response
+                    try {
+                        val json = mapper.readTree(responseBody)
+                        val license = json.get("license")?.asText() ?: json.get("licenseResponse")?.asText()
+                        
+                        if (!license.isNullOrEmpty()) {
+                            val licenseBytes = Base64.decode(license, Base64.DEFAULT)
+                            return@Interceptor response.newBuilder()
+                                .body(licenseBytes.toResponseBody("application/octet-stream".toMediaTypeOrNull()))
+                                .build()
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+                return@Interceptor response
+            }
+            
+            chain.proceed(request)
+        }
+    }
 
     private suspend fun refreshAccessToken() {
         // Ensure clientToken is always populated
@@ -434,14 +502,20 @@ class AstroGo : MainAPI() {
             // Extract playUrl from the strict structure
             val streamUrl = json.get("_links")?.get("playUrl")?.get("href")?.asText()
             
-            // Support both old and new token locations just in case
+            // Extract tokens for DRM
             val drmToken = json.get("drmProperties")?.get("blob")?.asText() 
                            ?: json.get("drmToken")?.asText()
             
+            // Try to find contentID for the payload - checking multiple locations
+            val contentId = json.get("contentId")?.asText()
+                            ?: json.get("id")?.asText()
+                            ?: json.get("drmProperties")?.get("contentId")?.asText()
+                            ?: baseId // Fallback to baseId from URL if not found in JSON
 
+            System.out.println("DEBUG AstroGo DRM Data: ContentID=$contentId Token=${drmToken?.take(10)}...")
 
             if (!streamUrl.isNullOrEmpty()) {
-                if (!drmToken.isNullOrEmpty()) {
+                if (!drmToken.isNullOrEmpty() && !contentId.isNullOrEmpty()) {
                     callback.invoke(
                         newDrmExtractorLink(
                             source = "AstroGo",
@@ -451,14 +525,14 @@ class AstroGo : MainAPI() {
                             uuid = UUID.fromString("edef8ba9-79d6-4ace-a3c8-27dcd51d21ed")
                         ) {
                             this.referer = mainUrl
-                            this.licenseUrl = "https://sg-sg-sg.astro.com.my:9443/vgemultidrm/v1/widevine/license"
                             
-                            // Replicating browser headers for DRM
                             this.headers = mapOf(
                                 "Authorization" to "Bearer $bearerToken",
-                                "Content-Type" to "application/json",
                                 "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                                "Referer" to "https://astrogo.astro.com.my/"
+                                "Referer" to "https://astrogo.astro.com.my/",
+                                // Injecting ID and Token for the Interceptor to pick up
+                                "X-Astro-Content-ID" to contentId,
+                                "X-Astro-Auth" to drmToken
                             )
                         }
                     )
