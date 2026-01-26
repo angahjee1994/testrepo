@@ -412,7 +412,7 @@ class AstroGo : MainAPI() {
         val profiles = listOf("2", "100")
         
         for (profileId in profiles) {
-            val playbackUrl = "https://ums.astro.com.my/ums/v1/playback/vod/$baseId?profileId=$profileId"
+            val playbackUrl = "https://sg-sg-sg.astro.com.my:9443/ums/v1/playback/vod/$baseId?profileId=$profileId"
             System.out.println("DEBUG AstroGo LoadLinks request: $playbackUrl")
             
             val headers = mapOf(
