@@ -42,6 +42,8 @@ class AstroGo : MainAPI() {
                 val contentId = extractorLink.headers["X-Astro-Content-ID"] ?: ""
                 val authKey = extractorLink.headers["X-Astro-Auth"] ?: ""
                 
+                System.out.println("DEBUG AstroGo Interceptor Data: ContentID=$contentId AuthKey=$authKey")
+
                 // Read original binary body (the raw challenge)
                 val originalBodyBytes = request.body?.let { body ->
                     val buffer = Buffer()
@@ -62,12 +64,17 @@ class AstroGo : MainAPI() {
                 )
                 
                 val jsonBody = mapper.writeValueAsString(req)
+                System.out.println("DEBUG AstroGo Interceptor Payload: $jsonBody")
                 
                 val newRequest = request.newBuilder()
                     .post(jsonBody.toRequestBody("application/json".toMediaTypeOrNull()))
                     .build()
-                
+
                 val response = chain.proceed(newRequest)
+                if (!response.isSuccessful) {
+                     val errorBody = response.peekBody(Long.MAX_VALUE).string()
+                     System.out.println("DEBUG AstroGo Interceptor Error: Code=${response.code} Body=$errorBody")
+                }
                 
                 if (response.isSuccessful) {
                     val responseBody = response.body?.string() ?: ""
