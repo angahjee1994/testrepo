@@ -82,8 +82,25 @@ class AstroGo : MainAPI() {
                      System.out.println("DEBUG AstroGo Interceptor Error: Code=${response.code} Body=$errorBody")
                 }
                 
-                // User requested to load original response, so we pass it through without parsing.
-                // if (response.isSuccessful) { ... } logic removed.
+                if (response.isSuccessful) {
+                    val responseBody = response.body?.string() ?: ""
+                    try {
+                        // Regex parse licenseData which is an array of strings
+                        // "licenseData": [ "BASE64..." ]
+                        val licenseRegex = "\"licenseData\"\\s*:\\s*\\[\\s*\"([^\"]+)\"".toRegex()
+                        val match = licenseRegex.find(responseBody)
+                        val license = match?.groupValues?.get(1)
+                        
+                        if (!license.isNullOrEmpty()) {
+                            val licenseBytes = Base64.decode(license, Base64.DEFAULT)
+                            return@Interceptor response.newBuilder()
+                                .body(licenseBytes.toResponseBody("application/octet-stream".toMediaTypeOrNull()))
+                                .build()
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
                 return@Interceptor response
             }
             
