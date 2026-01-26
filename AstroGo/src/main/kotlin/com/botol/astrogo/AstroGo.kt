@@ -451,7 +451,7 @@ class AstroGo : MainAPI() {
                             uuid = UUID.fromString("edef8ba9-79d6-4ace-a3c8-27dcd51d21ed")
                         ) {
                             this.referer = mainUrl
-                            this.licenseUrl = "https://sg-sg-sg.astro.com.my/vgemultidrm/v1/widevine/license"
+                            this.licenseUrl = "https://sg-sg-sg.astro.com.my:9443/vgemultidrm/v1/widevine/license"
                             this.headers = mapOf(
                                 "X-VGE-DRM-Token" to drmToken,
                                 "X-VGE-DRM-Content-ID" to baseId,
