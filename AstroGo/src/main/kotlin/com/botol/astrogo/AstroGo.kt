@@ -425,9 +425,10 @@ class AstroGo : MainAPI() {
             // Explicitly set Content-Type to application/json in headers
             val jsonHeaders = headers + mapOf("Content-Type" to "application/json")
 
-            // Minimal payload based on success example
+            // Add contentType to payload
             val payload = mapOf(
                 "contentId" to baseId,
+                "contentType" to "VOD",
                 "trickModes" to mapOf("restricted" to false)
             )
             System.out.println("DEBUG AstroGo SM URL: $smUrl")
