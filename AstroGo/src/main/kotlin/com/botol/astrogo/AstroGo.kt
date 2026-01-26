@@ -251,7 +251,12 @@ class AstroGo : MainAPI() {
     }
 
     private fun AstroContent.toSearchResponse(): SearchResponse? {
-        val id = this.packId ?: this.externalId ?: this.id ?: return null
+        // Prioritize ID that looks like a UUID or Composite ID
+        val candidates = listOfNotNull(this.id, this.packId, this.externalId)
+        val id = candidates.find { it.contains("~") } 
+              ?: candidates.find { it.length > 20 && it.contains("-") } 
+              ?: candidates.firstOrNull() 
+              ?: return null
         val title = this.title ?: return null
         val poster = this.media?.firstOrNull()?.url
         
