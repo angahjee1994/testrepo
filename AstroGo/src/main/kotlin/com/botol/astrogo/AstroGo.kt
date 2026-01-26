@@ -419,8 +419,8 @@ class AstroGo : MainAPI() {
         )
 
         try {
-            // User requested strict adherence to this URL structure
-            val sessionUrl = "$apiUrl/devices/me/playsessions?instanceId=$baseId&startingPosition=0"
+            // User requested strict adherence to this exact URL with port 9443
+            val sessionUrl = "https://sg-sg-sg.astro.com.my:9443/ctap/r1.6.0/devices/me/playsessions?instanceId=$baseId&startingPosition=0"
             System.out.println("DEBUG AstroGo Request URL: $sessionUrl")
             
             // Using POST as this is a session creation endpoint
