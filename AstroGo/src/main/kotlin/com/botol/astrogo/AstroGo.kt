@@ -44,6 +44,7 @@ class AstroGo : MainAPI() {
                 )
                 
                 val response = app.get(currentUrl, headers = headers, allowRedirects = false)
+                System.out.println("DEBUG AstroGo Auth: ${response.code} ${response.url}")
                 
                 // Check if we have the token in the URL fragment (e.g. from Location header or current response URL)
                 val location = response.headers["Location"]
@@ -54,6 +55,7 @@ class AstroGo : MainAPI() {
                     val token = targetUrl.substringAfter("access_token=").substringBefore("&").substringBefore("#")
                     if (token.isNotEmpty()) {
                         bearerToken = token
+                        System.out.println("DEBUG AstroGo Auth: Got token ${token.take(10)}...")
                         break
                     }
                 }
@@ -100,6 +102,8 @@ class AstroGo : MainAPI() {
              url = "$apiUrl/$endpoint?clientToken=$encodedToken"
         }
         
+        System.out.println("DEBUG AstroGo Main Page URL: $url")
+        
         val headers = mapOf(
             "Authorization" to "Bearer $bearerToken",
             "Accept" to "application/json"
@@ -133,10 +137,12 @@ class AstroGo : MainAPI() {
                      items.add(HomePageList(title, contents))
                  }
             }
-
+            
+            System.out.println("DEBUG AstroGo Main Page Items: ${items.size}")
             return newHomePageResponse(items)
         } catch (e: Exception) {
             e.printStackTrace()
+            System.out.println("DEBUG AstroGo Main Page Error: ${e.message}")
             return newHomePageResponse(emptyList())
         }
     }
@@ -162,6 +168,8 @@ class AstroGo : MainAPI() {
         val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
         val url = "$apiUrl/agg/content?limit=40&q=$encodedQuery&source=vod&sort=relevancy&isErotic=false&isAdult=false"
         
+        System.out.println("DEBUG AstroGo Search URL: $url")
+        
         val headers = mapOf(
             "Authorization" to "Bearer $bearerToken",
             "Accept" to "application/json"
@@ -169,9 +177,12 @@ class AstroGo : MainAPI() {
 
         return try {
             val response = app.get(url, headers = headers).parsedSafe<AstroResponse>()
-            response?.content?.mapNotNull { it.toSearchResponse() } ?: emptyList()
+            val results = response?.content?.mapNotNull { it.toSearchResponse() } ?: emptyList()
+            System.out.println("DEBUG AstroGo Search Results: ${results.size}")
+            results
         } catch (e: Exception) {
             e.printStackTrace()
+            System.out.println("DEBUG AstroGo Search Error: ${e.message}")
             emptyList()
         }
     }
@@ -395,12 +406,14 @@ class AstroGo : MainAPI() {
         refreshAccessToken()
         
         val baseId = data.substringBefore("?")
+        System.out.println("DEBUG AstroGo LoadLinks: BaseId=$baseId Token=${bearerToken.take(10)}")
         
         // Define profiles to try: 2 (Web), 100 (Standard)
         val profiles = listOf("2", "100")
         
         for (profileId in profiles) {
             val playbackUrl = "https://ums.astro.com.my/ums/v1/playback/vod/$baseId?profileId=$profileId"
+            System.out.println("DEBUG AstroGo LoadLinks request: $playbackUrl")
             
             val headers = mapOf(
                 "Authorization" to "Bearer $bearerToken",
@@ -411,6 +424,7 @@ class AstroGo : MainAPI() {
             
             try {
                 val response = app.get(playbackUrl, headers = headers).text
+                System.out.println("DEBUG AstroGo Response ($profileId): $response")
                 val json = mapper.readTree(response)
                 
                 val streamUrl = json.get("streamUrl")?.asText() 
@@ -419,6 +433,8 @@ class AstroGo : MainAPI() {
                 
                 val drmToken = json.get("drmToken")?.asText() 
                                ?: json.get("drm")?.get("token")?.asText()
+                
+                System.out.println("DEBUG AstroGo Stream: $streamUrl DrmToken: ${drmToken?.take(10)}")
                                 
                 if (!streamUrl.isNullOrEmpty()) {
                     if (!drmToken.isNullOrEmpty()) {
@@ -454,6 +470,7 @@ class AstroGo : MainAPI() {
                     return true
                 }
             } catch (e: Exception) {
+                System.out.println("DEBUG AstroGo Error ($profileId): ${e.message}")
                 e.printStackTrace()
                 // If it's the last profile and failed, maybe show toast or detailed error if needed
                 if (profileId == profiles.last()) {
