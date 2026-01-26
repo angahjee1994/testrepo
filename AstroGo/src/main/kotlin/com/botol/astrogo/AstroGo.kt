@@ -419,17 +419,22 @@ class AstroGo : MainAPI() {
         )
 
         try {
-            // Revert to SM endpoint as CTAP/playsessions returns NOT_ENTITLED
+            // Revert to SM endpoint
             val smUrl = "https://sg-sg-sg.astro.com.my:9443/sm/vod/streamingSession"
+            
+            // Explicitly set Content-Type to application/json in headers
+            val jsonHeaders = headers + mapOf("Content-Type" to "application/json")
+
+            // Minimal payload based on success example
             val payload = mapOf(
                 "contentId" to baseId,
-                "playbackStartTime" to null,
-                "playbackEndTime" to null
+                "trickModes" to mapOf("restricted" to false)
             )
             System.out.println("DEBUG AstroGo SM URL: $smUrl")
+            System.out.println("DEBUG AstroGo SM Payload: $payload")
             
             // Send as JSON payload
-            val response = app.post(smUrl, headers = headers, json = payload).text
+            val response = app.post(smUrl, headers = jsonHeaders, json = payload).text
             System.out.println("DEBUG AstroGo SM Response: $response")
             
             val json = mapper.readTree(response)
