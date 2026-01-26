@@ -452,10 +452,23 @@ class AstroGo : MainAPI() {
                         ) {
                             this.referer = mainUrl
                             this.licenseUrl = "https://sg-sg-sg.astro.com.my:9443/vgemultidrm/v1/widevine/license"
+                            
+                            // Replicating browser headers for DRM
                             this.headers = mapOf(
+                                "Authorization" to "Bearer $bearerToken",
+                                "Content-Type" to "application/json",
+                                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                                "Referer" to "https://astrogo.astro.com.my/",
+                                
+                                // Some backends might still look for these in the body or specific headers,
+                                // but if the browser uses standard Auth, we should too.
+                                // We'll keep the custom ones just in case the server supports both,
+                                // or if they are actually required in addition to Auth.
+                                // However, usually standard Auth replaces 'X-VGE-DRM-Oauth-Token'.
+                                
+                                // Let's try adding the blob as X-VGE-DRM-Token as it's likely the "payload" or session ID for DRM
                                 "X-VGE-DRM-Token" to drmToken,
-                                "X-VGE-DRM-Content-ID" to baseId,
-                                "X-VGE-DRM-Oauth-Token" to bearerToken
+                                "X-VGE-DRM-Content-ID" to baseId
                             )
                         }
                     )
