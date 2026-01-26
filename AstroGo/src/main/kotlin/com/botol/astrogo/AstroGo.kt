@@ -7,7 +7,7 @@ import java.util.UUID
 
 class AstroGo : MainAPI() {
     override var mainUrl = "https://astrogo.astro.com.my"
-    private val apiUrl = "https://sg-sg-sg.astro.com.my:9443/ctap/r1.6.0"
+    private val apiUrl = "https://ctap.astro.com.my/ctap/r1.14.0"
     override var name = "AstroGo"
     override val hasMainPage = true
     override var lang = "ms"
@@ -395,7 +395,7 @@ class AstroGo : MainAPI() {
         
         val baseId = data.substringBefore("?")
         val profileId = "2" // Using 2 as seen in browser capture
-        val playbackUrl = "https://ums-api.astro.com.my/ums/v1/playback/vod/$baseId?profileId=$profileId"
+        val playbackUrl = "https://ums.astro.com.my/ums/v1/playback/vod/$baseId?profileId=$profileId"
         
         val headers = mapOf(
             "Authorization" to "Bearer $bearerToken",
@@ -426,10 +426,11 @@ class AstroGo : MainAPI() {
                         ) {
                             this.referer = mainUrl
                             // Astro DRM license server
-                            this.licenseUrl = "https://sg-sg-sg.astro.com.my:9443/vgemultidrm/v1/widevine/license"
+                            this.licenseUrl = "https://sg-sg-sg.astro.com.my/vgemultidrm/v1/widevine/license"
                             this.headers = mapOf(
                                 "X-VGE-DRM-Token" to drmToken,
-                                "X-VGE-DRM-Content-ID" to baseId
+                                "X-VGE-DRM-Content-ID" to baseId,
+                                "X-VGE-DRM-Oauth-Token" to bearerToken
                             )
                         }
                     )
