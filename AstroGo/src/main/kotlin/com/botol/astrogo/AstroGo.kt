@@ -258,7 +258,7 @@ class AstroGo : MainAPI() {
               ?: candidates.firstOrNull() 
               ?: return null
         val title = this.title ?: return null
-        val poster = this.media?.find { it.url?.contains("PORT_750x1126") == true }?.url 
+        val poster = this.media?.find { it.url?.contains("PORT_476x716") == true }?.url 
              ?: this.media?.find { it.url?.contains("PORT") == true }?.url 
              ?: this.media?.firstOrNull()?.url
         
@@ -376,7 +376,7 @@ class AstroGo : MainAPI() {
 
         val title = response.title ?: response.name ?: titleParam ?: "No Title"
         val plot = response.synopsis ?: plotParam
-        val poster = response.media?.find { it.url?.contains("PORT_750x1126") == true }?.url 
+        val poster = response.media?.find { it.url?.contains("PORT_476x716") == true }?.url 
              ?: response.media?.find { it.url?.contains("PORT") == true }?.url 
              ?: posterParam
         val year = response.releaseDate?.substringBefore("-")?.toIntOrNull()
