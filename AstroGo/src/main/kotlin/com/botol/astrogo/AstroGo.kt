@@ -419,13 +419,18 @@ class AstroGo : MainAPI() {
         )
 
         try {
-            // User confirmed working URL: $apiUrl/devices/me/playsessions?instanceId=...&startingPosition=0
-            val sessionUrl = "$apiUrl/devices/me/playsessions?instanceId=$baseId&startingPosition=0"
-            System.out.println("DEBUG AstroGo Session URL: $sessionUrl")
+            // Revert to SM endpoint as CTAP/playsessions returns NOT_ENTITLED
+            val smUrl = "https://sg-sg-sg.astro.com.my:9443/sm/vod/streamingSession"
+            val payload = mapOf(
+                "contentId" to baseId,
+                "playbackStartTime" to null,
+                "playbackEndTime" to null
+            )
+            System.out.println("DEBUG AstroGo SM URL: $smUrl")
             
-            // Assuming POST for session creation
-            val response = app.post(sessionUrl, headers = headers).text
-            System.out.println("DEBUG AstroGo Session Response: $response")
+            // Send as JSON payload
+            val response = app.post(smUrl, headers = headers, json = payload).text
+            System.out.println("DEBUG AstroGo SM Response: $response")
             
             val json = mapper.readTree(response)
             val streamUrl = json.get("_links")?.get("playUrl")?.get("href")?.asText()
