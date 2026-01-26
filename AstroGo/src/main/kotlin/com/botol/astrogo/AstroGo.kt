@@ -29,8 +29,8 @@ class AstroGo : MainAPI() {
     private var bearerToken = "eyJraWQiOiIwMDU5Y2JjMS1lYzBlLTQ1YmYtYTA1Yy1jZmM2NWQzM2I0MDgiLCJqa3UiOiJodHRwczovL3NnLXNnLXNnLmFzdHJvLmNvbS5teTo5NDQzL29hdXRoMi9qd2tzP2tpZD0wMDU5Y2JjMS1lYzBlLTQ1YmYtYTA1Yy1jZmM2NWQzM2I0MDgiLCJhbGciOiJSUzI1NiJ9.eyJpYXQiOjE3Njk0MjM1NTYsInN1YiI6IjgzOTk0NjI4IiwiYXVkIjoiaXZwLnNlc3Npb25ndWFyZCIsImV4cCI6MTc2OTQzNDM1Niwic2Vzc2lvbl9kYXRhIjp7InNlc3Npb24iOnsiZGV2SWQiOiI4Mzk5NDYyOC4wODEyZDdiNy1mYjJkLTQ3NDYtYWI2Yy1kZTlkMTcyNzdkOGQiLCJndWVzdE1vZGUiOmZhbHNlLCJoaElkIjoiODM5OTQ2MjgiLCJidXNVbml0SWQiOiJBU1RSTyJ9fSwiZGV2aWNlRnVsbFR5cGUiOiJCcm93c2VyLURlZmF1bHQiLCJzY29wZSI6ImJyb3dzZSBwbGF5YmFjayIsInRva2VuX3R5cGUiOiJhY2Nlc3NfdG9rZW4iLCJzc2FfanRpIjoiYnJvd3NlciIsImNsaWVudF9pZCI6ImJyb3dzZXIiLCJqdGkiOiJjNWY1ZjVmZi03OGYzLTRkY2QtYWNlMS0yYzc2ZDk0MDAyMzIifQ.PBY7BLS26bEOUnc9bSI13tuInW3rJ8i0SqlM6UqwKomo0r8WJ4ix4LMEohFpWRtL2vKYBs-QNFC3jZqEMJkBOWerDkoQEXVUaTQxqVwZ1zwtk6aBsaRxIOXYGKPm4ZMUFLsyEN6vvBQCB9UyoF6Vju0tapKDlfejEEN-f-WvY8ilVrI8gSKGwz0pZHHxcA44DJLUZWxH5O5GLISZn96rC9nmoXIuFLBsA4nEhvwOM5UKXjJZsNt12iF3wR5x-Pc3u6RUDdjs-LOdI4NL_fgA04f4_-1ULhOn8NppI5AxQ30qFHE3_78lUSnqmUJ5qdupJLEd5ONwTfgkp9MajP890Q"
 
     override val mainPage = mainPageOf(
-        "node:IVP:Home" to "Home",
-        "node:IVP:TVShows,-date" to "TV Shows",
+        "node:IVP:Home:OnDemandRecentlyAdded" to "Home",
+        "IVP:TVShow:All,-date" to "TV Shows",
         "node:IVP:Movies,-date" to "Movies"
     )
 
