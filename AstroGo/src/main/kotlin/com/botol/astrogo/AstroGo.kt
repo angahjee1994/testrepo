@@ -3,6 +3,7 @@ package com.botol.astrogo
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.fasterxml.jackson.annotation.JsonProperty
+import java.util.UUID
 
 class AstroGo : MainAPI() {
     override var mainUrl = "https://astrogo.astro.com.my"
@@ -393,7 +394,7 @@ class AstroGo : MainAPI() {
         refreshAccessToken()
         
         val baseId = data.substringBefore("?")
-        val profileId = "100" 
+        val profileId = "2" // Using 2 as seen in browser capture
         val playbackUrl = "https://ums-api.astro.com.my/ums/v1/playback/vod/$baseId?profileId=$profileId"
         
         val headers = mapOf(
@@ -409,18 +410,42 @@ class AstroGo : MainAPI() {
             val streamUrl = json.get("streamUrl")?.asText() 
                             ?: json.get("playbackUrl")?.asText()
                             ?: json.get("url")?.asText()
+            
+            val drmToken = json.get("drmToken")?.asText() 
+                           ?: json.get("drm")?.get("token")?.asText()
                             
             if (!streamUrl.isNullOrEmpty()) {
-                callback.invoke(
-                    newExtractorLink(
-                        source = "AstroGo",
-                        name = "AstroGo",
-                        url = streamUrl,
-                        type = ExtractorLinkType.DASH
-                    ) {
-                        this.referer = mainUrl
-                    }
-                )
+                if (!drmToken.isNullOrEmpty()) {
+                    callback.invoke(
+                        newDrmExtractorLink(
+                            source = "AstroGo",
+                            name = "AstroGo",
+                            url = streamUrl,
+                            type = ExtractorLinkType.DASH,
+                            uuid = UUID.fromString("edef8ba9-79d6-4ace-a3c8-27dcd51d21ed")
+                        ) {
+                            this.referer = mainUrl
+                            // Astro DRM license server
+                            this.licenseUrl = "https://sg-sg-sg.astro.com.my:9443/vgemultidrm/v1/widevine/license"
+                            this.headers = mapOf(
+                                "X-VGE-DRM-Token" to drmToken,
+                                "X-VGE-DRM-Content-ID" to baseId
+                            )
+                        }
+                    )
+                } else {
+                    // Fallback to normal link if no DRM token (unlikely for Astro VOD)
+                    callback.invoke(
+                        newExtractorLink(
+                            source = "AstroGo",
+                            name = "AstroGo",
+                            url = streamUrl,
+                            type = ExtractorLinkType.DASH
+                        ) {
+                            this.referer = mainUrl
+                        }
+                    )
+                }
                 return true
             }
         } catch (e: Exception) {
