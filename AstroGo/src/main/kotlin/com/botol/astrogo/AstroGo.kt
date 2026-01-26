@@ -42,26 +42,30 @@ class AstroGo : MainAPI() {
                 val contentId = extractorLink.headers["X-Astro-Content-ID"] ?: ""
                 val authKey = extractorLink.headers["X-Astro-Auth"] ?: ""
                 
-                System.out.println("DEBUG AstroGo Interceptor Data: ContentID=$contentId AuthKey=$authKey")
+                // Parse AssetId from AuthKey (blob)
+                val assetId = authKey.split("&").find { it.startsWith("AssetId=") }?.substringAfter("AssetId=")
+                val finalContentId = assetId ?: contentId
 
-                // Read original binary body (the raw challenge)
-                val originalBodyBytes = request.body?.let { body ->
-                    val buffer = Buffer()
-                    body.writeTo(buffer)
-                    buffer.readByteArray()
-                } ?: ByteArray(0)
+                System.out.println("DEBUG AstroGo Interceptor Data: OriginalContentID=$contentId AssetId=$assetId FinalContentID=$finalContentId AuthKey=$authKey")
+
+                val json = """{"token":"$authKey","contentId":"$finalContentId","drmType":"WIDEVINE"}"""
                 
-                val challengeBase64 = Base64.encodeToString(originalBodyBytes, Base64.NO_WRAP)
+                // Construct structured map for better control (if we were using mapOf)but currently reusing the manual json string format? 
+                // Wait, previous code used mapOf for JSON construction. Let's switch back to mapOf for safety and clarity, 
+                // but we need to match the EXACT JSON structure that was working or expected.
+                // The log showed: {"contentID":"...","contentType":1,"authorizationToken":"...","authorizationTokenType":"1","licenseChallenge":"...","playbackSessionCookie":null}
                 
-                // Construct JSON body
-                val req = mapOf(
-                    "contentID" to contentId,
+                // We will stick to the mapOf approach used in the previous step's source code (lines 57-64), but updated with correct values.
+                
+                val req = mutableMapOf(
+                    "contentID" to finalContentId,
                     "contentType" to 1,
                     "authorizationToken" to authKey,
                     "authorizationTokenType" to "1",
-                    "licenseChallenge" to challengeBase64,
-                    "playbackSessionCookie" to null
+                    "licenseChallenge" to challengeBase64
                 )
+                // Omit playbackSessionCookie if not available/null to avoid issues
+
                 
                 val jsonBody = mapper.writeValueAsString(req)
                 System.out.println("DEBUG AstroGo Interceptor Payload: $jsonBody")
