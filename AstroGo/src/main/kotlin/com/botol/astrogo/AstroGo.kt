@@ -419,28 +419,24 @@ class AstroGo : MainAPI() {
         )
 
         try {
-            // Revert to SM endpoint
-            val smUrl = "https://sg-sg-sg.astro.com.my:9443/sm/vod/streamingSession"
+            // User requested strict adherence to this URL structure
+            val sessionUrl = "$apiUrl/devices/me/playsessions?instanceId=$baseId&startingPosition=0"
+            System.out.println("DEBUG AstroGo Request URL: $sessionUrl")
             
-            // Explicitly set Content-Type to application/json in headers
-            val jsonHeaders = headers + mapOf("Content-Type" to "application/json")
-
-            // Add contentType to payload
-            val payload = mapOf(
-                "contentId" to baseId,
-                "contentType" to "VOD",
-                "trickModes" to mapOf("restricted" to false)
-            )
-            System.out.println("DEBUG AstroGo SM URL: $smUrl")
-            System.out.println("DEBUG AstroGo SM Payload: $payload")
-            
-            // Send as JSON payload
-            val response = app.post(smUrl, headers = jsonHeaders, json = payload).text
-            System.out.println("DEBUG AstroGo SM Response: $response")
+            // Using POST as this is a session creation endpoint
+            val response = app.post(sessionUrl, headers = headers).text
+            System.out.println("DEBUG AstroGo Response: $response")
             
             val json = mapper.readTree(response)
+            
+            // Extract playUrl from the strict structure
             val streamUrl = json.get("_links")?.get("playUrl")?.get("href")?.asText()
-            val drmToken = json.get("drmProperties")?.get("blob")?.asText()
+            
+            // Support both old and new token locations just in case
+            val drmToken = json.get("drmProperties")?.get("blob")?.asText() 
+                           ?: json.get("drmToken")?.asText()
+            
+
 
             if (!streamUrl.isNullOrEmpty()) {
                 if (!drmToken.isNullOrEmpty()) {
