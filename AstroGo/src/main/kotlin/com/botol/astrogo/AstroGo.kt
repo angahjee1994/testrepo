@@ -508,7 +508,7 @@ class AstroGo : MainAPI() {
     ): Boolean {
         refreshAccessToken()
         
-        val baseId = data.substringBefore("?")
+        val baseId = data.substringBefore("?").substringAfterLast("/")
         System.out.println("DEBUG AstroGo LoadLinks: BaseId=$baseId Token=${bearerToken.take(10)}")
         
         // Define profiles to try: 2 (Web), 100 (Standard)
