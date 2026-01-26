@@ -185,19 +185,29 @@ class AstroGo : MainAPI() {
         // Extra params required by Astro
         val extraParams = "offerKeys=212,34,446,49,64,94,95&isErotic=true&isAdult=false"
 
-        if (sort != null) {
-             url = "$apiUrl/shared/content?categoryId=$encodedPath&clientToken=$encodedToken&offset=$offset&limit=40&sort=$sort&$extraParams"
+        // Logic based on user feedback:
+        // Home: shared/content?categoryId=...&...&offerKeys=...
+        // TVShows: shared/content?categoryId=...&...&offerKeys=...
+        // Main difference is checking if we need bulkContent (usually for specific lists without params)
+        // But user provided URLs use shared/content for both Home and TVShows with offerKeys.
+        
+        if (dataPath.contains("Home") || sort != null || dataPath.contains("TVShow")) {
+             // Use shared/content for Home and sorted lists/TVShows
+             // Ensure defaults for offset/limit if not present (though offset is calc above)
+             url = "$apiUrl/shared/content?categoryId=$encodedPath&clientToken=$encodedToken&offset=$offset&limit=40&sort=${sort ?: "-date"}&$extraParams"
         } else {
-             // Fallback for any other types (though currently all have sort)
+             // Fallback for others that might need bulkContent (though maybe deprecated for these main categories)
              val endpoint = "shared/bulkContent/$encodedPath"
-             url = "$apiUrl/$endpoint?clientToken=$encodedToken&$extraParams"
+             url = "$apiUrl/$endpoint?clientToken=$encodedToken" // bulkContent apparently doesn't like offerKeys
         }
         
         System.out.println("DEBUG AstroGo Main Page URL: $url")
         
         val headers = mapOf(
             "Authorization" to "Bearer $bearerToken",
-            "Accept" to "application/json"
+            "Accept" to "application/json",
+            "Cache-Control" to "no-cache",
+            "Pragma" to "no-cache"
         )
 
         try {
