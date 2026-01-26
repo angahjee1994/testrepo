@@ -409,7 +409,7 @@ class AstroGo : MainAPI() {
         System.out.println("DEBUG AstroGo LoadLinks: BaseId=$baseId Token=${bearerToken.take(10)}")
         
         // Define profiles to try: 2 (Web), 100 (Standard)
-        val profiles = listOf("2", "100")
+        // val profiles = listOf("2", "100") // Legacy
 
         val headers = mapOf(
             "Authorization" to "Bearer $bearerToken",
@@ -418,12 +418,14 @@ class AstroGo : MainAPI() {
             "Accept" to "application/json"
         )
 
-        // Try new Subscription Manager (SM) Endpoint
         try {
-            val smUrl = "https://sg-sg-sg.astro.com.my:9443/sm/vod/streamingSession"
-            val payload = mapOf("contentId" to baseId)
-            val response = app.post(smUrl, headers = headers, json = payload).text
-            System.out.println("DEBUG AstroGo SM Response: $response")
+            // User confirmed working URL: $apiUrl/devices/me/playsessions?instanceId=...&startingPosition=0
+            val sessionUrl = "$apiUrl/devices/me/playsessions?instanceId=$baseId&startingPosition=0"
+            System.out.println("DEBUG AstroGo Session URL: $sessionUrl")
+            
+            // Assuming POST for session creation
+            val response = app.post(sessionUrl, headers = headers).text
+            System.out.println("DEBUG AstroGo Session Response: $response")
             
             val json = mapper.readTree(response)
             val streamUrl = json.get("_links")?.get("playUrl")?.get("href")?.asText()
@@ -463,76 +465,8 @@ class AstroGo : MainAPI() {
                 return true
             }
         } catch (e: Exception) {
-            System.out.println("DEBUG AstroGo SM Error: ${e.message}")
+            System.out.println("DEBUG AstroGo Session Error: ${e.message}")
             e.printStackTrace()
-        }
-        
-        for (profileId in profiles) {
-            val playbackUrl = "https://sg-sg-sg.astro.com.my:9443/ums/v1/playback/vod/$baseId?profileId=$profileId"
-            System.out.println("DEBUG AstroGo LoadLinks request: $playbackUrl")
-            
-            val headers = mapOf(
-                "Authorization" to "Bearer $bearerToken",
-                "X-VGE-Service-ID" to "AstroGo",
-                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Accept" to "application/json"
-            )
-            
-            try {
-                val response = app.get(playbackUrl, headers = headers).text
-                System.out.println("DEBUG AstroGo Response ($profileId): $response")
-                val json = mapper.readTree(response)
-                
-                val streamUrl = json.get("streamUrl")?.asText() 
-                                ?: json.get("playbackUrl")?.asText()
-                                ?: json.get("url")?.asText()
-                
-                val drmToken = json.get("drmToken")?.asText() 
-                               ?: json.get("drm")?.get("token")?.asText()
-                
-                System.out.println("DEBUG AstroGo Stream: $streamUrl DrmToken: ${drmToken?.take(10)}")
-                                
-                if (!streamUrl.isNullOrEmpty()) {
-                    if (!drmToken.isNullOrEmpty()) {
-                        callback.invoke(
-                            newDrmExtractorLink(
-                                source = "AstroGo",
-                                name = "AstroGo",
-                                url = streamUrl,
-                                type = ExtractorLinkType.DASH,
-                                uuid = UUID.fromString("edef8ba9-79d6-4ace-a3c8-27dcd51d21ed")
-                            ) {
-                                this.referer = mainUrl
-                                this.licenseUrl = "https://sg-sg-sg.astro.com.my/vgemultidrm/v1/widevine/license"
-                                this.headers = mapOf(
-                                    "X-VGE-DRM-Token" to drmToken,
-                                    "X-VGE-DRM-Content-ID" to baseId,
-                                    "X-VGE-DRM-Oauth-Token" to bearerToken
-                                )
-                            }
-                        )
-                    } else {
-                        callback.invoke(
-                            newExtractorLink(
-                                source = "AstroGo",
-                                name = "AstroGo",
-                                url = streamUrl,
-                                type = ExtractorLinkType.DASH
-                            ) {
-                                this.referer = mainUrl
-                            }
-                        )
-                    }
-                    return true
-                }
-            } catch (e: Exception) {
-                System.out.println("DEBUG AstroGo Error ($profileId): ${e.message}")
-                e.printStackTrace()
-                // If it's the last profile and failed, maybe show toast or detailed error if needed
-                if (profileId == profiles.last()) {
-                     // Log or handle final failure
-                }
-            }
         }
         
         return false
