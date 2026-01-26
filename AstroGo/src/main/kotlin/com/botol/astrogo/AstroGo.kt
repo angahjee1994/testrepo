@@ -17,8 +17,8 @@ class AstroGo : MainAPI() {
     private var bearerToken = ""
 
     override val mainPage = mainPageOf(
-        "node:IVP:Home:VodForYou" to "Home",
-        "node:IVP:TVShow,-date" to "TV Shows",
+        "node:IVP:Home:OnDemandRecentlyAdded,-date" to "Home",
+        "IVP:TVShow,-date" to "TV Shows",
         "node:IVP:Movies,-date" to "Movies"
     )
 
@@ -95,12 +95,12 @@ class AstroGo : MainAPI() {
         val encodedPath = java.net.URLEncoder.encode(dataPath, "UTF-8")
         val url: String
         
-        if (dataPath.contains("Home")) {
+        if (dataPath.contains("Home") && sort == null) {
              // Home aggregation endpoint
              url = "$apiUrl/agg/content?categoryId=$encodedPath&limit=20&clientToken=$encodedToken"
         } else if (sort != null) {
-             // Sorted content lists (Movies/TV)
-             url = "$apiUrl/shared/content?categoryId=$encodedPath&clientToken=$encodedToken&offset=$offset&limit=20&sort=$sort"
+             // Sorted content lists (Movies/TV/Home)
+             url = "$apiUrl/shared/content?categoryId=$encodedPath&clientToken=$encodedToken&offset=$offset&limit=40&sort=$sort"
         } else {
              // Fallback for standard swimlanes
              val endpoint = "shared/bulkContent/$encodedPath"
