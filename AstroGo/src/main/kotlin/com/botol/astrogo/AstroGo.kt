@@ -17,8 +17,8 @@ class AstroGo : MainAPI() {
     private var bearerToken = ""
 
     override val mainPage = mainPageOf(
-        "node:IVP:Home:OnDemandRecentlyAdded,-date" to "Home",
-        "IVP:TVShow,-date" to "TV Shows",
+        "node:IVP:Home:VodForYou" to "Home",
+        "node:IVP:TVShow,-date" to "TV Shows",
         "node:IVP:Movies,-date" to "Movies"
     )
 
@@ -100,7 +100,7 @@ class AstroGo : MainAPI() {
              url = "$apiUrl/agg/content?categoryId=$encodedPath&limit=20&clientToken=$encodedToken"
         } else if (sort != null) {
              // Sorted content lists (Movies/TV)
-             url = "$apiUrl/shared/content?categoryId=$encodedPath&clientToken=$encodedToken&offset=$offset&limit=40&sort=$sort"
+             url = "$apiUrl/shared/content?categoryId=$encodedPath&clientToken=$encodedToken&offset=$offset&limit=20&sort=$sort"
         } else {
              // Fallback for standard swimlanes
              val endpoint = "shared/bulkContent/$encodedPath"
