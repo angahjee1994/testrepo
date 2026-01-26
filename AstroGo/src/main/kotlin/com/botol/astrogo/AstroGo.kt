@@ -24,9 +24,8 @@ class AstroGo : MainAPI() {
 
     private suspend fun refreshAccessToken() {
         try {
-            // 1. Client Token (Hardcoded from browser inspection as scraping is unreliable)
             if (clientToken.isEmpty()) {
-                clientToken = "v:1!r:80800!ur:GUEST_REGION!community:Malaysia%20Live!t:k!dt:PC!f:Astro_unmanaged!pd:CHROME-FF!pt:Adults"
+                clientToken = generateClientToken()
             }
 
             // 2. Initiate OAuth2 Guest Flow directly (bypassing JS logic on main page)
@@ -445,6 +444,22 @@ class AstroGo : MainAPI() {
     ): Boolean {
         // Placeholder for next step
         return false
+    }
+
+    private fun generateClientToken(): String {
+        // These values were identified via network inspection of the official web client.
+        // They represent the "Guest" state on a PC browser.
+        val version = "1"
+        val regionId = "80800" // Astro Region/Partner ID
+        val userRegion = "GUEST_REGION"
+        val community = "Malaysia%20Live" // URL encoded "Malaysia Live"
+        val type = "k" // Unknown type
+        val deviceType = "PC"
+        val fleet = "Astro_unmanaged"
+        val platformDevice = "CHROME-FF" // Chrome/Firefox
+        val profileType = "Adults"
+
+        return "v:$version!r:$regionId!ur:$userRegion!community:$community!t:$type!dt:$deviceType!f:$fleet!pd:$platformDevice!pt:$profileType"
     }
 
     // JSON Data Models
