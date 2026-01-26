@@ -175,7 +175,10 @@ class AstroGo : MainAPI() {
         val dataPath = dataParts[0]
         val sort = dataParts.getOrNull(1)
 
-        val encodedToken = java.net.URLEncoder.encode(clientToken, "UTF-8")
+        // clientToken already contains %20 and other special chars that should be sent as-is (or carefully encoded)
+        // User URL shows: clientToken=v:1!r:80200!ur:SARAWAK!community:Malaysia%20Live...
+        // If we encode, %20 becomes %2520 which breaks it.
+        val encodedToken = clientToken 
         val encodedPath = java.net.URLEncoder.encode(dataPath, "UTF-8")
         val url: String
         
