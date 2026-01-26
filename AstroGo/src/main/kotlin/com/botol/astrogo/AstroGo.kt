@@ -95,11 +95,11 @@ class AstroGo : MainAPI() {
         val encodedPath = java.net.URLEncoder.encode(dataPath, "UTF-8")
         val url: String
         
-        if (dataPath.contains("Home") && sort == null) {
+        if (dataPath.contains("Home")) {
              // Home aggregation endpoint
              url = "$apiUrl/agg/content?categoryId=$encodedPath&limit=20&clientToken=$encodedToken"
         } else if (sort != null) {
-             // Sorted content lists (Movies/TV/Home)
+             // Sorted content lists (Movies/TV)
              url = "$apiUrl/shared/content?categoryId=$encodedPath&clientToken=$encodedToken&offset=$offset&limit=40&sort=$sort"
         } else {
              // Fallback for standard swimlanes
