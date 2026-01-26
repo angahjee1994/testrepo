@@ -37,6 +37,7 @@ class AstroGo : MainAPI() {
             val url = request.url.toString()
             
             if (url.contains("vgemultidrm/v1/widevine/license")) {
+               System.out.println("DEBUG AstroGo Interceptor: Intercepting License Request: $url")
                 // Get stored headers from extractorLink
                 val contentId = extractorLink.headers["X-Astro-Content-ID"] ?: ""
                 val authKey = extractorLink.headers["X-Astro-Auth"] ?: ""
@@ -526,6 +527,7 @@ class AstroGo : MainAPI() {
                         ) {
                             this.referer = mainUrl
                             this.licenseUrl = "https://sg-sg-sg.astro.com.my:9443/vgemultidrm/v1/widevine/license"
+                            System.out.println("DEBUG AstroGo newDrmExtractorLink: Setting licenseUrl=${this.licenseUrl}")
                             
                             this.headers = mapOf(
                                 "Authorization" to "Bearer $bearerToken",
