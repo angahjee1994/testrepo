@@ -45,9 +45,11 @@ class AstroGo : MainAPI() {
                 val contentId = extractorLink.headers["X-Astro-Content-ID"] ?: ""
                 val authKey = extractorLink.headers["X-Astro-Auth"] ?: ""
                 
-                // Parse AssetId from AuthKey (blob)
+                // Parse AssetId and AuthToken from AuthKey (blob)
                 val assetId = authKey.split("&").find { it.startsWith("AssetId=") }?.substringAfter("AssetId=")
+                val trueAuthToken = authKey.split("&").find { it.startsWith("AuthToken=") }?.substringAfter("AuthToken=")
                 val finalContentId = assetId ?: contentId
+                val finalAuthToken = trueAuthToken ?: authKey
 
                 // Read original binary body (the raw challenge)
                 val originalBodyBytes = request.body?.let { body ->
@@ -62,9 +64,10 @@ class AstroGo : MainAPI() {
                     {
                         "contentID": "$finalContentId",
                         "contentType": 1,
-                        "authorizationToken": "$authKey",
+                        "authorizationToken": "$finalAuthToken",
                         "authorizationTokenType": "1",
-                        "licenseChallenge": "$challengeBase64"
+                        "licenseChallenge": "$challengeBase64",
+                        "playbackSessionCookie": null
                     }
                 """.trimIndent()
                 System.out.println("DEBUG AstroGo Interceptor Payload: $jsonBody")
@@ -79,25 +82,8 @@ class AstroGo : MainAPI() {
                      System.out.println("DEBUG AstroGo Interceptor Error: Code=${response.code} Body=$errorBody")
                 }
                 
-                if (response.isSuccessful) {
-                    val responseBody = response.body?.string() ?: ""
-                    try {
-                        // Regex parse license
-                        // "license": "..." or "licenseResponse": "..."
-                        val licenseRegex = "\"license(?:Response)?\"\\s*:\\s*\"([^\"]+)\"".toRegex()
-                        val match = licenseRegex.find(responseBody)
-                        val license = match?.groupValues?.get(1)
-                        
-                        if (!license.isNullOrEmpty()) {
-                            val licenseBytes = Base64.decode(license, Base64.DEFAULT)
-                            return@Interceptor response.newBuilder()
-                                .body(licenseBytes.toResponseBody("application/octet-stream".toMediaTypeOrNull()))
-                                .build()
-                        }
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
-                }
+                // User requested to load original response, so we pass it through without parsing.
+                // if (response.isSuccessful) { ... } logic removed.
                 return@Interceptor response
             }
             
