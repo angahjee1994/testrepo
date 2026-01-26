@@ -3,6 +3,9 @@ package com.botol.astrogo
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.fasterxml.jackson.annotation.JsonProperty
+// import com.fasterxml.jackson.databind.JsonNode // Removed to avoid errors
+// import com.fasterxml.jackson.databind.ObjectMapper // Removed to avoid errors
+// import com.fasterxml.jackson.module.kotlin.readValue // Removed to avoid errors
 
 import java.util.UUID
 import okhttp3.Interceptor
@@ -46,28 +49,24 @@ class AstroGo : MainAPI() {
                 val assetId = authKey.split("&").find { it.startsWith("AssetId=") }?.substringAfter("AssetId=")
                 val finalContentId = assetId ?: contentId
 
-                System.out.println("DEBUG AstroGo Interceptor Data: OriginalContentID=$contentId AssetId=$assetId FinalContentID=$finalContentId AuthKey=$authKey")
+                // Read original binary body (the raw challenge)
+                val originalBodyBytes = request.body?.let { body ->
+                    val buffer = Buffer()
+                    body.writeTo(buffer)
+                    buffer.readByteArray()
+                } ?: ByteArray(0)
+                
+                val challengeBase64 = Base64.encodeToString(originalBodyBytes, Base64.NO_WRAP)
 
-                val json = """{"token":"$authKey","contentId":"$finalContentId","drmType":"WIDEVINE"}"""
-                
-                // Construct structured map for better control (if we were using mapOf)but currently reusing the manual json string format? 
-                // Wait, previous code used mapOf for JSON construction. Let's switch back to mapOf for safety and clarity, 
-                // but we need to match the EXACT JSON structure that was working or expected.
-                // The log showed: {"contentID":"...","contentType":1,"authorizationToken":"...","authorizationTokenType":"1","licenseChallenge":"...","playbackSessionCookie":null}
-                
-                // We will stick to the mapOf approach used in the previous step's source code (lines 57-64), but updated with correct values.
-                
-                val req = mutableMapOf(
-                    "contentID" to finalContentId,
-                    "contentType" to 1,
-                    "authorizationToken" to authKey,
-                    "authorizationTokenType" to "1",
-                    "licenseChallenge" to challengeBase64
-                )
-                // Omit playbackSessionCookie if not available/null to avoid issues
-
-                
-                val jsonBody = mapper.writeValueAsString(req)
+                val jsonBody = """
+                    {
+                        "contentID": "$finalContentId",
+                        "contentType": 1,
+                        "authorizationToken": "$authKey",
+                        "authorizationTokenType": "1",
+                        "licenseChallenge": "$challengeBase64"
+                    }
+                """.trimIndent()
                 System.out.println("DEBUG AstroGo Interceptor Payload: $jsonBody")
                 
                 val newRequest = request.newBuilder()
@@ -82,10 +81,12 @@ class AstroGo : MainAPI() {
                 
                 if (response.isSuccessful) {
                     val responseBody = response.body?.string() ?: ""
-                    // Parse response
                     try {
-                        val json = mapper.readTree(responseBody)
-                        val license = json.get("license")?.asText() ?: json.get("licenseResponse")?.asText()
+                        // Regex parse license
+                        // "license": "..." or "licenseResponse": "..."
+                        val licenseRegex = "\"license(?:Response)?\"\\s*:\\s*\"([^\"]+)\"".toRegex()
+                        val match = licenseRegex.find(responseBody)
+                        val license = match?.groupValues?.get(1)
                         
                         if (!license.isNullOrEmpty()) {
                             val licenseBytes = Base64.decode(license, Base64.DEFAULT)
