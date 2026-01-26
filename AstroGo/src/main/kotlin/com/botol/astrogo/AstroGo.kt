@@ -28,7 +28,18 @@ class AstroGo : MainAPI() {
             if (clientToken.isEmpty()) {
                 val mainPageResp = app.get("https://astrogo.astro.com.my").text
                 val pattern = "v:1!r:[^\"']+".toRegex()
-                val match = pattern.find(mainPageResp)
+                var match = pattern.find(mainPageResp)
+                
+                if (match == null) {
+                    try {
+                        // Fallback to main.js
+                        val jsResp = app.get("https://astrogo.astro.com.my/build/main.js").text
+                        match = pattern.find(jsResp)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+                
                 if (match != null) {
                     clientToken = match.value
                 }
