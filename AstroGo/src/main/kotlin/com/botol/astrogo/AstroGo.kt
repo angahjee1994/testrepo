@@ -37,8 +37,9 @@ class AstroGo : MainAPI() {
             var currentUrl = authUrl
             var attempts = 0
             while (attempts < 5) {
+                // Cloudfront/providers might require a browser UA or just default.
+                // Reverting header to minimal to check if UA was the blocker.
                 val headers = mapOf(
-                    "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                     "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"
                 )
                 
