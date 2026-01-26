@@ -167,6 +167,9 @@ class AstroGo : MainAPI() {
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
+        if (page > 1 && request.name == "Home") {
+            return newHomePageResponse(emptyList())
+        }
         refreshAccessToken()
         
         val offset = (page - 1) * 20
