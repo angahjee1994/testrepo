@@ -442,7 +442,66 @@ class AstroGo : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        // Placeholder for next step
+        refreshAccessToken()
+        
+        // Data is the ID
+        val baseId = data.substringBefore("?")
+        
+        // Playback/Entitlement API discovered: https://ums-api.astro.com.my/ums/v1/playback/vod/{contentId}
+        val playbackId = baseId.substringAfter("~") // Use the ID part if it's complex, or just baseId
+        val profileId = "100" // Standard profile ID often used, or "2" for web. Let's try 100 or 2.
+        
+        val playbackUrl = "https://ums-api.astro.com.my/ums/v1/playback/vod/$baseId?profileId=$profileId"
+        
+        val headers = mapOf(
+            "Authorization" to "Bearer $bearerToken",
+            "X-VGE-Service-ID" to "AstroGo", 
+            "Accept" to "application/json"
+        )
+        
+        try {
+            val response = app.get(playbackUrl, headers = headers).text
+            val json = mapper.readTree(response)
+            
+            // Expected fields based on analysis and typical structure:
+            // streamUrl: the .mpd link
+            // drm: { licenseUrl: ..., token: ... } or top level drmToken
+            
+            val streamUrl = json.get("streamUrl")?.asText() 
+                            ?: json.get("playbackUrl")?.asText()
+                            ?: json.get("url")?.asText()
+                            
+            if (!streamUrl.isNullOrEmpty()) {
+                val drmNode = json.get("drm")
+                val licenseUrl = drmNode?.get("licenseUrl")?.asText() 
+                                 ?: "https://sg-sg-sg.astro.com.my:9443/vgemultidrm/v1/widevine/license"
+                                 
+                val drmToken = json.get("drmToken")?.asText() 
+                               ?: drmNode?.get("token")?.asText()
+                               
+                // We need to pass custom headers for the license request.
+                // In CloudStream, ExtractorLink usually handles simple headers.
+                // For DRM headers like X-VGE-DRM-Token, we typically need a SafeMoshi/Gson object in the callback 
+                // BUT CloudStream 3 doesn't easily expose a "DrmLink" object in the core ExtractorLink 
+                // unless we use a specific implementation or JSON data field.
+                
+                // Assuming standard logic:
+                callback.invoke(
+                    newExtractorLink(
+                        source = "AstroGo",
+                        name = "AstroGo",
+                        url = streamUrl,
+                        type = ExtractorLinkType.DASH
+                    ) {
+                        this.referer = mainUrl
+                    }
+                )
+                return true
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        
         return false
     }
 
