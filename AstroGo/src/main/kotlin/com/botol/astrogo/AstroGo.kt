@@ -172,7 +172,7 @@ class AstroGo : MainAPI() {
         }
         refreshAccessToken()
         
-        val limit = 40
+        val limit = 20
         val offset = (page - 1) * limit
         
         val dataParts = request.data.split(",")
