@@ -36,7 +36,7 @@ class AstroGo : MainAPI() {
         "IVP:Max" to "Max",
         "IVP:TVShow:All,-date" to "TV Shows",
         "node:IVP:Movies,-date" to "Movies",
-        "IVP:Live:All" to "Live TV"
+        "LiveGrid" to "Live TV"
     )
 
     override fun getVideoInterceptor(extractorLink: ExtractorLink): Interceptor {
@@ -591,11 +591,14 @@ class AstroGo : MainAPI() {
         // Home: /categories/node:IVP:Home
         // TVShows: shared/content?categoryId=...&...&offerKeys=...
         
+        // Debugging Logic Flow
+        System.out.println("DEBUG AstroGo Main Page Request: Data='$dataPath' Sort='$sort'")
+
         if (dataPath == "node:IVP:Home") {
              // Specific handling for Home as requested (Latest: shared/bulkContent + Token)
              // URL: .../shared/bulkContent/node%3AIVP%3AHome?clientToken=...
              url = "$apiUrl/shared/bulkContent/$encodedPath?clientToken=$encodedToken"
-        } else if (dataPath.contains("Live")) {
+        } else if (dataPath == "LiveGrid" || dataPath.contains("Live", ignoreCase = true)) {
              // Live TV (Grid) Implementation - Endpoint from User
              // URL: agg/grid?isPlayable=true&eventsLimit=1&limit=40&offset=0
              url = "$apiUrl/agg/grid?isPlayable=true&eventsLimit=1&limit=40&offset=$offset&clientToken=$encodedToken"
