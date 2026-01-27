@@ -655,7 +655,10 @@ class AstroGo : MainAPI() {
             
             // Convert Map to List
             itemsMap.forEach { (title, contents) ->
-                items.add(HomePageList(title, contents))
+                // Check if this specific row is the Home row we want in landscape
+                // If isHome is true, and this is the main title or merged title
+                val useLandscape = isHome && (title == request.name || title == "Featured" || title == "Home")
+                items.add(HomePageList(title, contents, isHorizontalImages = useLandscape))
             }
             
             System.out.println("DEBUG AstroGo Main Page Items: ${items.size}")
