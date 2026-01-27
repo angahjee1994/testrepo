@@ -3,6 +3,8 @@ package com.botol.astrogo
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.fasterxml.jackson.annotation.JsonProperty
+import com.lagradost.cloudstream3.AcraApplication.Companion.getKey
+import com.lagradost.cloudstream3.AcraApplication.Companion.setKey
 // import com.fasterxml.jackson.databind.JsonNode // Removed to avoid errors
 // import com.fasterxml.jackson.databind.ObjectMapper // Removed to avoid errors
 // import com.fasterxml.jackson.module.kotlin.readValue // Removed to avoid errors
@@ -25,13 +27,13 @@ class AstroGo : MainAPI() {
 
     // configuration
     private var clientToken = "v:1!r:80200!ur:SARAWAK!community:Malaysia%20Live!t:k!dt:PC!f:Astro_unmanaged!pd:CHROME-FF!pt:Adults"
-    // TODO: Paste your premium Bearer token here to test premium content
     private var bearerToken = ""
 
     override val mainPage = mainPageOf(
         "node:IVP:Home:OnDemandRecentlyAdded" to "Home",
         "IVP:TVShow:All,-date" to "TV Shows",
-        "node:IVP:Movies,-date" to "Movies"
+        "node:IVP:Movies,-date" to "Movies",
+        "IVP:Live:All" to "Live TV"
     )
 
     override fun getVideoInterceptor(extractorLink: ExtractorLink): Interceptor {
@@ -108,14 +110,27 @@ class AstroGo : MainAPI() {
         }
     }
 
-    private suspend fun refreshAccessToken() {
+    private fun getSavedToken(): String? {
+        return getKey("astro_bearer_token")
+    }
+
+    private fun saveToken(token: String) {
+        setKey("astro_bearer_token", token)
+        bearerToken = token
+    }
+
+    private suspend fun ensureGuestToken() {
+        // If we have a valid logged-in token, don't override it with guest token
+        // We simple check if bearerToken is present. 
+        // NOTE: We might need a way to distinguish Guest vs User token. 
+        // For now, if it's empty, get guest.
+        if (bearerToken.isNotEmpty()) return 
+
         // Ensure clientToken is always populated
         if (clientToken.isEmpty()) {
             clientToken = generateClientToken()
         }
 
-        if (bearerToken.isNotEmpty()) return // Simple cache
-        
         try {
             // URL discovered via user feedback (port 9443 removed)
             val authUrl = "https://sg-sg-sg.astro.com.my/oauth2/authorize?client_id=browser&state=guestUserLogin&redirect_uri=https://astrogo.astro.com.my&response_type=token&prompt=none&scope=urn:synamedia:vcs:ovp:guest-user"
@@ -123,14 +138,11 @@ class AstroGo : MainAPI() {
             var currentUrl = authUrl
             var attempts = 0
             while (attempts < 5) {
-                // Cloudfront/providers might require a browser UA or just default.
-                // Reverting header to minimal to check if UA was the blocker.
                 val headers = mapOf(
                     "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"
                 )
                 
                 val response = app.get(currentUrl, headers = headers, allowRedirects = false)
-                System.out.println("DEBUG AstroGo Auth: ${response.code} ${response.url}")
                 
                 // Check if we have the token in the URL fragment (e.g. from Location header or current response URL)
                 val location = response.headers["Location"]
@@ -140,8 +152,8 @@ class AstroGo : MainAPI() {
                     // Extract from hash (#) or query (?)
                     val token = targetUrl.substringAfter("access_token=").substringBefore("&").substringBefore("#")
                     if (token.isNotEmpty()) {
+                        // Don't save guest token to persistent storage to avoid confusing it with user token
                         bearerToken = token
-                        System.out.println("DEBUG AstroGo Auth: Got token ${token.take(10)}...")
                         break
                     }
                 }
@@ -163,6 +175,80 @@ class AstroGo : MainAPI() {
         }
     }
 
+    suspend fun login(username: String, pass: String): Boolean {
+        return try {
+            // 1. Initiate OAuth Flow
+            val authState = "userLogin_${System.currentTimeMillis()}"
+            val authUrl = "https://sg-sg-sg.astro.com.my/oauth2/authorize?client_id=browser&state=$authState&redirect_uri=https://astrogo.astro.com.my&response_type=token&scope=urn:synamedia:vcs:ovp:b2c-account"
+            
+            val initialResp = app.get(authUrl, allowRedirects = true)
+            var currentUrl = initialResp.url
+            var responseText = initialResp.text
+
+            // If we are already redirected to astrogo with token (unlikely if not logged in context, but possible)
+            if (currentUrl.contains("access_token=")) {
+                val token = currentUrl.substringAfter("access_token=").substringBefore("&")
+                saveToken(token)
+                return true
+            }
+
+            // We should be at auth.astro.com.my/login?flow=...
+            // Extract flow ID or submit directly?
+            // Usually the flow ID is in the URL: .../login?flow=XXXX-XXXX...
+            
+            // 2. Parse necessary hidden fields if any (csrf, execution, tab_id)
+            // For now, try posting directly to the action endpoint
+            // https://auth.astro.com.my/login?flow=...
+            
+            // Simple check: if we are at the login page
+            if (currentUrl.contains("auth.astro.com.my/login")) {
+                 val flowId = currentUrl.substringAfter("flow=").substringBefore("&")
+                 val loginPostUrl = "https://auth.astro.com.my/login?flow=$flowId"
+                 
+                 val payload = mapOf(
+                    "identifier" to username,
+                    "password" to pass,
+                    // "method" to "password" // Sometimes required
+                 )
+                 
+                 // JSON or Form Data? Access Manager usually uses JSON for API, but this looks like a web flow.
+                 // Inspecting typical Keycloak/Auth flows: often X-www-form-urlencoded or JSON.
+                 // Let's try JSON first as it's modern.
+                 val loginHeaders = mapOf(
+                    "Content-Type" to "application/json",
+                    "Accept" to "application/json, text/plain, */*"
+                 )
+                 
+                 val loginResp = app.post(loginPostUrl, json = payload, headers = loginHeaders, allowRedirects = false)
+                 
+                 if (loginResp.code == 200 && loginResp.text.contains("stepType\":\"success")) {
+                     // Success API response, might contain redirect or token?
+                     // Verify response body
+                 }
+                 
+                 // If that fails, try submitting as form if it was a form page (traditional)
+                 // But Astro seems to be using an SPA or modern auth.
+                 
+                 // Fallback: Check if we got a redirect to callback
+                 if (loginResp.headers["Location"]?.contains("access_token=") == true) {
+                     val token = loginResp.headers["Location"]!!.substringAfter("access_token=").substringBefore("&")
+                     saveToken(token)
+                     return true
+                 }
+                 
+                 // If it returns 200 OK with "success", we might need to follow the 'nextStepUrl' or similar.
+                 // Assuming standard behavior for now.
+             }
+             
+             // If manual automated login fails, we return false.
+             // The user can try again or we refine the flow.
+             false
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
     override suspend fun getMainPage(
         page: Int,
         request: MainPageRequest
@@ -170,7 +256,29 @@ class AstroGo : MainAPI() {
         if (page > 1 && request.name == "Home") {
             return newHomePageResponse(emptyList())
         }
-        refreshAccessToken()
+
+        // Check if we need to perform a pending user login (from Settings)
+        val triggerLogin = getKey<Boolean>("astro_trigger_login") ?: false
+        if (triggerLogin) {
+            val user = getKey<String>("astro_username")
+            val pass = getKey<String>("astro_password")
+            if (!user.isNullOrEmpty() && !pass.isNullOrEmpty()) {
+                login(user, pass)
+                setKey("astro_trigger_login", false)
+            }
+        }
+
+        // Load saved token if available and not in memory
+        if (bearerToken.isEmpty()) {
+            val saved = getSavedToken()
+            if (!saved.isNullOrEmpty()) {
+                bearerToken = saved
+            }
+        }
+
+        // If still empty or if it's a guest token that expired (logic needed?), get guest token
+        // For now, if empty, we get guest.
+        ensureGuestToken()
         
         val limit = 20
         val offset = (page - 1) * limit
@@ -195,7 +303,7 @@ class AstroGo : MainAPI() {
         // Main difference is checking if we need bulkContent (usually for specific lists without params)
         // But user provided URLs use shared/content for both Home and TVShows with offerKeys.
         
-        if (dataPath.contains("Home") || sort != null || dataPath.contains("TVShow")) {
+        if (dataPath.contains("Home") || sort != null || dataPath.contains("TVShow") || dataPath.contains("Live")) {
              // Use shared/content for Home and sorted lists/TVShows
              // Ensure defaults for offset/limit if not present (though offset is calc above)
              url = "$apiUrl/shared/content?categoryId=$encodedPath&clientToken=$encodedToken&offset=$offset&limit=$limit&sort=${sort ?: "-date"}&$extraParams"
@@ -273,7 +381,14 @@ class AstroGo : MainAPI() {
         
         val data = "$id?title=$encodedTitle&poster=$encodedPoster&plot=$encodedPlot"
 
-        return newMovieSearchResponse(title, data, TvType.Movie) {
+        val type = if (this.contentType?.contains("Live", true) == true || 
+                       this.contentType?.contains("Channel", true) == true) {
+             TvType.Live
+        } else {
+             TvType.Movie
+        }
+
+        return newMovieSearchResponse(title, data, type) {
             this.posterUrl = poster
         }
     }
@@ -521,7 +636,7 @@ class AstroGo : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        refreshAccessToken()
+        ensureGuestToken()
         
         val baseId = data.substringBefore("?").substringAfterLast("/")
         System.out.println("DEBUG AstroGo LoadLinks: BaseId=$baseId Token=${bearerToken.take(10)}")

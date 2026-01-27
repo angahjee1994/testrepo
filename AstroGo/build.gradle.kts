@@ -21,3 +21,7 @@ cloudstream {
 
     iconUrl = "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/AstroGo/logo.png"
 }
+
+dependencies {
+    implementation("com.google.android.material:material:1.13.0")
+}

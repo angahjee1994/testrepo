@@ -9,5 +9,12 @@ class AstroGoPlugin: Plugin() {
     override fun load(context: Context) {
         // All providers should be added in this manner
         registerMainAPI(AstroGo())
+
+        openSettings = { ctx ->
+            val activity = ctx as? androidx.fragment.app.FragmentActivity
+            if (activity != null) {
+                AstroSettingsFragment(this).show(activity.supportFragmentManager, "AstroSettings")
+            }
+        }
     }
 }
