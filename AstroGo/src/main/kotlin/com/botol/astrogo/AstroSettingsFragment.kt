@@ -179,8 +179,9 @@ class AstroSettingsFragment(
                          // Run on IO for network ops (fetching profile)
                          kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
                              try {
-                                 plugin.provider?.saveToken(token)
-                                 plugin.provider?.fetchAndSaveProfile()
+                                 val provider = plugin.provider as? AstroGo
+                                 provider?.saveToken(token)
+                                 provider?.fetchAndSaveProfile()
                                  
                                  kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                                      setKey("astro_trigger_login", false)

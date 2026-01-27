@@ -595,7 +595,11 @@ class AstroGo : MainAPI() {
              // Specific handling for Home as requested (Latest: shared/bulkContent + Token)
              // URL: .../shared/bulkContent/node%3AIVP%3AHome?clientToken=...
              url = "$apiUrl/shared/bulkContent/$encodedPath?clientToken=$encodedToken"
-        } else if (dataPath.contains("Home") || sort != null || dataPath.contains("TVShow") || dataPath.contains("Live")) {
+        } else if (dataPath.contains("Live")) {
+             // Live TV (Grid) Implementation - Endpoint from User
+             // URL: agg/grid?isPlayable=true&eventsLimit=1&limit=40&offset=0
+             url = "$apiUrl/agg/grid?isPlayable=true&eventsLimit=1&limit=40&offset=$offset&clientToken=$encodedToken"
+        } else if (dataPath.contains("Home") || sort != null || dataPath.contains("TVShow")) {
              // Use shared/content for Home and sorted lists/TVShows
              // Ensure defaults for offset/limit if not present (though offset is calc above)
              url = "$apiUrl/shared/content?categoryId=$encodedPath&clientToken=$encodedToken&offset=$offset&limit=$limit&sort=${sort ?: "-date"}&$extraParams"
@@ -638,20 +642,46 @@ class AstroGo : MainAPI() {
             if (response?.content != null) {
                  val contents = response.content.mapNotNull { it.toSearchResponse(true) }
                  if (contents.isNotEmpty()) {
-                     // If itemsMap is empty, use request.name. Else use "Featured" or merge to existing
-                     // User requested "load in home row" implying merge if possible.
-                     // If request.name is "Home", we likely want to merge into "Home" key if exists.
+                     // ... (Existing logic for content merging)
                      val title = if (itemsMap.isEmpty()) request.name else "Featured"
-                     
-                     // Check if we should merge into existing Home row?
-                     // Currently: Just add as separate or merge if key matches?
-                     // Let's stick to key-based merge
                      if (!itemsMap.containsKey(title)) {
-                         itemsMap[title] = ArrayList()
+                          itemsMap[title] = ArrayList()
                      }
                      itemsMap[title]?.addAll(contents)
                  }
             }
+            
+            // Handle Live TV Grid Response (Channels)
+            if (response?.channels != null) {
+                val channelItems = response.channels.mapNotNull { channel ->
+                    val id = channel.id ?: return@mapNotNull null
+                    val event = channel.currentEvent ?: channel.events?.firstOrNull()
+                    val title = channel.title ?: channel.name ?: event?.title ?: "Live Channel"
+                    
+                    val poster = channel.media?.find { it.url?.contains("LAND_917x516") == true }?.url 
+                               ?: channel.media?.firstOrNull()?.url
+                    
+                    val encodedTitle = java.net.URLEncoder.encode(title, "UTF-8")
+                    val encodedPoster = if (poster != null) java.net.URLEncoder.encode(poster, "UTF-8") else ""
+                    val encodedPlot = if (event?.synopsis != null) java.net.URLEncoder.encode(event.synopsis.take(800), "UTF-8") else ""
+
+                    // We need to pass the Channel ID as the "ID" for playback loading
+                    val data = "$id?title=$encodedTitle&poster=$encodedPoster&plot=$encodedPlot"
+                    
+                    newMovieSearchResponse(title, data, TvType.Live) {
+                        this.posterUrl = poster
+                    }
+                }
+                
+                if (channelItems.isNotEmpty()) {
+                     val title = "Live TV" 
+                     if (!itemsMap.containsKey(title)) {
+                         itemsMap[title] = ArrayList()
+                     }
+                     itemsMap[title]?.addAll(channelItems)
+                }
+            }
+
             
             // Convert Map to List
             itemsMap.forEach { (title, contents) ->
@@ -927,7 +957,10 @@ class AstroGo : MainAPI() {
                 this.actors = actorsList
             }
         } else {
-            return newMovieLoadResponse(title, rawId, TvType.Movie, response.id ?: rawId) {
+            val isLive = response.contentType?.contains("Live", true) == true || response.contentType?.contains("Channel", true) == true
+            val type = if (isLive) TvType.Live else TvType.Movie
+            
+            return newMovieLoadResponse(title, rawId, type, response.id ?: rawId) {
                 this.posterUrl = poster
                 this.backgroundPosterUrl = response.media?.find { it.url?.contains("LAND_917x516") == true }?.url 
                                            ?: response.media?.find { it.url?.contains("LAND") == true || it.url?.contains("backdrop") == true }?.url
@@ -1059,6 +1092,8 @@ class AstroGo : MainAPI() {
 
     private var profileFetchAttempted = false
 
+
+
     suspend fun fetchAndSaveProfile() {
         if (bearerToken.isEmpty() || profileFetchAttempted) return
         
@@ -1149,7 +1184,26 @@ class AstroGo : MainAPI() {
 
     data class AstroResponse(
         @JsonProperty("categories") val categories: List<AstroCategory>? = null,
-        @JsonProperty("content") val content: List<AstroContent>? = null
+        @JsonProperty("content") val content: List<AstroContent>? = null,
+        @JsonProperty("channels") val channels: List<AstroChannel>? = null // Added for Grid
+    )
+
+    data class AstroChannel(
+        @JsonProperty("id") val id: String? = null,
+        @JsonProperty("title") val title: String? = null,
+        @JsonProperty("name") val name: String? = null,
+        @JsonProperty("media") val media: List<AstroMedia>? = null,
+        @JsonProperty("events") val events: List<AstroEvent>? = null,
+        @JsonProperty("currentEvent") val currentEvent: AstroEvent? = null // Often used in 'Now On TV'
+    )
+
+    data class AstroEvent(
+        @JsonProperty("id") val id: String? = null,
+        @JsonProperty("title") val title: String? = null,
+        @JsonProperty("name") val name: String? = null,
+        @JsonProperty("startDate") val startDate: String? = null,
+        @JsonProperty("endDate") val endDate: String? = null,
+        @JsonProperty("synopsis") val synopsis: String? = null
     )
 
     data class AstroCategory(
