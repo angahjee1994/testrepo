@@ -48,13 +48,13 @@ class AstroGo : MainAPI() {
                System.out.println("DEBUG AstroGo Interceptor: Intercepting License Request: $url")
                 // Get stored headers from extractorLink
                 val contentId = extractorLink.headers["X-Astro-Content-ID"] ?: ""
-                val authKey = extractorLink.headers["X-Astro-Auth"] ?: ""
+                val internalDrm = extractorLink.headers["X-Internal-Drm-Token"] ?: ""
                 
                 // Parse AssetId and AuthToken from AuthKey (blob)
-                val assetId = authKey.split("&").find { it.startsWith("AssetId=") }?.substringAfter("AssetId=")
-                val trueAuthToken = authKey.split("&").find { it.startsWith("AuthToken=") }?.substringAfter("AuthToken=")
+                val assetId = internalDrm.split("&").find { it.startsWith("AssetId=") }?.substringAfter("AssetId=")
+                val trueAuthToken = internalDrm.split("&").find { it.startsWith("AuthToken=") }?.substringAfter("AuthToken=")
                 val finalContentId = assetId ?: contentId
-                val finalAuthToken = trueAuthToken ?: authKey
+                val finalAuthToken = trueAuthToken ?: internalDrm
 
                 // Read original binary body (the raw challenge)
                 val originalBodyBytes = request.body?.let { body ->
@@ -99,7 +99,7 @@ class AstroGo : MainAPI() {
                         if (!license.isNullOrEmpty()) {
                             val licenseBytes = Base64.decode(license, Base64.DEFAULT)
                             return@Interceptor response.newBuilder()
-                                .body(licenseBytes.toResponseBody("application/octet-stream".toMediaTypeOrNull()))
+                                .body(licenseBytes.toResponseBody(null)) // type unknown, null safe
                                 .build()
                         }
                     } catch (e: Exception) {
@@ -108,16 +108,17 @@ class AstroGo : MainAPI() {
                 }
                 return@Interceptor response
             } else {
-                // For non-license requests (Stream/MPD), we MUST strip the API headers
-                // otherwise CloudFront rejects the request with 403
+                // For non-license requests (Stream/MPD), we MUST strip the internal API headers
                 val newRequest = request.newBuilder()
-                    .removeHeader("Authorization")
-                    .removeHeader("X-Astro-Auth")
-                    .removeHeader("X-Astro-Content-ID")
-                    .removeHeader("X-VGE-Service-ID")
-                    .removeHeader("X-VGE-Client")
-                    .removeHeader("X-Identity-Profile-Id")
-                    .build()
+                   .removeHeader("X-Internal-Bearer")
+                   .removeHeader("X-Internal-Drm-Token")
+                   .removeHeader("X-Astro-Content-ID")
+                   .removeHeader("X-VGE-Service-ID")
+                   .removeHeader("X-VGE-Client")
+                   .removeHeader("X-Identity-Profile-Id")
+                   // Explicitly remove Authorization just in case
+                   .removeHeader("Authorization") 
+                   .build()
                 return@Interceptor chain.proceed(newRequest)
             }
         }
@@ -1135,12 +1136,13 @@ class AstroGo : MainAPI() {
                             System.out.println("DEBUG AstroGo newDrmExtractorLink: Setting licenseUrl=${this.licenseUrl}")
                             
                             this.headers = mapOf(
-                                "Authorization" to "Bearer $bearerToken",
+                                // Use INTERNAL names so they aren't sent as standard Auth headers by default
+                                // preventing 403 blocks from CloudFront
+                                "X-Internal-Bearer" to "Bearer $bearerToken",
                                 "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                                 "Referer" to "https://astrogo.astro.com.my/",
-                                // Injecting ID and Token for the Interceptor to pick up
-                                "X-Astro-Content-ID" to contentId,
-                                "X-Astro-Auth" to drmToken
+                                "X-Astro-Content-ID" to contentId, // This is fine
+                                "X-Internal-Drm-Token" to drmToken // Internal name
                             )
                         }
                     )
