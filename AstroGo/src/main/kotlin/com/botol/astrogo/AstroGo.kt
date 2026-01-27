@@ -178,17 +178,16 @@ class AstroGo : MainAPI() {
     suspend fun login(username: String, pass: String): Boolean {
         System.out.println("DEBUG AstroGo Login: Starting for user $username")
         return try {
-            // 1. Initiate OAuth Flow using the User-Provided Parameters
-            // Client ID and Scopes from user feedback
-            val clientId = "e19c0fcc-8a9a-4985-88ee-3575240d2fdc"
+            // 1. Initiate OAuth Flow using the parameters from official website trace
+            // Original: https://sg-sg-sg.astro.com.my:9443/oauth2/authorize?client_id=browser&state=bootup&redirect_uri=https://astrogo.astro.com.my&response_type=token
+            val clientId = "browser"
             val scope = "openid email phone profile internal astro_consumption_account urn:synamedia:vcs:ovp:b2c-account"
             val redirectUri = "https://astrogo.astro.com.my"
-            val authState = "userLogin_${System.currentTimeMillis()}"
-            
-            // Using auth.astro.com.my directly as per user trace
-            // Trying response_type=token (Implicit) first for simplicity. 
-            // If it fails with "unauthorized client" or similar, we might need 'code'.
-            val authUrl = "https://auth.astro.com.my/oauth2/auth?client_id=$clientId&redirect_uri=$redirectUri&response_type=token&scope=${java.net.URLEncoder.encode(scope, "UTF-8")}&state=$authState&prompt=login"
+            val authState = "bootup" // Was "bootup" in user trace, maybe meaningful?
+
+            // Using sg-sg-sg endpoint directly as per user trace
+            // We include the full scope just in case, though user trace URL didn't show it explicitly (might be default for 'browser' client)
+            val authUrl = "https://sg-sg-sg.astro.com.my:9443/oauth2/authorize?client_id=$clientId&redirect_uri=$redirectUri&response_type=token&scope=${java.net.URLEncoder.encode(scope, "UTF-8")}&state=$authState"
             System.out.println("DEBUG AstroGo Login: Auth URL: $authUrl")
             
             val initialResp = app.get(authUrl, allowRedirects = true)
