@@ -599,9 +599,9 @@ class AstroGo : MainAPI() {
              // URL: .../shared/bulkContent/node%3AIVP%3AHome?clientToken=...
              url = "$apiUrl/shared/bulkContent/$encodedPath?clientToken=$encodedToken"
         } else if (dataPath == "LiveGrid" || dataPath.contains("Live", ignoreCase = true)) {
-             // Live TV (Grid) Implementation - Endpoint from User
+             // Live TV (Grid) Implementation - Endpoint from User (No clientToken)
              // URL: agg/grid?isPlayable=true&eventsLimit=1&limit=40&offset=0
-             url = "$apiUrl/agg/grid?isPlayable=true&eventsLimit=1&limit=40&offset=$offset&clientToken=$encodedToken"
+             url = "$apiUrl/agg/grid?isPlayable=true&eventsLimit=1&limit=40&offset=$offset"
         } else if (dataPath.contains("Home") || sort != null || dataPath.contains("TVShow")) {
              // Use shared/content for Home and sorted lists/TVShows
              // Ensure defaults for offset/limit if not present (though offset is calc above)
