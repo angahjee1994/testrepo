@@ -619,10 +619,13 @@ class AstroGo : MainAPI() {
             val addedTitles = HashSet<String>()
 
             val itemsMap = LinkedHashMap<String, ArrayList<SearchResponse>>()
+            // Determine if we should prefer landscape images (Home row request)
+            // If request.name is Home, or dataPath indicates Home
+            val isHome = request.name == "Home" || dataPath.contains("Home")
 
             response?.categories?.forEach { category ->
                 val title = category.title ?: request.name
-                val params = category.content?.mapNotNull { it.toSearchResponse() }
+                val params = category.content?.mapNotNull { it.toSearchResponse(preferLandscape = isHome) }
                 
                 if (!params.isNullOrEmpty()) {
                     if (!itemsMap.containsKey(title)) {
@@ -633,7 +636,7 @@ class AstroGo : MainAPI() {
             }
 
             if (response?.content != null) {
-                 val contents = response.content.mapNotNull { it.toSearchResponse() }
+                 val contents = response.content.mapNotNull { it.toSearchResponse(preferLandscape = isHome) }
                  if (contents.isNotEmpty()) {
                      // If itemsMap is empty, use request.name. Else use "Featured" or merge to existing
                      // User requested "load in home row" implying merge if possible.
@@ -664,7 +667,7 @@ class AstroGo : MainAPI() {
         }
     }
 
-    private fun AstroContent.toSearchResponse(): SearchResponse? {
+    private fun AstroContent.toSearchResponse(preferLandscape: Boolean = false): SearchResponse? {
         // Prioritize ID that looks like a UUID or Composite ID
         val candidates = listOfNotNull(this.id, this.packId, this.externalId)
         val id = candidates.find { it.contains("~") } 
@@ -672,9 +675,20 @@ class AstroGo : MainAPI() {
               ?: candidates.firstOrNull() 
               ?: return null
         val title = this.title ?: return null
-        val poster = this.media?.find { it.url?.contains("PORT_476x716") == true }?.url 
+        
+        val poster = if (preferLandscape) {
+             this.media?.find { it.url?.contains("LAND_917x516") == true }?.url 
+             ?: this.media?.find { it.url?.contains("LAND") == true }?.url 
+             ?: this.media?.find { it.url?.contains("backdrop") == true }?.url
+             // Fallback to PORT if LAND not found
+             ?: this.media?.find { it.url?.contains("PORT_476x716") == true }?.url 
              ?: this.media?.find { it.url?.contains("PORT") == true }?.url 
              ?: this.media?.firstOrNull()?.url
+        } else {
+             this.media?.find { it.url?.contains("PORT_476x716") == true }?.url 
+             ?: this.media?.find { it.url?.contains("PORT") == true }?.url 
+             ?: this.media?.firstOrNull()?.url
+        }
         
         val encodedTitle = java.net.URLEncoder.encode(title, "UTF-8")
         val encodedPoster = if (poster != null) java.net.URLEncoder.encode(poster, "UTF-8") else ""
