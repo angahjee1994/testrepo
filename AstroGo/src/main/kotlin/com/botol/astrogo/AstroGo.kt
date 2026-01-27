@@ -748,28 +748,48 @@ class AstroGo : MainAPI() {
     private suspend fun fetchAndSaveProfile() {
         if (bearerToken.isEmpty()) return
         try {
-            // Using the same API URL as main page
-            val url = "$apiUrl/users/me/profiles?clientToken=$clientToken"
+            // Attempt 1: Standard OIDC UserInfo
+            val url = "https://auth.astro.com.my/userinfo"
             val headers = mapOf(
                 "Authorization" to "Bearer $bearerToken", 
                 "Accept" to "application/json"
             )
-            System.out.println("DEBUG AstroGo Fetching Profiles from: $url")
+            System.out.println("DEBUG AstroGo Fetching UserInfo from: $url")
             val response = app.get(url, headers = headers).text
-            System.out.println("DEBUG AstroGo Profiles Response: $response")
+            System.out.println("DEBUG AstroGo UserInfo Response: $response")
              
-            // Extract the first profile's ID
-            // Structure is usually [ { "id": "...", "name": "..." }, ... ]
-            val idRegex = "\"id\"\\s*:\\s*\"([^\"]+)\"".toRegex()
-            val match = idRegex.find(response)
-            val profileId = match?.groupValues?.get(1)
-             
-            if (!profileId.isNullOrEmpty()) {
-                 setKey("astro_profile_id", profileId)
-                 System.out.println("DEBUG AstroGo Profile Selected: $profileId")
-            } else {
-                 System.out.println("DEBUG AstroGo No Profile ID found in response")
+            // Parse response for meaningful IDs
+            // userinfo usually returns "sub", "name", "zoneinfo", etc.
+            // But we specifically need a Profile ID for Astro.
+            // Sometimes it's in "sub" or a custom claim "family_name" etc?
+            
+            // Let's also try the specific management endpoint if userinfo doesn't look like it has "profiles"
+            // But for now, let's see what we get.
+            
+            // Checking if we can get a "sub" as a fallback
+            val subRegex = "\"sub\"\\s*:\\s*\"([^\"]+)\"".toRegex()
+            val subMatch = subRegex.find(response)
+            val subId = subMatch?.groupValues?.get(1)
+            
+            // If the response contains "profiles", parse that array
+            if (response.contains("profiles")) {
+                 val idRegex = "\"id\"\\s*:\\s*\"([^\"]+)\"".toRegex()
+                 val match = idRegex.find(response)
+                 val possibleId = match?.groupValues?.get(1)
+                 
+                 if (!possibleId.isNullOrEmpty() && possibleId != "NOT_FOUND" && possibleId != "NOT_ENTITLED") {
+                     setKey("astro_profile_id", possibleId)
+                     System.out.println("DEBUG AstroGo Profile Selected (from profiles): $possibleId")
+                     return
+                 }
             }
+
+            if (!subId.isNullOrEmpty()) {
+                // Synamedia often uses the 'sub' from UserInfo as the Identity ID if no specific profile is selected
+                setKey("astro_profile_id", subId)
+                System.out.println("DEBUG AstroGo Profile Selected (sub): $subId")
+            }
+            
         } catch (e: Exception) {
              System.out.println("DEBUG AstroGo Profile Fetch Error: ${e.message}")
              e.printStackTrace()
