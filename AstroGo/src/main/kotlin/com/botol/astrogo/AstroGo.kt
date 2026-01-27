@@ -178,20 +178,18 @@ class AstroGo : MainAPI() {
     suspend fun login(username: String, pass: String): Boolean {
         System.out.println("DEBUG AstroGo Login: Starting for user $username")
         return try {
-            // 1. Initiate OAuth Flow using the parameters from official website trace
             val clientId = "browser"
             val scope = "openid email phone profile internal astro_consumption_account urn:synamedia:vcs:ovp:b2c-account"
             val redirectUri = "https://astrogo.astro.com.my"
             val authState = "bootup"
             
-            // Properly encode redirect_uri
             val encodedRedirectUri = java.net.URLEncoder.encode(redirectUri, "UTF-8")
             val encodedScope = java.net.URLEncoder.encode(scope, "UTF-8")
 
+            // 1. Start OAuth Flow
             val authUrl = "https://sg-sg-sg.astro.com.my:9443/oauth2/authorize?client_id=$clientId&redirect_uri=$encodedRedirectUri&response_type=token&scope=$encodedScope&state=$authState"
             System.out.println("DEBUG AstroGo Login: Auth URL: $authUrl")
             
-            // Manually handle redirects to debug the loop
             var currentUrl = authUrl
             var attempts = 0
             val maxAttempts = 20
@@ -199,45 +197,47 @@ class AstroGo : MainAPI() {
             while (attempts < maxAttempts) {
                 System.out.println("DEBUG AstroGo Login: Requesting ($attempts): $currentUrl")
                 val response = app.get(currentUrl, allowRedirects = false)
-                System.out.println("DEBUG AstroGo Login: Response Code: ${response.code}")
                 
-                 // Check Success on URL or Location
-                val checkUrl = response.headers["Location"] ?: response.url
-                if (checkUrl.contains("access_token=") || currentUrl.contains("access_token=")) { 
-                    val tokenUrl = if (checkUrl.contains("access_token=")) checkUrl else currentUrl
-                    val token = tokenUrl.substringAfter("access_token=").substringBefore("&")
-                    System.out.println("DEBUG AstroGo Login: Token found: ${token.take(10)}...")
-                    saveToken(token)
-                    fetchAndSaveProfile()
-                    return true
+                // Check if we got the token (e.g. immediate redirect or in URL)
+                val location = response.headers["Location"]
+                val checkUrl = location ?: response.url
+                
+                if (checkUrl.contains("access_token=") || currentUrl.contains("access_token=")) {
+                     val tokenUrl = if (checkUrl.contains("access_token=")) checkUrl else currentUrl
+                     val token = tokenUrl.substringAfter("access_token=").substringBefore("&")
+                     System.out.println("DEBUG AstroGo Login: Token found: ${token.take(10)}...")
+                     saveToken(token)
+                     fetchAndSaveProfile()
+                     return true
                 }
                 
-                if (response.code in 300..308 && response.headers["Location"] != null) {
-                    val location = response.headers["Location"]!!
-                    System.out.println("DEBUG AstroGo Login: Redirect to: $location")
-                    
-                     // Handle relative redirects
-                    currentUrl = if (location.startsWith("/")) {
+                if (response.code in 300..308 && location != null) {
+                    // Handle Redirect
+                    var nextUrl = location
+                    if (nextUrl.startsWith("/")) {
                         val uri = java.net.URI(currentUrl)
-                         "${uri.scheme}://${uri.host}${if (uri.port != -1 && uri.port != 80 && uri.port != 443) ":${uri.port}" else ""}$location"
-                    } else {
-                        location
+                        nextUrl = "${uri.scheme}://${uri.host}${if (uri.port != -1 && uri.port != 80 && uri.port != 443) ":${uri.port}" else ""}$nextUrl"
                     }
+                    currentUrl = nextUrl
                     
-                    // Check if we hit the login page
+                    // IF we are redirected to the login page, we need to STOP following and FETCH it to get the FORM
                     if (currentUrl.contains("auth.astro.com.my/login")) {
-                        System.out.println("DEBUG AstroGo Login: Hit Login Page. Proceeding to POST credentials.")
-                        return performLoginPost(currentUrl, username, pass)
+                         System.out.println("DEBUG AstroGo Login: Hit Login Page. Handling Form Submission...")
+                         return handleLoginForm(currentUrl, username, pass)
                     }
                     
                 } else {
-                    System.out.println("DEBUG AstroGo Login: Redirect chain stopped at ${response.url} without token.")
+                    // Stopped redirecting
+                    if (response.url.contains("auth.astro.com.my/login")) {
+                         System.out.println("DEBUG AstroGo Login: Landed on Login Page. Handling Form Submission...")
+                         return handleLoginForm(response.url, username, pass)
+                    }
+                    
+                    System.out.println("DEBUG AstroGo Login: Stopped at ${response.url} without token.")
                     break
                 }
                 attempts++
             }
-            
-            System.out.println("DEBUG AstroGo Login: Failed after $attempts attempts or no token found.")
             false
         } catch (e: Exception) {
             System.out.println("DEBUG AstroGo Login Exception: ${e.message}")
@@ -246,71 +246,94 @@ class AstroGo : MainAPI() {
         }
     }
 
-    private suspend fun performLoginPost(loginPageUrl: String, username: String, pass: String): Boolean {
-         val flowId = loginPageUrl.substringAfter("flow=").substringBefore("&")
-         System.out.println("DEBUG AstroGo Login: Flow ID found: $flowId")
-         val loginPostUrl = "https://auth.astro.com.my/login?flow=$flowId"
-         
-         val payload = mapOf(
-            "identifier" to username,
-            "password" to pass
-         )
-
-         val loginHeaders = mapOf(
-            "Content-Type" to "application/json",
-            "Accept" to "application/json, text/plain, */*"
-         )
-         
-         System.out.println("DEBUG AstroGo Login: Posting credentials to $loginPostUrl")
-         val loginResp = app.post(loginPostUrl, json = payload, headers = loginHeaders, allowRedirects = false)
-         System.out.println("DEBUG AstroGo Login: POST Response Code: ${loginResp.code}")
-         System.out.println("DEBUG AstroGo Login: POST Location: ${loginResp.headers["Location"]}")
-         
-         if (loginResp.code in 300..308 && loginResp.headers["Location"] != null) {
-             var nextUrl = loginResp.headers["Location"]!!
+    private suspend fun handleLoginForm(loginUrl: String, username: String, pass: String): Boolean {
+         try {
+             // 1. Fetch the page to get CSRF
+             System.out.println("DEBUG AstroGo Login: Fetching HTML from $loginUrl")
+             val pageResp = app.get(loginUrl)
+             val html = pageResp.text
              
-             // Follow redirects until we get the token
-             var attempts = 0
-             while (attempts < 10) {
-                 System.out.println("DEBUG AstroGo Login: Post-Login Redirect #$attempts to $nextUrl")
-                 if (nextUrl.contains("access_token=")) {
-                     val token = nextUrl.substringAfter("access_token=").substringBefore("&")
-                     System.out.println("DEBUG AstroGo Login: Token found in redirect: ${token.take(10)}...")
-                     saveToken(token)
-                     fetchAndSaveProfile()
-                     return true
-                 }
-
-                 if (nextUrl.startsWith("/")) {
-                      nextUrl = "https://auth.astro.com.my$nextUrl"
-                 }
-
-                 val nextResp = app.get(nextUrl, allowRedirects = false)
-                 if (nextResp.code in 300..308 && nextResp.headers["Location"] != null) {
-                     nextUrl = nextResp.headers["Location"]!!
-                     
-                     // Handle relative redirect again if needed, though usually absolute from Identity Server
-                     if (nextUrl.startsWith("/")) {
-                         nextUrl = "https://auth.astro.com.my$nextUrl"
-                     }
-
-                 } else {
-                     if (nextResp.url.contains("access_token=") || nextUrl.contains("access_token=")) {
-                          // Double check
-                          val finalUrl = if (nextResp.url.contains("access_token=")) nextResp.url else nextUrl
-                          val token = finalUrl.substringAfter("access_token=").substringBefore("&")
-                          System.out.println("DEBUG AstroGo Login: Token found in final url: ${token.take(10)}...")
-                          saveToken(token)
-                          fetchAndSaveProfile()
-                          return true
-                     }
-                     System.out.println("DEBUG AstroGo Login: Post-login redirect chain stopped at ${nextResp.url} without token")
-                     break
-                 }
-                 attempts++
+             // 2. Extract CSRF
+             // Extract named inputs to be robust
+             val csrfToken = Regex("""name=["']csrf_token["'][^>]*?value=["']([^"']+)["']""").find(html)?.groupValues?.get(1) 
+                             ?: Regex("""value=["']([^"']+)["'][^>]*?name=["']csrf_token["']""").find(html)?.groupValues?.get(1)
+             
+             if (csrfToken == null) {
+                 System.out.println("DEBUG AstroGo Login: CSRF Token not found in HTML!")
+                 return false
              }
-         } else {
-             System.out.println("DEBUG AstroGo Login: POST failed or no redirect. Body: ${loginResp.text}")
+             System.out.println("DEBUG AstroGo Login: CSRF Token extracted.")
+             
+             // 3. Prepare Form Data
+             val postUrl = loginUrl // Browser posts to same URL
+             
+             // NiceHttp 'data' argument sends application/x-www-form-urlencoded by default
+             val formData = mapOf(
+                "identifier" to username,
+                "password" to pass,
+                "method" to "password",
+                "csrf_token" to csrfToken
+             )
+             
+             System.out.println("DEBUG AstroGo Login: Posting Form to $postUrl")
+             val postResp = app.post(
+                 postUrl, 
+                 data = formData, 
+                 allowRedirects = false
+             )
+             
+             System.out.println("DEBUG AstroGo Login: POST Code: ${postResp.code}")
+             
+             // 4. Follow Redirects after POST
+             if (postResp.code in 300..308 && postResp.headers["Location"] != null) {
+                  var nextUrl = postResp.headers["Location"]!!
+                  var attempts = 0
+                  
+                  while (attempts < 10) {
+                     if (nextUrl.contains("access_token=")) {
+                         val token = nextUrl.substringAfter("access_token=").substringBefore("&")
+                         System.out.println("DEBUG AstroGo Login: Token found in POST redirect: ${token.take(10)}...")
+                         saveToken(token)
+                         fetchAndSaveProfile()
+                         return true
+                     }
+                     
+                     // Handle relative
+                      if (nextUrl.startsWith("/")) {
+                          nextUrl = "https://auth.astro.com.my$nextUrl"
+                      }
+                      
+                      System.out.println("DEBUG AstroGo Login: Redirecting to: $nextUrl")
+                      val resp = app.get(nextUrl, allowRedirects = false)
+                      
+                      val loc = resp.headers["Location"]
+                      if (resp.code in 300..308 && loc != null) {
+                          nextUrl = loc
+                      } else {
+                           if (resp.url.contains("access_token=")) {
+                               val token = resp.url.substringAfter("access_token=").substringBefore("&")
+                               saveToken(token)
+                               fetchAndSaveProfile()
+                               return true
+                           }
+                           
+                           if (loc != null && loc.contains("access_token=")) {
+                               val token = loc.substringAfter("access_token=").substringBefore("&")
+                               saveToken(token)
+                               fetchAndSaveProfile()
+                               return true
+                           }
+                           
+                           System.out.println("DEBUG AstroGo Login: Redirect chain ended without token at ${resp.url}")
+                           break
+                      }
+                      attempts++
+                  }
+             } else {
+                  System.out.println("DEBUG AstroGo Login: POST did not redirect. Body start: ${postResp.text.take(100)}")
+             }
+         } catch (e: Exception) {
+             e.printStackTrace()
          }
          return false
     }
