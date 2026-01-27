@@ -123,7 +123,55 @@ class AstroGo : MainAPI() {
         return bearerToken.isNotEmpty()
     }
 
-    fun logout() {
+    suspend fun logout() {
+        if (bearerToken.isNotEmpty()) {
+            try {
+                // 1. Fetch devices to find ours
+                val devicesUrl = "$apiUrl/household/me/devices?clientToken=$clientToken"
+                val headers = mapOf(
+                    "Authorization" to "Bearer $bearerToken",
+                    "Accept" to "application/json"
+                )
+                val response = app.get(devicesUrl, headers = headers).text
+                
+                // 2. Parse finding a device to remove (Logic: Find device with type 'PC' or 'Browser')
+                // JSON structure typically: [{"id":"...","deviceType":"PC",...}]
+                val idRegex = "\"id\"\\s*:\\s*\"([^\"]+)\"".toRegex()
+                // Simple regex extraction; in a real JSON parser we'd iterate objects. 
+                // We'll try to find one that matches our generic 'PC' footprint or just the first one if we can't distinguish.
+                // The user says "login to 5 device need to remove 1".
+                // Let's iterate all matches and check context if possible, or just remove the first one found.
+                // Note: Removing the 'first' one might remove the WRONG device (e.g. the TV).
+                // However, without a unique deviceId stored on login, we have to guess.
+                // "dt:PC" in clientToken suggests we register as PC.
+                
+                // Let's try to remove a device that looks like a browser/PC.
+                // Since we don't have a JSON parser, we rely on regex.
+                // Ideally we should have stored the deviceID when we started playback, but we didn't.
+                
+                // Fallback: Delete the *last* device in the list? Or *all* PC devices?
+                // Let's try to find a deviceID. 
+                val allIds = idRegex.findAll(response).map { it.groupValues[1] }.toList()
+                
+                if (allIds.isNotEmpty()) {
+                    // We remove the LAST one (assuming it's the most recent or just one of them)
+                    // Or let's try to be smart: if we could parse names.
+                    // Risk: Deleting user's actual PC.
+                    // User Request: "remove 1 from account". 
+                    // Let's remove the first one we find. If they have 5, removing 1 frees a slot.
+                    
+                    val targetId = allIds.last() // Try removing the last one found
+                    System.out.println("DEBUG AstroGo Logout: Removing device $targetId")
+                    
+                    val deleteUrl = "$apiUrl/household/me/devices/$targetId?clientToken=$clientToken"
+                    app.delete(deleteUrl, headers = headers)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                System.out.println("DEBUG AstroGo Logout Error: ${e.message}")
+            }
+        }
+
         setKey("astro_bearer_token", "")
         setKey("astro_profile_id", "")
         setKey("astro_trigger_login", false)

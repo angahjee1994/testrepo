@@ -67,9 +67,12 @@ class AstroSettingsFragment(
         if (plugin.provider?.isLoggedIn() == true) {
             val logoutCard = createSettingsCard("Logout", "Logged in as ${getKey<String>("astro_username") ?: "User"}")
             logoutCard.setOnClickListener {
-                plugin.provider?.logout()
-                // Refresh logic: Close and re-open or just close
-                dismiss() 
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    plugin.provider?.logout()
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        dismiss()
+                    }
+                }
             }
             rootLayout.addView(logoutCard)
         } else {
