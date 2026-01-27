@@ -137,27 +137,48 @@ class AstroGo : MainAPI() {
                 val response = app.get(devicesUrl, headers = headers).text
                 System.out.println("DEBUG AstroGo Logout: JSON=$response")
                 
-                // 2. Parse ID. JSON: [{"id": 123}, {"id": "123"}]
-                // We want to capture the value, whether numeric or string (no quotes)
-                val idRegex = "\"(?:id|deviceId)\"\\s*:\\s*(?:\"([^\"]+)\"|([^,}\\s]+))".toRegex()
-                // Group 1 = quoted string, Group 2 = unquoted (number)
+                // 2. Parse IDs eagerly (id, deviceId, uuid)
+                // We want to capture the value, whether numeric or string
+                val idRegex = "\"(?:id|deviceId|uuid)\"\\s*:\\s*(?:\"([^\"]+)\"|([^,}\\s]+))".toRegex()
                 
                 val allIds = idRegex.findAll(response).map { 
                     it.groups[1]?.value ?: it.groups[2]?.value 
-                }.filterNotNull().toList()
+                }.filterNotNull().toMutableList()
+                
+                // Reverse list to try removing latest devices first (usually the 'PC' ones)
+                // or keep order? The browser list implies mixed order. 
+                // We just need to remove ONE.
+                allIds.reverse()
                 
                 System.out.println("DEBUG AstroGo Logout: Parsed IDs: $allIds")
 
-                if (allIds.isNotEmpty()) {
-                    // Try to remove the first one to free slot
-                    val targetId = allIds.first()
-                    System.out.println("DEBUG AstroGo Logout: Deleting $targetId")
+                var removed = false
+                for (targetId in allIds) {
+                    // unexpected numeric IDs might be the Box, which is non-removable.
+                    // But we try anyway.
+                    if (targetId.length < 5) continue // Skip very short IDs if any
                     
-                    val deleteUrl = "$apiUrl/household/me/devices/$targetId?clientToken=$clientToken"
-                    val delResp = app.delete(deleteUrl, headers = headers)
-                    
-                    System.out.println("DEBUG AstroGo Logout: DELETE Code=${delResp.code} Body=${delResp.text}")
+                    try {
+                        System.out.println("DEBUG AstroGo Logout: Attempting to delete $targetId")
+                        val deleteUrl = "$apiUrl/household/me/devices/$targetId?clientToken=$clientToken"
+                        val delResp = app.delete(deleteUrl, headers = headers)
+                        
+                        System.out.println("DEBUG AstroGo Logout: DELETE $targetId Code=${delResp.code}")
+                        
+                        if (delResp.code in 200..299) {
+                            removed = true
+                            System.out.println("DEBUG AstroGo Logout: Successfully removed a device. Stopping.")
+                            break
+                        }
+                    } catch (e: Exception) {
+                        System.out.println("DEBUG AstroGo Logout: Failed to delete $targetId: ${e.message}")
+                    }
                 }
+                
+                if (!removed) {
+                     System.out.println("DEBUG AstroGo Logout: Could not remove any device from the list.")
+                }
+                
             } catch (e: Exception) {
                 e.printStackTrace()
                 System.out.println("DEBUG AstroGo Logout Error: ${e.message}")
