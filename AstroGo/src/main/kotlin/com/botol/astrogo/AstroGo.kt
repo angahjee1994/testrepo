@@ -107,9 +107,19 @@ class AstroGo : MainAPI() {
                     }
                 }
                 return@Interceptor response
+            } else {
+                // For non-license requests (Stream/MPD), we MUST strip the API headers
+                // otherwise CloudFront rejects the request with 403
+                val newRequest = request.newBuilder()
+                    .removeHeader("Authorization")
+                    .removeHeader("X-Astro-Auth")
+                    .removeHeader("X-Astro-Content-ID")
+                    .removeHeader("X-VGE-Service-ID")
+                    .removeHeader("X-VGE-Client")
+                    .removeHeader("X-Identity-Profile-Id")
+                    .build()
+                return@Interceptor chain.proceed(newRequest)
             }
-            
-            chain.proceed(request)
         }
     }
 
