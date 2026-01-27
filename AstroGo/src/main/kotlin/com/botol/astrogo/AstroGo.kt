@@ -590,8 +590,8 @@ class AstroGo : MainAPI() {
         
         if (dataPath == "node:IVP:Home") {
              // Specific handling for Home as requested
-             // URL: .../categories/node%3AIVP%3AHome
-             url = "$apiUrl/categories/$encodedPath?clientToken=$encodedToken"
+             // URL: .../categories/node%3AIVP%3AHome (No clientToken)
+             url = "$apiUrl/categories/$encodedPath"
         } else if (dataPath.contains("Home") || sort != null || dataPath.contains("TVShow") || dataPath.contains("Live")) {
              // Use shared/content for Home and sorted lists/TVShows
              // Ensure defaults for offset/limit if not present (though offset is calc above)
