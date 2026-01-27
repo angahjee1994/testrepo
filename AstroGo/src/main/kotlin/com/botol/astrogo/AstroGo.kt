@@ -119,6 +119,17 @@ class AstroGo : MainAPI() {
         bearerToken = token
     }
 
+    fun isLoggedIn(): Boolean {
+        return bearerToken.isNotEmpty()
+    }
+
+    fun logout() {
+        setKey("astro_bearer_token", "")
+        setKey("astro_profile_id", "")
+        setKey("astro_trigger_login", false)
+        bearerToken = ""
+    }
+
     private suspend fun ensureGuestToken() {
         // If we have a valid logged-in token, don't override it with guest token
         // We simple check if bearerToken is present. 

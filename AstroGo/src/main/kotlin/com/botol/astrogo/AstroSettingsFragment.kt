@@ -63,12 +63,23 @@ class AstroSettingsFragment(
         }
         rootLayout.addView(titleView)
 
-        // Login Card
-        val loginCard = createSettingsCard("Login", "Login with your Astro ID")
-        loginCard.setOnClickListener {
-            showLoginDialog()
+        // Login/Logout Card
+        if (plugin.provider?.isLoggedIn() == true) {
+            val logoutCard = createSettingsCard("Logout", "Logged in as ${getKey<String>("astro_username") ?: "User"}")
+            logoutCard.setOnClickListener {
+                plugin.provider?.logout()
+                showToast("Logged out successfully.")
+                // Refresh logic: Close and re-open or just close
+                dismiss() 
+            }
+            rootLayout.addView(logoutCard)
+        } else {
+            val loginCard = createSettingsCard("Login", "Login with your Astro ID")
+            loginCard.setOnClickListener {
+                showLoginDialog()
+            }
+            rootLayout.addView(loginCard)
         }
-        rootLayout.addView(loginCard)
 
         return rootLayout
     }
