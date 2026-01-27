@@ -661,7 +661,9 @@ class AstroGo : MainAPI() {
                     val event = channel.currentEvent ?: channel.events?.firstOrNull()
                     val title = channel.title ?: channel.name ?: event?.title ?: "Live Channel"
                     
-                    val poster = channel.media?.find { it.url?.contains("LAND_917x516") == true }?.url 
+                    val poster = event?.media?.find { it.url?.contains("LAND_917x516") == true }?.url 
+                               ?: event?.media?.find { it.url?.contains("LAND") == true }?.url
+                               ?: channel.media?.find { it.url?.contains("LAND_917x516") == true }?.url 
                                ?: channel.media?.firstOrNull()?.url
                     
                     val encodedTitle = java.net.URLEncoder.encode(title, "UTF-8")
