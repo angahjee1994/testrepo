@@ -180,7 +180,7 @@ class AstroGo : MainAPI() {
             // 1. Initiate OAuth Flow using the User-Provided Parameters
             // Client ID and Scopes from user feedback
             val clientId = "e19c0fcc-8a9a-4985-88ee-3575240d2fdc"
-            val scope = "openid email phone profile internal astro_consumption_account"
+            val scope = "openid email phone profile internal astro_consumption_account urn:synamedia:vcs:ovp:b2c-account"
             val redirectUri = "https://astrogo.astro.com.my"
             val authState = "userLogin_${System.currentTimeMillis()}"
             
