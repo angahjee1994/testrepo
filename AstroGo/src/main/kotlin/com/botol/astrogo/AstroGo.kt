@@ -126,40 +126,37 @@ class AstroGo : MainAPI() {
     suspend fun logout() {
         if (bearerToken.isNotEmpty()) {
             try {
-                // 1. Fetch devices to find ours
+                // 1. Fetch devices
                 val devicesUrl = "$apiUrl/household/me/devices?clientToken=$clientToken"
                 val headers = mapOf(
                     "Authorization" to "Bearer $bearerToken",
-                    "Accept" to "application/json"
+                    "Accept" to "application/json",
+                    "Content-Type" to "application/json"
                 )
-                System.out.println("DEBUG AstroGo Logout: Fetching devices from $devicesUrl")
+                System.out.println("DEBUG AstroGo Logout: Fetching from $devicesUrl")
                 val response = app.get(devicesUrl, headers = headers).text
-                System.out.println("DEBUG AstroGo Logout: Devices Response: $response")
+                System.out.println("DEBUG AstroGo Logout: JSON=$response")
                 
-                // 2. Parsers
-                // Try finding "id" or "deviceId"
-                // JSON might be: [{"id": 123}, {"id": "abc"}]
-                val idRegex = "\"(?:id|deviceId)\"\\s*:\\s*\"?([^,\"}]+)\"?".toRegex()
-                val allIds = idRegex.findAll(response).map { it.groupValues[1] }.toList()
+                // 2. Parse ID. JSON: [{"id": 123}, {"id": "123"}]
+                // We want to capture the value, whether numeric or string (no quotes)
+                val idRegex = "\"(?:id|deviceId)\"\\s*:\\s*(?:\"([^\"]+)\"|([^,}\\s]+))".toRegex()
+                // Group 1 = quoted string, Group 2 = unquoted (number)
                 
-                System.out.println("DEBUG AstroGo Logout: Found IDs: $allIds")
+                val allIds = idRegex.findAll(response).map { 
+                    it.groups[1]?.value ?: it.groups[2]?.value 
+                }.filterNotNull().toList()
+                
+                System.out.println("DEBUG AstroGo Logout: Parsed IDs: $allIds")
 
                 if (allIds.isNotEmpty()) {
-                    // Try to be smart: Check for "deviceType":"PC" related to an ID?
-                    // For now, simple strategy:
-                    // Only remove IF we have >= 4 devices? Or just remove one to be safe as requested.
-                    // "if login to 5 device need to remove 1"
-                    
-                    // We will remove the FIRST one found. Usually the oldest if sorted by addition, or random.
-                    // This is risky but requested.
-                    val targetId = allIds.first() 
-                    System.out.println("DEBUG AstroGo Logout: Target Device to remove: $targetId")
+                    // Try to remove the first one to free slot
+                    val targetId = allIds.first()
+                    System.out.println("DEBUG AstroGo Logout: Deleting $targetId")
                     
                     val deleteUrl = "$apiUrl/household/me/devices/$targetId?clientToken=$clientToken"
                     val delResp = app.delete(deleteUrl, headers = headers)
-                    System.out.println("DEBUG AstroGo Logout: Delete Response Code: ${delResp.code}")
-                } else {
-                    System.out.println("DEBUG AstroGo Logout: No device IDs found to remove.")
+                    
+                    System.out.println("DEBUG AstroGo Logout: DELETE Code=${delResp.code} Body=${delResp.text}")
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -167,8 +164,9 @@ class AstroGo : MainAPI() {
             }
         }
 
-        setKey("astro_bearer_token", "")
-        setKey("astro_profile_id", "")
+        // Fix persistence: use null to remove keys
+        setKey("astro_bearer_token", null)
+        setKey("astro_profile_id", null)
         setKey("astro_trigger_login", false)
         bearerToken = ""
     }
