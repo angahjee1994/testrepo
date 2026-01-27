@@ -116,84 +116,88 @@ class AstroSettingsFragment(
 
     private fun showLoginDialog() {
         val context = requireContext()
-        val padding = (16 * context.resources.displayMetrics.density).toInt()
+        val density = context.resources.displayMetrics.density
+        val padding = (16 * density).toInt()
 
-        val layout = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(padding, padding, padding, padding)
+        // Create WebView Container
+        val frameLayout = FrameLayout(context).apply {
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                (500 * density).toInt() // Height constraint for dialog
+            )
         }
 
-        val usernameInput = EditText(context).apply {
-            hint = "Astro ID (Email/Phone)"
-            setTextColor(Color.BLACK)
-            setHintTextColor(Color.GRAY)
+        val webView = android.webkit.WebView(context).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true
+            settings.userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
-        
-        val passwordInput = EditText(context).apply {
-            hint = "Password"
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-            setTextColor(Color.BLACK)
-            setHintTextColor(Color.GRAY)
-        }
-
-        layout.addView(usernameInput)
-        layout.addView(passwordInput)
+        frameLayout.addView(webView)
 
         val dialog = AlertDialog.Builder(context)
             .setTitle("Login to AstroGo")
-            .setView(layout)
-            .setPositiveButton("Login", null) // Set null to override behaviour
-            .setNegativeButton("Cancel", null)
+            .setView(frameLayout)
+            .setNegativeButton("Close", null)
             .create()
 
-        dialog.setOnShowListener {
-            val button = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
-            button.setOnClickListener {
-                val username = usernameInput.text.toString()
-                val password = passwordInput.text.toString()
-                
-                if (username.isNotBlank() && password.isNotBlank()) {
-                    showToast("Logging in...")
-                    // Disable button to prevent double clicks
-                    button.isEnabled = false
-                    
-                    // Use a simple thread if lifecycleScope is tricky to import without verified dependencies, 
-                    // but Cloudstream should have it. trying generic coroutine approach.
-                    // If lifecycleScope is not available, we might error. 
-                    // Let's use CommanActivity scope concept or similar if possible.
-                    // Or just GlobalScope for this simple action to avoid unresolved references if uncertain.
-                    // Better: use the plugin's context? No.
-                    
-                    // Assuming coroutines are available
-                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                        try {
-                            val success = plugin.provider?.login(username, password) == true
-                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                button.isEnabled = true
-                                if (success) {
-                                    setKey("astro_username", username)
-                                    setKey("astro_password", password)
-                                    setKey("astro_trigger_login", false) // Since we already logged in
-                                    
-                                    showToast("Login Successful! You can close this.")
-                                    dialog.dismiss()
-                                } else {
-                                    showToast("Login Failed. Check credentials.")
-                                    // Dialog stays open
-                                }
-                            }
-                        } catch (e: Exception) {
-                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                button.isEnabled = true
-                                showToast("Login Error: ${e.message}")
-                            }
-                        }
-                    }
-                } else {
-                    showToast("Please enter both username and password")
-                }
+        // WebView Client to intercept Login
+        webView.webViewClient = object : android.webkit.WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: android.webkit.WebView?, request: android.webkit.WebResourceRequest?): Boolean {
+                val url = request?.url.toString()
+                return handleUrl(url) || super.shouldOverrideUrlLoading(view, request)
+            }
+            
+            // Fallback for older API or different triggers
+            override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                url?.let { handleUrl(it) }
+            }
+
+            private fun handleUrl(url: String): Boolean {
+                 // Check for access token in URL fragment or query
+                 // The pattern is typically ...#access_token=XY... or ...&access_token=XY...
+                 if (url.contains("access_token=")) {
+                     val token = url.substringAfter("access_token=").substringBefore("&")
+                     if (token.isNotEmpty()) {
+                         // Found it!
+                         showToast("Login Successful! Processing...")
+                         
+                         // Run on IO for network ops (fetching profile)
+                         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                             try {
+                                 plugin.provider?.saveToken(token)
+                                 plugin.provider?.fetchAndSaveProfile()
+                                 
+                                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                     setKey("astro_trigger_login", false)
+                                     showToast("Setup Complete!")
+                                     dialog.dismiss()
+                                 }
+                             } catch (e: Exception) {
+                                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                     showToast("Profile Fetch Error: ${e.message}")
+                                 }
+                             }
+                         }
+                         return true // We handled it
+                     }
+                 }
+                 return false
             }
         }
+
+        // Load the Authorization URL
+        val clientId = "browser"
+        val authState = "bootup"
+        val redirectUri = "https://astrogo.astro.com.my"
+        val encodedRedirectUri = java.net.URLEncoder.encode(redirectUri, "UTF-8")
+        val authUrl = "https://sg-sg-sg.astro.com.my:9443/oauth2/authorize?client_id=$clientId&state=$authState&redirect_uri=$encodedRedirectUri&response_type=token"
+
+        webView.loadUrl(authUrl)
         
         dialog.show()
     }

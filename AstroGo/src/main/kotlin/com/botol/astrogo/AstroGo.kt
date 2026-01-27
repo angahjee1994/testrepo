@@ -114,7 +114,7 @@ class AstroGo : MainAPI() {
         return getKey("astro_bearer_token")
     }
 
-    private fun saveToken(token: String) {
+    fun saveToken(token: String) {
         setKey("astro_bearer_token", token)
         bearerToken = token
     }
@@ -876,7 +876,7 @@ class AstroGo : MainAPI() {
         return false
     }
 
-    private suspend fun fetchAndSaveProfile() {
+    suspend fun fetchAndSaveProfile() {
         if (bearerToken.isEmpty()) return
 
         // endpoints to try
