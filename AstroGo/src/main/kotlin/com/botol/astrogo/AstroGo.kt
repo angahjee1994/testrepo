@@ -288,8 +288,11 @@ class AstroGo : MainAPI() {
             }
         }
 
-        if (bearerToken.isNotEmpty() && getKey<String>("astro_profile_id") == null) {
-            fetchAndSaveProfile()
+        if (bearerToken.isNotEmpty()) {
+            val pid = getKey<String>("astro_profile_id")
+            if (pid == null || pid == "NOT_FOUND") {
+                fetchAndSaveProfile()
+            }
         }
 
         // If still empty or if it's a guest token that expired (logic needed?), get guest token
@@ -656,11 +659,14 @@ class AstroGo : MainAPI() {
         
         val baseId = data.substringBefore("?").substringAfterLast("/")
         System.out.println("DEBUG AstroGo LoadLinks: BaseId=$baseId Token=${bearerToken.take(10)}")
-        
-        // Define profiles to try: 2 (Web), 100 (Standard)
-        // val profiles = listOf("2", "100") // Legacy
 
-        val profileId = getKey<String>("astro_profile_id") ?: ""
+        // Check Profile ID integrity
+        var profileId = getKey<String>("astro_profile_id") ?: ""
+        if (profileId.isEmpty() || profileId == "NOT_FOUND") {
+             System.out.println("DEBUG AstroGo LoadLinks: Profile ID invalid ($profileId), fetching...")
+             fetchAndSaveProfile()
+             profileId = getKey<String>("astro_profile_id") ?: ""
+        }
 
         val headers = mapOf(
             "Authorization" to "Bearer $bearerToken",
@@ -672,6 +678,7 @@ class AstroGo : MainAPI() {
             "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Accept" to "application/json"
         )
+        System.out.println("DEBUG AstroGo LoadLinks Headers: $headers")
 
         try {
             // User requested strict adherence to this exact URL with port 9443
@@ -747,53 +754,75 @@ class AstroGo : MainAPI() {
 
     private suspend fun fetchAndSaveProfile() {
         if (bearerToken.isEmpty()) return
-        try {
-            // Attempt 1: Standard OIDC UserInfo
-            val url = "https://auth.astro.com.my/userinfo"
-            val headers = mapOf(
-                "Authorization" to "Bearer $bearerToken", 
-                "Accept" to "application/json"
-            )
-            System.out.println("DEBUG AstroGo Fetching UserInfo from: $url")
-            val response = app.get(url, headers = headers).text
-            System.out.println("DEBUG AstroGo UserInfo Response: $response")
-             
-            // Parse response for meaningful IDs
-            // userinfo usually returns "sub", "name", "zoneinfo", etc.
-            // But we specifically need a Profile ID for Astro.
-            // Sometimes it's in "sub" or a custom claim "family_name" etc?
-            
-            // Let's also try the specific management endpoint if userinfo doesn't look like it has "profiles"
-            // But for now, let's see what we get.
-            
-            // Checking if we can get a "sub" as a fallback
-            val subRegex = "\"sub\"\\s*:\\s*\"([^\"]+)\"".toRegex()
-            val subMatch = subRegex.find(response)
-            val subId = subMatch?.groupValues?.get(1)
-            
-            // If the response contains "profiles", parse that array
-            if (response.contains("profiles")) {
-                 val idRegex = "\"id\"\\s*:\\s*\"([^\"]+)\"".toRegex()
-                 val match = idRegex.find(response)
-                 val possibleId = match?.groupValues?.get(1)
-                 
-                 if (!possibleId.isNullOrEmpty() && possibleId != "NOT_FOUND" && possibleId != "NOT_ENTITLED") {
-                     setKey("astro_profile_id", possibleId)
-                     System.out.println("DEBUG AstroGo Profile Selected (from profiles): $possibleId")
-                     return
-                 }
-            }
 
-            if (!subId.isNullOrEmpty()) {
-                // Synamedia often uses the 'sub' from UserInfo as the Identity ID if no specific profile is selected
-                setKey("astro_profile_id", subId)
-                System.out.println("DEBUG AstroGo Profile Selected (sub): $subId")
+        // endpoints to try
+        val endpoints = listOf(
+            "https://auth.astro.com.my/userinfo",
+            "https://auth.astro.com.my/oauth2/userinfo",
+            "$apiUrl/users/me/profiles?clientToken=$clientToken" // Legacy/CTAP try last
+        )
+
+        for (url in endpoints) {
+            try {
+                val headers = mapOf(
+                    "Authorization" to "Bearer $bearerToken",
+                    "Accept" to "application/json"
+                )
+                System.out.println("DEBUG AstroGo Fetching Profile from: $url")
+                
+                val response = app.get(url, headers = headers).text
+                System.out.println("DEBUG AstroGo Profile Response ($url): $response")
+
+                var foundId: String? = null
+
+                // Strategy A: Check for "profiles" array (CTAP) or custom claim
+                if (response.contains("profiles")) {
+                    val idRegex = "\"id\"\\s*:\\s*\"([^\"]+)\"".toRegex()
+                    val matches = idRegex.findAll(response)
+                    // First match might be the user ID, second might be profile? 
+                    // Usually CTAP is [ { "id": 123, "name": "Default" } ]
+                    // We prefer a numeric ID or UUID.
+                    for (m in matches) {
+                        val v = m.groupValues[1]
+                        if (v != "NOT_FOUND" && v != "NOT_ENTITLED") {
+                            foundId = v
+                            break
+                        }
+                    }
+                }
+
+                // Strategy B: Check for "sub" (OIDC)
+                if (foundId == null) {
+                    val subRegex = "\"sub\"\\s*:\\s*\"([^\"]+)\"".toRegex()
+                    val subMatch = subRegex.find(response)
+                    val subVal = subMatch?.groupValues?.get(1)
+                    if (subVal != null && subVal.isNotEmpty()) {
+                         foundId = subVal
+                    }
+                }
+
+                // Strategy C: Check for "family_name" (OIDC - sometimes used as account ID)
+                if (foundId == null) {
+                     val famRegex = "\"family_name\"\\s*:\\s*\"([^\"]+)\"".toRegex()
+                     val famMatch = famRegex.find(response)
+                     val famVal = famMatch?.groupValues?.get(1)
+                     if (famVal != null && famVal.isNotEmpty()) {
+                        foundId = famVal
+                     }
+                }
+                
+                if (foundId != null) {
+                    setKey("astro_profile_id", foundId)
+                    System.out.println("DEBUG AstroGo Profile Selected: $foundId (Strategy determined)")
+                    return // Success
+                }
+
+            } catch (e: Exception) {
+                System.out.println("DEBUG AstroGo Profile Fetch Error ($url): ${e.message}")
             }
-            
-        } catch (e: Exception) {
-             System.out.println("DEBUG AstroGo Profile Fetch Error: ${e.message}")
-             e.printStackTrace()
         }
+        
+        System.out.println("DEBUG AstroGo Failed to fetch any valid profile ID.")
     }
 
     private fun generateClientToken(): String {
