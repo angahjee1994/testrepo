@@ -132,39 +132,34 @@ class AstroGo : MainAPI() {
                     "Authorization" to "Bearer $bearerToken",
                     "Accept" to "application/json"
                 )
+                System.out.println("DEBUG AstroGo Logout: Fetching devices from $devicesUrl")
                 val response = app.get(devicesUrl, headers = headers).text
+                System.out.println("DEBUG AstroGo Logout: Devices Response: $response")
                 
-                // 2. Parse finding a device to remove (Logic: Find device with type 'PC' or 'Browser')
-                // JSON structure typically: [{"id":"...","deviceType":"PC",...}]
-                val idRegex = "\"id\"\\s*:\\s*\"([^\"]+)\"".toRegex()
-                // Simple regex extraction; in a real JSON parser we'd iterate objects. 
-                // We'll try to find one that matches our generic 'PC' footprint or just the first one if we can't distinguish.
-                // The user says "login to 5 device need to remove 1".
-                // Let's iterate all matches and check context if possible, or just remove the first one found.
-                // Note: Removing the 'first' one might remove the WRONG device (e.g. the TV).
-                // However, without a unique deviceId stored on login, we have to guess.
-                // "dt:PC" in clientToken suggests we register as PC.
-                
-                // Let's try to remove a device that looks like a browser/PC.
-                // Since we don't have a JSON parser, we rely on regex.
-                // Ideally we should have stored the deviceID when we started playback, but we didn't.
-                
-                // Fallback: Delete the *last* device in the list? Or *all* PC devices?
-                // Let's try to find a deviceID. 
+                // 2. Parsers
+                // Try finding "id" or "deviceId"
+                // JSON might be: [{"id": 123}, {"id": "abc"}]
+                val idRegex = "\"(?:id|deviceId)\"\\s*:\\s*\"?([^,\"}]+)\"?".toRegex()
                 val allIds = idRegex.findAll(response).map { it.groupValues[1] }.toList()
                 
+                System.out.println("DEBUG AstroGo Logout: Found IDs: $allIds")
+
                 if (allIds.isNotEmpty()) {
-                    // We remove the LAST one (assuming it's the most recent or just one of them)
-                    // Or let's try to be smart: if we could parse names.
-                    // Risk: Deleting user's actual PC.
-                    // User Request: "remove 1 from account". 
-                    // Let's remove the first one we find. If they have 5, removing 1 frees a slot.
+                    // Try to be smart: Check for "deviceType":"PC" related to an ID?
+                    // For now, simple strategy:
+                    // Only remove IF we have >= 4 devices? Or just remove one to be safe as requested.
+                    // "if login to 5 device need to remove 1"
                     
-                    val targetId = allIds.last() // Try removing the last one found
-                    System.out.println("DEBUG AstroGo Logout: Removing device $targetId")
+                    // We will remove the FIRST one found. Usually the oldest if sorted by addition, or random.
+                    // This is risky but requested.
+                    val targetId = allIds.first() 
+                    System.out.println("DEBUG AstroGo Logout: Target Device to remove: $targetId")
                     
                     val deleteUrl = "$apiUrl/household/me/devices/$targetId?clientToken=$clientToken"
-                    app.delete(deleteUrl, headers = headers)
+                    val delResp = app.delete(deleteUrl, headers = headers)
+                    System.out.println("DEBUG AstroGo Logout: Delete Response Code: ${delResp.code}")
+                } else {
+                    System.out.println("DEBUG AstroGo Logout: No device IDs found to remove.")
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
