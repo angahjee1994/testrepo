@@ -17,6 +17,10 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.withContext
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.lagradost.cloudstream3.CommonActivity.showToast
 import com.lagradost.cloudstream3.AcraApplication.Companion.getKey
@@ -135,33 +139,63 @@ class AstroSettingsFragment(
         layout.addView(usernameInput)
         layout.addView(passwordInput)
 
-        AlertDialog.Builder(context)
+        val dialog = AlertDialog.Builder(context)
             .setTitle("Login to AstroGo")
             .setView(layout)
-            .setPositiveButton("Login") { _, _ ->
+            .setPositiveButton("Login", null) // Set null to override behaviour
+            .setNegativeButton("Cancel", null)
+            .create()
+
+        dialog.setOnShowListener {
+            val button = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            button.setOnClickListener {
                 val username = usernameInput.text.toString()
                 val password = passwordInput.text.toString()
                 
                 if (username.isNotBlank() && password.isNotBlank()) {
-                     // We will save these credentials temporarily or trigger the login flow
-                     // Ideally we call the MainAPI login function here
-                     // For now, let's just save and toast, the MainAPI will pick it up
-                     // But wait, Cloudstream plugins usually don't have direct access to run suspend functions easily from UI
-                     // We can store the credentials in DataStore and triggering a reload or let MainAPI handle it
-                     
-                     // Saving to DataStore for AstroGo to use
-                     setKey("astro_username", username)
-                     setKey("astro_password", password)
-                     setKey("astro_trigger_login", true) // Signal to try login next load
-                     
-                     showToast("Credentials saved. Please refresh the home page to login.")
-                     close()
+                    showToast("Logging in...")
+                    // Disable button to prevent double clicks
+                    button.isEnabled = false
+                    
+                    // Use a simple thread if lifecycleScope is tricky to import without verified dependencies, 
+                    // but Cloudstream should have it. trying generic coroutine approach.
+                    // If lifecycleScope is not available, we might error. 
+                    // Let's use CommanActivity scope concept or similar if possible.
+                    // Or just GlobalScope for this simple action to avoid unresolved references if uncertain.
+                    // Better: use the plugin's context? No.
+                    
+                    // Assuming coroutines are available
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                        try {
+                            val success = plugin.provider?.login(username, password) == true
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                button.isEnabled = true
+                                if (success) {
+                                    setKey("astro_username", username)
+                                    setKey("astro_password", password)
+                                    setKey("astro_trigger_login", false) // Since we already logged in
+                                    
+                                    showToast("Login Successful! You can close this.")
+                                    dialog.dismiss()
+                                } else {
+                                    showToast("Login Failed. Check credentials.")
+                                    // Dialog stays open
+                                }
+                            }
+                        } catch (e: Exception) {
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                button.isEnabled = true
+                                showToast("Login Error: ${e.message}")
+                            }
+                        }
+                    }
                 } else {
                     showToast("Please enter both username and password")
                 }
             }
-            .setNegativeButton("Cancel", null)
-            .show()
+        }
+        
+        dialog.show()
     }
 
     private fun close() {

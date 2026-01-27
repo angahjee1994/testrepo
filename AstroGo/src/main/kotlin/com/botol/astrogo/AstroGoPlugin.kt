@@ -6,9 +6,13 @@ import android.content.Context
 
 @CloudstreamPlugin
 class AstroGoPlugin: Plugin() {
+    var provider: AstroGo? = null
+
     override fun load(context: Context) {
         // All providers should be added in this manner
-        registerMainAPI(AstroGo())
+        val api = AstroGo()
+        provider = api
+        registerMainAPI(api)
 
         openSettings = { ctx ->
             val activity = ctx as? androidx.fragment.app.FragmentActivity
