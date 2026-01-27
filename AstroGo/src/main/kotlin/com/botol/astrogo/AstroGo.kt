@@ -30,7 +30,7 @@ class AstroGo : MainAPI() {
     private var bearerToken = getKey<String>("astro_bearer_token") ?: ""
 
     override val mainPage = mainPageOf(
-        "node:IVP:Home:OnDemandRecentlyAdded" to "Home",
+        "node:IVP:Home" to "Home",
         "IVP:TVShow:All,-date" to "TV Shows",
         "node:IVP:Movies,-date" to "Movies",
         "IVP:Live:All" to "Live TV"
@@ -585,12 +585,14 @@ class AstroGo : MainAPI() {
         val extraParams = "offerKeys=212,34,446,49,64,94,95&isErotic=true&isAdult=false"
 
         // Logic based on user feedback:
-        // Home: shared/content?categoryId=...&...&offerKeys=...
+        // Home: /categories/node:IVP:Home
         // TVShows: shared/content?categoryId=...&...&offerKeys=...
-        // Main difference is checking if we need bulkContent (usually for specific lists without params)
-        // But user provided URLs use shared/content for both Home and TVShows with offerKeys.
         
-        if (dataPath.contains("Home") || sort != null || dataPath.contains("TVShow") || dataPath.contains("Live")) {
+        if (dataPath == "node:IVP:Home") {
+             // Specific handling for Home as requested
+             // URL: .../categories/node%3AIVP%3AHome
+             url = "$apiUrl/categories/$encodedPath?clientToken=$encodedToken"
+        } else if (dataPath.contains("Home") || sort != null || dataPath.contains("TVShow") || dataPath.contains("Live")) {
              // Use shared/content for Home and sorted lists/TVShows
              // Ensure defaults for offset/limit if not present (though offset is calc above)
              url = "$apiUrl/shared/content?categoryId=$encodedPath&clientToken=$encodedToken&offset=$offset&limit=$limit&sort=${sort ?: "-date"}&$extraParams"
