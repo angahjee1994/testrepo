@@ -1269,7 +1269,8 @@ class AstroGo : MainAPI() {
         @JsonProperty("name") val name: String? = null,
         @JsonProperty("startDate") val startDate: String? = null,
         @JsonProperty("endDate") val endDate: String? = null,
-        @JsonProperty("synopsis") val synopsis: String? = null
+        @JsonProperty("synopsis") val synopsis: String? = null,
+        @JsonProperty("media") val media: List<AstroMedia>? = null // Added for poster extraction
     )
 
     data class AstroCategory(
