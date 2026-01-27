@@ -31,6 +31,9 @@ class AstroGo : MainAPI() {
 
     override val mainPage = mainPageOf(
         "node:IVP:Home" to "Home",
+        "node:IVP:Kids" to "Kids",
+        "node:IVP:Sports" to "Sports",
+        "IVP:Max" to "Max",
         "IVP:TVShow:All,-date" to "TV Shows",
         "node:IVP:Movies,-date" to "Movies",
         "IVP:Live:All" to "Live TV"
@@ -619,13 +622,15 @@ class AstroGo : MainAPI() {
             val addedTitles = HashSet<String>()
 
             val itemsMap = LinkedHashMap<String, ArrayList<SearchResponse>>()
-            // Determine if we should prefer landscape images (Home row request)
-            // If request.name is Home, or dataPath indicates Home
-            val isHome = request.name == "Home" || dataPath.contains("Home")
+            // Determine if we should prefer landscape images (Home row request + New Categories)
+            val isLandscapeCategory = request.name == "Home" || dataPath.contains("Home") ||
+                                      request.name == "Kids" || dataPath.contains("Kids") ||
+                                      request.name == "Sports" || dataPath.contains("Sports") ||
+                                      request.name == "Max" || dataPath.contains("Max")
 
             response?.categories?.forEach { category ->
                 val title = category.title ?: request.name
-                val params = category.content?.mapNotNull { it.toSearchResponse(preferLandscape = isHome) }
+                val params = category.content?.mapNotNull { it.toSearchResponse(preferLandscape = isLandscapeCategory) }
                 
                 if (!params.isNullOrEmpty()) {
                     if (!itemsMap.containsKey(title)) {
@@ -636,7 +641,7 @@ class AstroGo : MainAPI() {
             }
 
             if (response?.content != null) {
-                 val contents = response.content.mapNotNull { it.toSearchResponse(preferLandscape = isHome) }
+                 val contents = response.content.mapNotNull { it.toSearchResponse(preferLandscape = isLandscapeCategory) }
                  if (contents.isNotEmpty()) {
                      // If itemsMap is empty, use request.name. Else use "Featured" or merge to existing
                      // User requested "load in home row" implying merge if possible.
@@ -656,8 +661,8 @@ class AstroGo : MainAPI() {
             // Convert Map to List
             itemsMap.forEach { (title, contents) ->
                 // Check if this specific row is the Home row we want in landscape
-                // If isHome is true, and this is the main title or merged title
-                val useLandscape = isHome && (title == request.name || title == "Featured" || title == "Home")
+                // If isLandscapeCategory is true, and this is the main title or merged title
+                val useLandscape = isLandscapeCategory && (title == request.name || title == "Featured" || title == "Home" || title == "Kids" || title == "Sports" || title == "Max")
                 items.add(HomePageList(title, contents, isHorizontalImages = useLandscape))
             }
             
