@@ -177,43 +177,38 @@ class AstroGo : MainAPI() {
 
     suspend fun login(username: String, pass: String): Boolean {
         return try {
-            // 1. Initiate OAuth Flow
+            // 1. Initiate OAuth Flow using the User-Provided Parameters
+            // Client ID and Scopes from user feedback
+            val clientId = "e19c0fcc-8a9a-4985-88ee-3575240d2fdc"
+            val scope = "openid email phone profile internal astro_consumption_account"
+            val redirectUri = "https://astrogo.astro.com.my"
             val authState = "userLogin_${System.currentTimeMillis()}"
-            val authUrl = "https://sg-sg-sg.astro.com.my/oauth2/authorize?client_id=browser&state=$authState&redirect_uri=https://astrogo.astro.com.my&response_type=token&scope=urn:synamedia:vcs:ovp:b2c-account"
+            
+            // Using auth.astro.com.my directly as per user trace
+            // Trying response_type=token (Implicit) first for simplicity. 
+            // If it fails with "unauthorized client" or similar, we might need 'code'.
+            val authUrl = "https://auth.astro.com.my/oauth2/auth?client_id=$clientId&redirect_uri=$redirectUri&response_type=token&scope=${java.net.URLEncoder.encode(scope, "UTF-8")}&state=$authState&prompt=login"
             
             val initialResp = app.get(authUrl, allowRedirects = true)
             var currentUrl = initialResp.url
-            var responseText = initialResp.text
-
-            // If we are already redirected to astrogo with token (unlikely if not logged in context, but possible)
+            
+            // Check success immediately
             if (currentUrl.contains("access_token=")) {
                 val token = currentUrl.substringAfter("access_token=").substringBefore("&")
                 saveToken(token)
                 return true
             }
-
-            // We should be at auth.astro.com.my/login?flow=...
-            // Extract flow ID or submit directly?
-            // Usually the flow ID is in the URL: .../login?flow=XXXX-XXXX...
             
-            // 2. Parse necessary hidden fields if any (csrf, execution, tab_id)
-            // For now, try posting directly to the action endpoint
-            // https://auth.astro.com.my/login?flow=...
-            
-            // Simple check: if we are at the login page
+            // We should be at the login page now
             if (currentUrl.contains("auth.astro.com.my/login")) {
                  val flowId = currentUrl.substringAfter("flow=").substringBefore("&")
                  val loginPostUrl = "https://auth.astro.com.my/login?flow=$flowId"
                  
                  val payload = mapOf(
                     "identifier" to username,
-                    "password" to pass,
-                    // "method" to "password" // Sometimes required
+                    "password" to pass
                  )
                  
-                 // JSON or Form Data? Access Manager usually uses JSON for API, but this looks like a web flow.
-                 // Inspecting typical Keycloak/Auth flows: often X-www-form-urlencoded or JSON.
-                 // Let's try JSON first as it's modern.
                  val loginHeaders = mapOf(
                     "Content-Type" to "application/json",
                     "Accept" to "application/json, text/plain, */*"
@@ -221,28 +216,42 @@ class AstroGo : MainAPI() {
                  
                  val loginResp = app.post(loginPostUrl, json = payload, headers = loginHeaders, allowRedirects = false)
                  
-                 if (loginResp.code == 200 && loginResp.text.contains("stepType\":\"success")) {
-                     // Success API response, might contain redirect or token?
-                     // Verify response body
+                 // If successful, we expect a redirect URI in Location header
+                 // It might be a redirect back to /oauth2/auth/authenticate which then redirects to App
+                 if (loginResp.code in 300..308 && loginResp.headers["Location"] != null) {
+                     var nextUrl = loginResp.headers["Location"]!!
+                     
+                     // Follow redirects until we get the token
+                     var attempts = 0
+                     while (attempts < 5) {
+                         if (nextUrl.contains("access_token=")) {
+                             val token = nextUrl.substringAfter("access_token=").substringBefore("&")
+                             saveToken(token)
+                             return true
+                         }
+                         
+                         if (nextUrl.startsWith("/")) {
+                             nextUrl = "https://auth.astro.com.my$nextUrl"
+                         }
+                         
+                         val nextResp = app.get(nextUrl, allowRedirects = false)
+                         if (nextResp.code in 300..308 && nextResp.headers["Location"] != null) {
+                             nextUrl = nextResp.headers["Location"]!!
+                         } else {
+                             // Stopped redirecting
+                             if (nextResp.url.contains("access_token=")) {
+                                 val token = nextResp.url.substringAfter("access_token=").substringBefore("&")
+                                 saveToken(token)
+                                 return true
+                             }
+                             break
+                         }
+                         attempts++
+                     }
                  }
-                 
-                 // If that fails, try submitting as form if it was a form page (traditional)
-                 // But Astro seems to be using an SPA or modern auth.
-                 
-                 // Fallback: Check if we got a redirect to callback
-                 if (loginResp.headers["Location"]?.contains("access_token=") == true) {
-                     val token = loginResp.headers["Location"]!!.substringAfter("access_token=").substringBefore("&")
-                     saveToken(token)
-                     return true
-                 }
-                 
-                 // If it returns 200 OK with "success", we might need to follow the 'nextStepUrl' or similar.
-                 // Assuming standard behavior for now.
-             }
+            }
              
-             // If manual automated login fails, we return false.
-             // The user can try again or we refine the flow.
-             false
+            false
         } catch (e: Exception) {
             e.printStackTrace()
             false
