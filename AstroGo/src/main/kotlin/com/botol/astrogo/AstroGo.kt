@@ -656,6 +656,9 @@ class AstroGo : MainAPI() {
         val headers = mapOf(
             "Authorization" to "Bearer $bearerToken",
             "X-VGE-Service-ID" to "AstroGo",
+            "X-VGE-Client" to "AstroGo",
+            "Origin" to "https://astrogo.astro.com.my",
+            "Referer" to "https://astrogo.astro.com.my/",
             "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Accept" to "application/json"
         )
