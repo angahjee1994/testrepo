@@ -618,28 +618,41 @@ class AstroGo : MainAPI() {
             val items = ArrayList<HomePageList>()
             val addedTitles = HashSet<String>()
 
+            val itemsMap = LinkedHashMap<String, ArrayList<SearchResponse>>()
+
             response?.categories?.forEach { category ->
-                var title = category.title ?: request.name
-                if (addedTitles.contains(title)) {
-                    title = "$title (More)"
-                }
+                val title = category.title ?: request.name
+                val params = category.content?.mapNotNull { it.toSearchResponse() }
                 
-                val contents = category.content?.mapNotNull { it.toSearchResponse() }
-                
-                if (!contents.isNullOrEmpty()) {
-                    items.add(HomePageList(title, contents))
-                    addedTitles.add(title)
+                if (!params.isNullOrEmpty()) {
+                    if (!itemsMap.containsKey(title)) {
+                        itemsMap[title] = ArrayList()
+                    }
+                    itemsMap[title]?.addAll(params)
                 }
             }
 
             if (response?.content != null) {
                  val contents = response.content.mapNotNull { it.toSearchResponse() }
                  if (contents.isNotEmpty()) {
-                     var title = if (items.isEmpty()) request.name else "Featured"
-                     if (addedTitles.contains(title)) title = "$title List"
+                     // If itemsMap is empty, use request.name. Else use "Featured" or merge to existing
+                     // User requested "load in home row" implying merge if possible.
+                     // If request.name is "Home", we likely want to merge into "Home" key if exists.
+                     val title = if (itemsMap.isEmpty()) request.name else "Featured"
                      
-                     items.add(HomePageList(title, contents))
+                     // Check if we should merge into existing Home row?
+                     // Currently: Just add as separate or merge if key matches?
+                     // Let's stick to key-based merge
+                     if (!itemsMap.containsKey(title)) {
+                         itemsMap[title] = ArrayList()
+                     }
+                     itemsMap[title]?.addAll(contents)
                  }
+            }
+            
+            // Convert Map to List
+            itemsMap.forEach { (title, contents) ->
+                items.add(HomePageList(title, contents))
             }
             
             System.out.println("DEBUG AstroGo Main Page Items: ${items.size}")
@@ -914,7 +927,8 @@ class AstroGo : MainAPI() {
             this.name = this@toEpisode.title
             this.season = seasonVal
             this.episode = epVal
-            this.posterUrl = this@toEpisode.media?.firstOrNull()?.url
+            this.posterUrl = this@toEpisode.media?.find { it.url?.contains("LAND_266x150") == true }?.url 
+                             ?: this@toEpisode.media?.firstOrNull()?.url
             this.description = this@toEpisode.synopsis
         }
     }
