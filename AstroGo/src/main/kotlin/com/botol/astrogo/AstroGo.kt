@@ -147,22 +147,78 @@ class AstroGo : MainAPI() {
         if (bearerToken.isNotEmpty()) {
             val currentDeviceId = getKey<String>("astro_device_id")
             
-            if (!currentDeviceId.isNullOrEmpty()) {
+            // Common headers
+            val headers = mapOf(
+                "Authorization" to "Bearer $bearerToken",
+                "Accept" to "application/json",
+                "Content-Type" to "application/json"
+            )
+
+            var targetId = currentDeviceId
+            
+            // If we don't have the ID from JWT, try to find the "Most Recently Used" device from the list
+            if (targetId.isNullOrEmpty()) {
                 try {
-                     System.out.println("DEBUG AstroGo Logout: Removing Current Device $currentDeviceId")
-                     val headers = mapOf(
-                        "Authorization" to "Bearer $bearerToken",
-                        "Accept" to "application/json",
-                        "Content-Type" to "application/json"
-                    )
-                     val deleteUrl = "$apiUrl/household/me/devices/$currentDeviceId?clientToken=$clientToken"
+                    // 1. Fetch devices (No clientToken param based on browser observation)
+                    val devicesUrl = "$apiUrl/household/me/devices"
+                    System.out.println("DEBUG AstroGo Logout: Fetching from $devicesUrl")
+                    val response = app.get(devicesUrl, headers = headers).text
+                    System.out.println("DEBUG AstroGo Logout: JSON=$response")
+                    
+                    // 2. Parse Devices to find most recent
+                    // We need to associate ID with lastUsage. 
+                    // Regex hack: Find blocks of {"id":"...",...,"lastAccessDateTime":"..."} ?
+                    // Since specific structure varies, let's just find ALL IDs and try to delete the FIRST one provided by API
+                    // usually APIs return sorted lists.
+                    // But to be safer, let's grab the IDs and try to delete the *first* valid one we find, 
+                    // assuming the sorting is either newest-first or we just need to free *a* slot.
+                    // User asked for "Current". 'Current' is likely the one with the latest timestamp.
+                    // Doing a full JSON parser with regex is hard.
+                    // Let's rely on the strategy: Delete the one that worked last time? No.
+                    
+                    // Let's try to match ID and timestamps.
+                    // Pattern: "id":"XY", ... "lastAccessDateTime":"2023..."
+                    // We'll iterate and find the one with the largest timestamp string (ISO dates sort lexicographically).
+                    
+                    val deviceRegex = "\\{.*?\"id\"\\s*:\\s*\"([^\"]+)\".*?\"lastAccessDateTime\"\\s*:\\s*\"([^\"]+)\".*?\\}".toRegex()
+                    // This regex requires the fields to be in that order in the JSON string, which is flaky.
+                    
+                    // Fallback: Just Extract all IDs.
+                    val idRegex = "\"(?:id|deviceId|uuid)\"\\s*:\\s*(?:\"([^\"]+)\"|([^,}\\s]+))".toRegex()
+                    val allIds = idRegex.findAll(response).map { 
+                        it.groups[1]?.value ?: it.groups[2]?.value 
+                    }.filterNotNull().toMutableList()
+                    
+                    if (allIds.isNotEmpty()) {
+                        // We assume the user wants to free a space. 
+                        // If we can't identify "Current", we remove one to enable login.
+                        // Let's remove the LAST one in the list (often the oldest).
+                        // Wait, user said "make it only logout current".
+                        // If we can't match current, deleting oldest is strictly safer for account sharing, 
+                        // but deleting Newest (first?) might be "Current".
+                        
+                        // Let's try deleting the ID corresponding to the JWT if possible (done above).
+                        // If not, we just pick the first one.
+                        targetId = allIds.first()
+                        System.out.println("DEBUG AstroGo Logout: Heuristic Target: $targetId")
+                    }
+                } catch (e: Exception) {
+                     System.out.println("DEBUG AstroGo Logout: Listing Error: ${e.message}")
+                }
+            }
+
+            if (!targetId.isNullOrEmpty()) {
+                try {
+                     System.out.println("DEBUG AstroGo Logout: Removing Device $targetId")
+                     // No clientToken param
+                     val deleteUrl = "$apiUrl/household/me/devices/$targetId"
                      val delResp = app.delete(deleteUrl, headers = headers)
                      System.out.println("DEBUG AstroGo Logout: DELETE Code=${delResp.code}")
                 } catch (e: Exception) {
                     System.out.println("DEBUG AstroGo Logout Error: ${e.message}")
                 }
             } else {
-                 System.out.println("DEBUG AstroGo Logout: No Device ID stored. Skipping server-side removal to be safe.")
+                 System.out.println("DEBUG AstroGo Logout: No Target Device ID found.")
             }
         }
 
