@@ -117,6 +117,26 @@ class AstroGo : MainAPI() {
     fun saveToken(token: String) {
         setKey("astro_bearer_token", token)
         bearerToken = token
+        
+        // Try to extract Device ID from JWT
+        try {
+            val parts = token.split(".")
+            if (parts.size >= 2) {
+                val payload = String(Base64.decode(parts[1], Base64.URL_SAFE))
+                // Simple string find to avoid huge JSON dependency overhead if not needed, 
+                // or use regex for robustness. Claims are usually "deviceId":"..."
+                val deviceIdRegex = "\"(?:deviceId|device_id|uuid)\"\\s*:\\s*\"?([^,\"}]+)\"?".toRegex()
+                val match = deviceIdRegex.find(payload)
+                val deviceId = match?.groups?.get(1)?.value
+                
+                if (deviceId != null) {
+                    setKey("astro_device_id", deviceId)
+                    System.out.println("DEBUG AstroGo: Extracted Device ID from Token: $deviceId")
+                }
+            }
+        } catch (e: Exception) {
+             System.out.println("DEBUG AstroGo: Failed to parse JWT for Device ID: ${e.message}")
+        }
     }
 
     fun isLoggedIn(): Boolean {
@@ -125,69 +145,31 @@ class AstroGo : MainAPI() {
 
     suspend fun logout() {
         if (bearerToken.isNotEmpty()) {
-            try {
-                // 1. Fetch devices
-                val devicesUrl = "$apiUrl/household/me/devices?clientToken=$clientToken"
-                val headers = mapOf(
-                    "Authorization" to "Bearer $bearerToken",
-                    "Accept" to "application/json",
-                    "Content-Type" to "application/json"
-                )
-                System.out.println("DEBUG AstroGo Logout: Fetching from $devicesUrl")
-                val response = app.get(devicesUrl, headers = headers).text
-                System.out.println("DEBUG AstroGo Logout: JSON=$response")
-                
-                // 2. Parse IDs eagerly (id, deviceId, uuid)
-                // We want to capture the value, whether numeric or string
-                val idRegex = "\"(?:id|deviceId|uuid)\"\\s*:\\s*(?:\"([^\"]+)\"|([^,}\\s]+))".toRegex()
-                
-                val allIds = idRegex.findAll(response).map { 
-                    it.groups[1]?.value ?: it.groups[2]?.value 
-                }.filterNotNull().toMutableList()
-                
-                // Reverse list to try removing latest devices first (usually the 'PC' ones)
-                // or keep order? The browser list implies mixed order. 
-                // We just need to remove ONE.
-                allIds.reverse()
-                
-                System.out.println("DEBUG AstroGo Logout: Parsed IDs: $allIds")
-
-                var removed = false
-                for (targetId in allIds) {
-                    // unexpected numeric IDs might be the Box, which is non-removable.
-                    // But we try anyway.
-                    if (targetId.length < 5) continue // Skip very short IDs if any
-                    
-                    try {
-                        System.out.println("DEBUG AstroGo Logout: Attempting to delete $targetId")
-                        val deleteUrl = "$apiUrl/household/me/devices/$targetId?clientToken=$clientToken"
-                        val delResp = app.delete(deleteUrl, headers = headers)
-                        
-                        System.out.println("DEBUG AstroGo Logout: DELETE $targetId Code=${delResp.code}")
-                        
-                        if (delResp.code in 200..299) {
-                            removed = true
-                            System.out.println("DEBUG AstroGo Logout: Successfully removed a device. Stopping.")
-                            break
-                        }
-                    } catch (e: Exception) {
-                        System.out.println("DEBUG AstroGo Logout: Failed to delete $targetId: ${e.message}")
-                    }
+            val currentDeviceId = getKey<String>("astro_device_id")
+            
+            if (!currentDeviceId.isNullOrEmpty()) {
+                try {
+                     System.out.println("DEBUG AstroGo Logout: Removing Current Device $currentDeviceId")
+                     val headers = mapOf(
+                        "Authorization" to "Bearer $bearerToken",
+                        "Accept" to "application/json",
+                        "Content-Type" to "application/json"
+                    )
+                     val deleteUrl = "$apiUrl/household/me/devices/$currentDeviceId?clientToken=$clientToken"
+                     val delResp = app.delete(deleteUrl, headers = headers)
+                     System.out.println("DEBUG AstroGo Logout: DELETE Code=${delResp.code}")
+                } catch (e: Exception) {
+                    System.out.println("DEBUG AstroGo Logout Error: ${e.message}")
                 }
-                
-                if (!removed) {
-                     System.out.println("DEBUG AstroGo Logout: Could not remove any device from the list.")
-                }
-                
-            } catch (e: Exception) {
-                e.printStackTrace()
-                System.out.println("DEBUG AstroGo Logout Error: ${e.message}")
+            } else {
+                 System.out.println("DEBUG AstroGo Logout: No Device ID stored. Skipping server-side removal to be safe.")
             }
         }
 
-        // Fix persistence: use null to remove keys
+        // Cleanup
         setKey("astro_bearer_token", null)
         setKey("astro_profile_id", null)
+        setKey("astro_device_id", null)
         setKey("astro_trigger_login", false)
         bearerToken = ""
     }
