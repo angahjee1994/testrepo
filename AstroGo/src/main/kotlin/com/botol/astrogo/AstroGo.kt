@@ -792,9 +792,12 @@ class AstroGo : MainAPI() {
         val posterParam = if (url.contains("poster=")) java.net.URLDecoder.decode(url.substringAfter("poster=").substringBefore("&"), "UTF-8") else null
         val plotParam = if (url.contains("plot=")) java.net.URLDecoder.decode(url.substringAfter("plot=").substringBefore("&"), "UTF-8") else null
         
-        // Initialize headers early for Live TV detail fetch
+        // Initialize headers early for Live TV detail fetch with Web-like signature
         val headers = mapOf(
             "Authorization" to "Bearer $bearerToken",
+            "Origin" to "https://astrogo.astro.com.my",
+            "Referer" to "https://astrogo.astro.com.my/",
+            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Accept" to "application/json"
         )
 
@@ -814,6 +817,8 @@ class AstroGo : MainAPI() {
              
              // If we have a detailId, try to fetch rich details
              val detailId = params["detailId"]
+             System.out.println("DEBUG AstroGo Live Detail Fetch: ID=$detailId")
+
              if (!detailId.isNullOrEmpty()) {
                  try {
                      val detailUrl = "$apiUrl/contentInstances/$detailId"
@@ -832,12 +837,14 @@ class AstroGo : MainAPI() {
                      val durSec = detail.duration?.toIntOrNull()
                      if (durSec != null) durationMin = durSec / 60
                      
-                     // Parse genres
-                     tags = detail.genres?.mapNotNull { it.name }
-                 } catch (e: Exception) {
-                     System.out.println("DEBUG AstroGo Live Detail Fetch Failed: ${e.message}")
+                         // Parse genres
+                         tags = detail.genres?.mapNotNull { it.name }
+                         System.out.println("DEBUG AstroGo Live Detail Fetch Success: $title")
+                     } catch (e: Exception) {
+                         System.out.println("DEBUG AstroGo Live Detail Fetch Failed ($detailId): ${e.message}")
+                         e.printStackTrace()
+                     }
                  }
-             }
              
              return newMovieLoadResponse(title, url, TvType.Live, "Live:$liveId") {
                  this.posterUrl = poster
