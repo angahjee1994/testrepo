@@ -196,6 +196,7 @@ class AstroGo : MainAPI() {
             if (currentUrl.contains("access_token=")) {
                 val token = currentUrl.substringAfter("access_token=").substringBefore("&")
                 saveToken(token)
+                fetchAndSaveProfile()
                 return true
             }
             
@@ -227,6 +228,7 @@ class AstroGo : MainAPI() {
                          if (nextUrl.contains("access_token=")) {
                              val token = nextUrl.substringAfter("access_token=").substringBefore("&")
                              saveToken(token)
+                             fetchAndSaveProfile()
                              return true
                          }
                          
@@ -242,6 +244,7 @@ class AstroGo : MainAPI() {
                              if (nextResp.url.contains("access_token=")) {
                                  val token = nextResp.url.substringAfter("access_token=").substringBefore("&")
                                  saveToken(token)
+                                 fetchAndSaveProfile()
                                  return true
                              }
                              break
@@ -283,6 +286,10 @@ class AstroGo : MainAPI() {
             if (!saved.isNullOrEmpty()) {
                 bearerToken = saved
             }
+        }
+
+        if (bearerToken.isNotEmpty() && getKey<String>("astro_profile_id") == null) {
+            fetchAndSaveProfile()
         }
 
         // If still empty or if it's a guest token that expired (logic needed?), get guest token
@@ -653,10 +660,13 @@ class AstroGo : MainAPI() {
         // Define profiles to try: 2 (Web), 100 (Standard)
         // val profiles = listOf("2", "100") // Legacy
 
+        val profileId = getKey<String>("astro_profile_id") ?: ""
+
         val headers = mapOf(
             "Authorization" to "Bearer $bearerToken",
             "X-VGE-Service-ID" to "AstroGo",
             "X-VGE-Client" to "AstroGo",
+            "X-Identity-Profile-Id" to profileId,
             "Origin" to "https://astrogo.astro.com.my",
             "Referer" to "https://astrogo.astro.com.my/",
             "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -733,6 +743,37 @@ class AstroGo : MainAPI() {
         }
         
         return false
+    }
+
+    private suspend fun fetchAndSaveProfile() {
+        if (bearerToken.isEmpty()) return
+        try {
+            // Using the same API URL as main page
+            val url = "$apiUrl/users/me/profiles?clientToken=$clientToken"
+            val headers = mapOf(
+                "Authorization" to "Bearer $bearerToken", 
+                "Accept" to "application/json"
+            )
+            System.out.println("DEBUG AstroGo Fetching Profiles from: $url")
+            val response = app.get(url, headers = headers).text
+            System.out.println("DEBUG AstroGo Profiles Response: $response")
+             
+            // Extract the first profile's ID
+            // Structure is usually [ { "id": "...", "name": "..." }, ... ]
+            val idRegex = "\"id\"\\s*:\\s*\"([^\"]+)\"".toRegex()
+            val match = idRegex.find(response)
+            val profileId = match?.groupValues?.get(1)
+             
+            if (!profileId.isNullOrEmpty()) {
+                 setKey("astro_profile_id", profileId)
+                 System.out.println("DEBUG AstroGo Profile Selected: $profileId")
+            } else {
+                 System.out.println("DEBUG AstroGo No Profile ID found in response")
+            }
+        } catch (e: Exception) {
+             System.out.println("DEBUG AstroGo Profile Fetch Error: ${e.message}")
+             e.printStackTrace()
+        }
     }
 
     private fun generateClientToken(): String {
