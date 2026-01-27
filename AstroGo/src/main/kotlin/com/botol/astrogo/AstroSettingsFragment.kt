@@ -68,7 +68,6 @@ class AstroSettingsFragment(
             val logoutCard = createSettingsCard("Logout", "Logged in as ${getKey<String>("astro_username") ?: "User"}")
             logoutCard.setOnClickListener {
                 plugin.provider?.logout()
-                showToast("Logged out successfully.")
                 // Refresh logic: Close and re-open or just close
                 dismiss() 
             }
@@ -174,9 +173,6 @@ class AstroSettingsFragment(
                  if (url.contains("access_token=")) {
                      val token = url.substringAfter("access_token=").substringBefore("&")
                      if (token.isNotEmpty()) {
-                         // Found it!
-                         showToast("Login Successful! Processing...")
-                         
                          // Run on IO for network ops (fetching profile)
                          kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
                              try {
@@ -185,12 +181,11 @@ class AstroSettingsFragment(
                                  
                                  kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                                      setKey("astro_trigger_login", false)
-                                     showToast("Setup Complete!")
                                      dialog.dismiss()
                                  }
                              } catch (e: Exception) {
                                  kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                     showToast("Profile Fetch Error: ${e.message}")
+                                     // Silent fail or log? For now just silent as requested to remove toasts
                                  }
                              }
                          }

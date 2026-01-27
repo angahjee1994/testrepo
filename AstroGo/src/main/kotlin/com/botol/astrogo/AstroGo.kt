@@ -27,7 +27,7 @@ class AstroGo : MainAPI() {
 
     // configuration
     private var clientToken = "v:1!r:80200!ur:SARAWAK!community:Malaysia%20Live!t:k!dt:PC!f:Astro_unmanaged!pd:CHROME-FF!pt:Adults"
-    private var bearerToken = ""
+    private var bearerToken = getKey<String>("astro_bearer_token") ?: ""
 
     override val mainPage = mainPageOf(
         "node:IVP:Home:OnDemandRecentlyAdded" to "Home",
