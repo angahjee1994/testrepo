@@ -667,9 +667,10 @@ class AstroGo : MainAPI() {
                     val encodedTitle = java.net.URLEncoder.encode(title, "UTF-8")
                     val encodedPoster = if (poster != null) java.net.URLEncoder.encode(poster, "UTF-8") else ""
                     val encodedPlot = if (event?.synopsis != null) java.net.URLEncoder.encode(event.synopsis.take(800), "UTF-8") else ""
+                    val encodedDetailId = if (event?.id != null) java.net.URLEncoder.encode(event.id, "UTF-8") else ""
 
                     // We need to pass the Channel ID as the "ID" for playback loading, prefixed with Live:
-                    val data = "Live:$id?title=$encodedTitle&poster=$encodedPoster&plot=$encodedPlot"
+                    val data = "Live:$id?title=$encodedTitle&poster=$encodedPoster&plot=$encodedPlot&detailId=$encodedDetailId"
                     
                     newMovieSearchResponse(title, data, TvType.Live) {
                         this.posterUrl = poster
@@ -777,14 +778,64 @@ class AstroGo : MainAPI() {
         val titleParam = if (url.contains("title=")) java.net.URLDecoder.decode(url.substringAfter("title=").substringBefore("&"), "UTF-8") else null
         val posterParam = if (url.contains("poster=")) java.net.URLDecoder.decode(url.substringAfter("poster=").substringBefore("&"), "UTF-8") else null
         val plotParam = if (url.contains("plot=")) java.net.URLDecoder.decode(url.substringAfter("plot=").substringBefore("&"), "UTF-8") else null
-
-        val rawId = baseId.removePrefix(mainUrl).removePrefix("/")
-        val cleanId = rawId.substringBefore("~")
         
+        // Initialize headers early for Live TV detail fetch
         val headers = mapOf(
             "Authorization" to "Bearer $bearerToken",
             "Accept" to "application/json"
         )
+
+        if (url.startsWith("Live:")) {
+             // Live TV: First try to parse params locally
+             val liveId = url.substringAfter("Live:").substringBefore("?")
+             val params = url.substringAfter("?", "").split("&").associate {
+                 val (k, v) = it.split("=") + listOf("")
+                 k to java.net.URLDecoder.decode(v, "UTF-8")
+             }
+             
+             var title = params["title"] ?: "Live TV"
+             var poster = params["poster"]
+             var plot = params["plot"]
+             var durationMin: Int? = null
+             var tags: List<String>? = null
+             
+             // If we have a detailId, try to fetch rich details
+             val detailId = params["detailId"]
+             if (!detailId.isNullOrEmpty()) {
+                 try {
+                     val detailUrl = "$apiUrl/contentInstances/$detailId"
+                     val detailText = app.get(detailUrl, headers = headers).text
+                     val detail = AppUtils.parseJson<AstroContent>(detailText)
+                     
+                     title = detail.title ?: detail.episodeTitle ?: title
+                     plot = detail.longSynopsis ?: detail.synopsis ?: plot
+                     
+                     // Try to get high quality poster from detail
+                     poster = detail.media?.find { it.url?.contains("LAND_917x516") == true }?.url 
+                              ?: detail.media?.find { it.url?.contains("LAND") == true }?.url
+                              ?: poster
+                              
+                     // Parse duration
+                     val durSec = detail.duration?.toIntOrNull()
+                     if (durSec != null) durationMin = durSec / 60
+                     
+                     // Parse genres
+                     tags = detail.genres?.mapNotNull { it.name }
+                 } catch (e: Exception) {
+                     System.out.println("DEBUG AstroGo Live Detail Fetch Failed: ${e.message}")
+                 }
+             }
+             
+             return newMovieLoadResponse(title, url, TvType.Live, "Live:$liveId") {
+                 this.posterUrl = poster
+                 this.plot = plot
+                 if (durationMin != null) this.duration = durationMin
+                 if (tags != null) this.tags = tags
+             }
+        }
+
+        val rawId = baseId.removePrefix(mainUrl).removePrefix("/")
+        val cleanId = rawId.substringBefore("~")
         
         var detailUrl = "$apiUrl/contentInstances/$rawId"
         
@@ -896,23 +947,7 @@ class AstroGo : MainAPI() {
             val baseIdShow = response.packId ?: response.externalId ?: response.id ?: cleanId
             val showId = baseIdShow.substringBefore("~")
 
-            if (url.startsWith("Live:")) {
-                 // Live TV: Skip network fetch, parse params locally
-                 val liveId = url.substringAfter("Live:").substringBefore("?")
-                 val params = url.substringAfter("?", "").split("&").associate {
-                     val (k, v) = it.split("=") + listOf("")
-                     k to java.net.URLDecoder.decode(v, "UTF-8")
-                 }
-                 
-                 val title = params["title"] ?: "Live TV"
-                 val poster = params["poster"]
-                 val plot = params["plot"]
-                 
-                 return newMovieLoadResponse(title, url, TvType.Live, liveId) {
-                     this.posterUrl = poster
-                     this.plot = plot
-                 }
-            }
+
 
             suspend fun fetchContent(url: String): List<AstroContent>? {
                 return try {
@@ -1247,10 +1282,13 @@ class AstroGo : MainAPI() {
         @JsonProperty("title") val title: String? = null,
         @JsonProperty("name") val name: String? = null,
         @JsonProperty("synopsis") val synopsis: String? = null,
+        @JsonProperty("longSynopsis") val longSynopsis: String? = null, // Added
+        @JsonProperty("episodeTitle") val episodeTitle: String? = null, // Added
         @JsonProperty("media") val media: List<AstroMedia>? = null,
         @JsonProperty("contentType") val contentType: String? = null,
         @JsonProperty("releaseDate") val releaseDate: String? = null,
         @JsonProperty("duration") val duration: String? = null,
+        @JsonProperty("channel") val channel: AstroChannel? = null, // Added for nested channel info
         @JsonProperty("genres") val genres: List<AstroGenre>? = null,
         @JsonProperty("cast") val cast: List<AstroCast>? = null,
         @JsonProperty("actors") val actors: List<String>? = null,
