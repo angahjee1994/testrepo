@@ -589,9 +589,9 @@ class AstroGo : MainAPI() {
         // TVShows: shared/content?categoryId=...&...&offerKeys=...
         
         if (dataPath == "node:IVP:Home") {
-             // Specific handling for Home as requested
-             // URL: .../categories/node%3AIVP%3AHome (No clientToken)
-             url = "$apiUrl/categories/$encodedPath"
+             // Specific handling for Home as requested (Latest: shared/bulkContent + Token)
+             // URL: .../shared/bulkContent/node%3AIVP%3AHome?clientToken=...
+             url = "$apiUrl/shared/bulkContent/$encodedPath?clientToken=$encodedToken"
         } else if (dataPath.contains("Home") || sort != null || dataPath.contains("TVShow") || dataPath.contains("Live")) {
              // Use shared/content for Home and sorted lists/TVShows
              // Ensure defaults for offset/limit if not present (though offset is calc above)
@@ -1022,8 +1022,12 @@ class AstroGo : MainAPI() {
         return false
     }
 
+    private var profileFetchAttempted = false
+
     suspend fun fetchAndSaveProfile() {
-        if (bearerToken.isEmpty()) return
+        if (bearerToken.isEmpty() || profileFetchAttempted) return
+        
+        profileFetchAttempted = true // Prevent spamming on every valid internal page load
 
         // endpoints to try
         val endpoints = listOf(
@@ -1047,14 +1051,13 @@ class AstroGo : MainAPI() {
 
                 // Strategy A: Check for "profiles" array (CTAP) or custom claim
                 if (response.contains("profiles")) {
-                    val idRegex = "\"id\"\\s*:\\s*\"([^\"]+)\"".toRegex()
+                    // Improved regex to handle "id": "123" AND "id": 123
+                    val idRegex = "\"id\"\\s*:\\s*(?:\"([^\"]+)\"|([^,}\\s]+))".toRegex()
                     val matches = idRegex.findAll(response)
-                    // First match might be the user ID, second might be profile? 
-                    // Usually CTAP is [ { "id": 123, "name": "Default" } ]
-                    // We prefer a numeric ID or UUID.
+                    
                     for (m in matches) {
-                        val v = m.groupValues[1]
-                        if (v != "NOT_FOUND" && v != "NOT_ENTITLED") {
+                        val v = m.groups[1]?.value ?: m.groups[2]?.value
+                        if (v != null && v != "NOT_FOUND" && v != "NOT_ENTITLED") {
                             foundId = v
                             break
                         }
