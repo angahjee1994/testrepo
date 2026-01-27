@@ -187,7 +187,8 @@ class AstroGo : MainAPI() {
             val encodedScope = java.net.URLEncoder.encode(scope, "UTF-8")
 
             // 1. Start OAuth Flow
-            val authUrl = "https://sg-sg-sg.astro.com.my:9443/oauth2/authorize?client_id=$clientId&redirect_uri=$encodedRedirectUri&response_type=token&scope=$encodedScope&state=$authState"
+            // User requested strict adherence to: https://sg-sg-sg.astro.com.my:9443/oauth2/authorize?client_id=browser&state=bootup&redirect_uri=...&response_type=token
+            val authUrl = "https://sg-sg-sg.astro.com.my:9443/oauth2/authorize?client_id=$clientId&state=$authState&redirect_uri=$encodedRedirectUri&response_type=token"
             System.out.println("DEBUG AstroGo Login: Auth URL: $authUrl")
             
             var currentUrl = authUrl
