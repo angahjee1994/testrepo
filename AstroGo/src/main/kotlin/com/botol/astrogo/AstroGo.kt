@@ -668,8 +668,8 @@ class AstroGo : MainAPI() {
                     val encodedPoster = if (poster != null) java.net.URLEncoder.encode(poster, "UTF-8") else ""
                     val encodedPlot = if (event?.synopsis != null) java.net.URLEncoder.encode(event.synopsis.take(800), "UTF-8") else ""
 
-                    // We need to pass the Channel ID as the "ID" for playback loading
-                    val data = "$id?title=$encodedTitle&poster=$encodedPoster&plot=$encodedPlot"
+                    // We need to pass the Channel ID as the "ID" for playback loading, prefixed with Live:
+                    val data = "Live:$id?title=$encodedTitle&poster=$encodedPoster&plot=$encodedPlot"
                     
                     newMovieSearchResponse(title, data, TvType.Live) {
                         this.posterUrl = poster
@@ -896,6 +896,24 @@ class AstroGo : MainAPI() {
             val baseIdShow = response.packId ?: response.externalId ?: response.id ?: cleanId
             val showId = baseIdShow.substringBefore("~")
 
+            if (url.startsWith("Live:")) {
+                 // Live TV: Skip network fetch, parse params locally
+                 val liveId = url.substringAfter("Live:").substringBefore("?")
+                 val params = url.substringAfter("?", "").split("&").associate {
+                     val (k, v) = it.split("=") + listOf("")
+                     k to java.net.URLDecoder.decode(v, "UTF-8")
+                 }
+                 
+                 val title = params["title"] ?: "Live TV"
+                 val poster = params["poster"]
+                 val plot = params["plot"]
+                 
+                 return newMovieLoadResponse(title, url, TvType.Live, liveId) {
+                     this.posterUrl = poster
+                     this.plot = plot
+                 }
+            }
+
             suspend fun fetchContent(url: String): List<AstroContent>? {
                 return try {
                     val text = app.get(url, headers = headers).text
@@ -1023,7 +1041,15 @@ class AstroGo : MainAPI() {
 
         try {
             // User requested strict adherence to this exact URL with port 9443
-            val sessionUrl = "https://sg-sg-sg.astro.com.my:9443/ctap/r1.6.0/devices/me/playsessions?instanceId=$baseId&startingPosition=0"
+            val isLiveTv = data.startsWith("Live:")
+            val cleanId = if (isLiveTv) data.substringAfter("Live:").substringBefore("?") else baseId
+            
+            val sessionUrl = if (isLiveTv) {
+                 "$apiUrl/devices/me/playsessions?channelId=$cleanId"
+            } else {
+                 "$apiUrl/devices/me/playsessions?instanceId=$cleanId&startingPosition=0"
+            }
+            
             System.out.println("DEBUG AstroGo Request URL: $sessionUrl")
             
             // Using POST as this is a session creation endpoint
