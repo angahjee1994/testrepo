@@ -118,13 +118,14 @@ class AstroGo : MainAPI() {
         setKey("astro_bearer_token", token)
         bearerToken = token
         
+        // Save current time as login time
+        setKey("astro_login_time", System.currentTimeMillis())
+        
         // Try to extract Device ID from JWT
         try {
             val parts = token.split(".")
             if (parts.size >= 2) {
                 val payload = String(Base64.decode(parts[1], Base64.URL_SAFE))
-                // Simple string find to avoid huge JSON dependency overhead if not needed, 
-                // or use regex for robustness. Claims are usually "deviceId":"..."
                 val deviceIdRegex = "\"(?:deviceId|device_id|uuid)\"\\s*:\\s*\"?([^,\"}]+)\"?".toRegex()
                 val match = deviceIdRegex.find(payload)
                 val deviceId = match?.groups?.get(1)?.value
@@ -146,6 +147,7 @@ class AstroGo : MainAPI() {
     suspend fun logout() {
         if (bearerToken.isNotEmpty()) {
             val storedDeviceId = getKey<String>("astro_device_id")
+            val storedLoginTime = getKey<Long>("astro_login_time") ?: 0L
             
             // Common headers
             val headers = mapOf(
@@ -157,48 +159,81 @@ class AstroGo : MainAPI() {
             var targetId: String? = null
             
             try {
-                // 1. Fetch devices first to get the authoritative list IDs
+                // 1. Fetch devices first
                 val devicesUrl = "$apiUrl/household/me/devices"
                 System.out.println("DEBUG AstroGo Logout: Fetching from $devicesUrl")
                 val response = app.get(devicesUrl, headers = headers).text
                 System.out.println("DEBUG AstroGo Logout: JSON=$response")
                 
-                // 2. Parse all IDs
-                val idRegex = "\"(?:id|deviceId|uuid)\"\\s*:\\s*(?:\"([^\"]+)\"|([^,}\\s]+))".toRegex()
-                val allIds = idRegex.findAll(response).map { 
-                    it.groups[1]?.value ?: it.groups[2]?.value 
-                }.filterNotNull().toMutableList()
+                // 2. Manual JSON Parsing to associate ID with registeredDateTime
+                // We split by "}," to get rough object chunks. 
+                // Reliable for flat lists of objects.
+                val objectChunks = response.split("},")
                 
-                // Filter for removable IDs (skip Set-top boxes with short IDs)
-                val removableIds = allIds.filter { it.length > 15 }
-                System.out.println("DEBUG AstroGo Logout: Removable Candidates: $removableIds")
+                val candidates = mutableListOf<Pair<String, Long>>()
+                val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US)
+                sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
 
-                // 3. Strategy: Find "This Device"
-                if (!storedDeviceId.isNullOrEmpty() && removableIds.isNotEmpty()) {
-                    // Fuzzy match: Check if the stored ID is part of a server ID or vice versa
-                    // e.g. server: "123.UUID", stored: "UUID"
-                    targetId = removableIds.find { serverId -> 
-                        serverId.contains(storedDeviceId, ignoreCase = true) || storedDeviceId.contains(serverId, ignoreCase = true)
-                    }
+                for (chunk in objectChunks) {
+                    try {
+                        // Extract ID
+                        val idMatch = "\"(?:id|deviceId|uuid)\"\\s*:\\s*(?:\"([^\"]+)\"|([^,}\\s]+))".toRegex().find(chunk)
+                        val id = idMatch?.groups?.get(1)?.value ?: idMatch?.groups?.get(2)?.value
+                        
+                        // Extract Time
+                        val timeMatch = "\"registeredDateTime\"\\s*:\\s*\"([^\"]+)\"".toRegex().find(chunk)
+                        val timeStr = timeMatch?.groups?.get(1)?.value
+                        
+                        if (id != null && timeStr != null) {
+                            val timeMillis = sdf.parse(timeStr)?.time ?: 0L
+                            if (id.length > 15) { // Filter managed devices
+                                candidates.add(id to timeMillis)
+                            }
+                        }
+                    } catch (e: Exception) { }
+                }
+                
+                System.out.println("DEBUG AstroGo Logout: Candidates: $candidates")
+                System.out.println("DEBUG AstroGo Logout: Stored Login Time: $storedLoginTime")
+
+                // 3. Strategy A: Match by Timestamp (User Request)
+                // Find device registered within 2 minutes of our login time
+                if (storedLoginTime > 0) {
+                    val timeThreshold = 120_000L // 2 minutes
+                    targetId = candidates.find { (_, time) -> 
+                        kotlin.math.abs(time - storedLoginTime) < timeThreshold 
+                    }?.first
+                    
                     if (targetId != null) {
-                        System.out.println("DEBUG AstroGo Logout: Matched 'This Device' ($storedDeviceId) to Server ID: $targetId")
+                        System.out.println("DEBUG AstroGo Logout: Found Time-Matched Device: $targetId")
                     }
                 }
+
+                // 4. Strategy B: Match by Stored ID (JWT)
+                if (targetId == null && !storedDeviceId.isNullOrEmpty()) {
+                    targetId = candidates.find { (id, _) -> 
+                        id.contains(storedDeviceId, ignoreCase = true) 
+                    }?.first
+                    if (targetId != null) System.out.println("DEBUG AstroGo Logout: Found JWT-Matched Device: $targetId")
+                }
                 
-                // 4. Fallback: If no match (or no stored ID), delete the FIRST removable device to free a slot.
-                if (targetId == null && removableIds.isNotEmpty()) {
-                    targetId = removableIds.first()
-                    System.out.println("DEBUG AstroGo Logout: 'This Device' not matched. Removing candidate: $targetId")
+                // 5. Strategy C: Remove Newest (Last Registered)
+                // If we can't match specific session, the one with largest timestamp is the most likely candidate "Current Device"
+                if (targetId == null && candidates.isNotEmpty()) {
+                    // Sort by time descending
+                    candidates.sortByDescending { it.second }
+                    targetId = candidates.first().first
+                    System.out.println("DEBUG AstroGo Logout: Fallback - Removing Newest Device: $targetId")
                 }
 
-                // 5. Execute Delete
+                // Execute Delete
                 if (targetId != null) {
                      System.out.println("DEBUG AstroGo Logout: Sending DELETE for $targetId")
                      val deleteUrl = "$apiUrl/household/me/devices/$targetId"
                      val delResp = app.delete(deleteUrl, headers = headers)
                      System.out.println("DEBUG AstroGo Logout: DELETE Code=${delResp.code} Body=${delResp.text}")
                 } else {
-                     System.out.println("DEBUG AstroGo Logout: No removable devices found.")
+                     System.out.println("DEBUG AstroGo Logout: No suitable device found to remove.")
                 }
 
             } catch (e: Exception) {
@@ -210,6 +245,7 @@ class AstroGo : MainAPI() {
         setKey("astro_bearer_token", null)
         setKey("astro_profile_id", null)
         setKey("astro_device_id", null)
+        setKey("astro_login_time", null)
         setKey("astro_trigger_login", false)
         bearerToken = ""
     }
