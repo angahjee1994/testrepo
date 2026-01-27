@@ -179,30 +179,50 @@ class AstroGo : MainAPI() {
         System.out.println("DEBUG AstroGo Login: Starting for user $username")
         return try {
             val clientId = "browser"
-            val scope = "openid email phone profile internal astro_consumption_account urn:synamedia:vcs:ovp:b2c-account"
-            val redirectUri = "https://astrogo.astro.com.my"
             val authState = "bootup"
-            
+            // Ensure strict URL encoding for redirect_uri as requested
+            val redirectUri = "https://astrogo.astro.com.my"
             val encodedRedirectUri = java.net.URLEncoder.encode(redirectUri, "UTF-8")
-            val encodedScope = java.net.URLEncoder.encode(scope, "UTF-8")
+
+            // User Agent mimicking a real browser is often required to avoid 403 or CAPTCHA triggers on the initial request
+            val baseHeaders = mapOf(
+                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+                "Accept-Language" to "en-US,en;q=0.9",
+                "Upgrade-Insecure-Requests" to "1"
+            )
 
             // 1. Start OAuth Flow
-            // User requested strict adherence to: https://sg-sg-sg.astro.com.my:9443/oauth2/authorize?client_id=browser&state=bootup&redirect_uri=...&response_type=token
+            // URL strictly matched to user's request
             val authUrl = "https://sg-sg-sg.astro.com.my:9443/oauth2/authorize?client_id=$clientId&state=$authState&redirect_uri=$encodedRedirectUri&response_type=token"
             System.out.println("DEBUG AstroGo Login: Auth URL: $authUrl")
-            
+
             var currentUrl = authUrl
             var attempts = 0
             val maxAttempts = 20
             
+            // Cookie jar for this session
+            val currentCookies = mutableMapOf<String, String>()
+
             while (attempts < maxAttempts) {
                 System.out.println("DEBUG AstroGo Login: Requesting ($attempts): $currentUrl")
-                val response = app.get(currentUrl, allowRedirects = false)
+                val response = app.get(currentUrl, headers = baseHeaders, allowRedirects = false, cookies = currentCookies)
                 
-                // Check if we got the token (e.g. immediate redirect or in URL)
+                // Update cookies from response
+                response.cookies.forEach { (k, v) -> currentCookies[k] = v }
+                // Also check raw Set-Cookie header just in case NiceHttp misses something for redirects
+                response.headers["Set-Cookie"]?.let { cookieHeader ->
+                    // excessively simple parser, but might catch what we need
+                    cookieHeader.split(";").firstOrNull()?.let { 
+                        val parts = it.split("=")
+                        if (parts.size >= 2) currentCookies[parts[0].trim()] = parts[1].trim()
+                    }
+                }
+
+                // Check for token
                 val location = response.headers["Location"]
                 val checkUrl = location ?: response.url
-                
+
                 if (checkUrl.contains("access_token=") || currentUrl.contains("access_token=")) {
                      val tokenUrl = if (checkUrl.contains("access_token=")) checkUrl else currentUrl
                      val token = tokenUrl.substringAfter("access_token=").substringBefore("&")
@@ -211,7 +231,7 @@ class AstroGo : MainAPI() {
                      fetchAndSaveProfile()
                      return true
                 }
-                
+
                 if (response.code in 300..308 && location != null) {
                     // Handle Redirect
                     var nextUrl = location
@@ -220,21 +240,23 @@ class AstroGo : MainAPI() {
                         nextUrl = "${uri.scheme}://${uri.host}${if (uri.port != -1 && uri.port != 80 && uri.port != 443) ":${uri.port}" else ""}$nextUrl"
                     }
                     currentUrl = nextUrl
-                    
-                    // IF we are redirected to the login page, we need to STOP following and FETCH it to get the FORM
+
+                    // IF we are redirected to the login page
                     if (currentUrl.contains("auth.astro.com.my/login")) {
                          System.out.println("DEBUG AstroGo Login: Hit Login Page. Handling Form Submission...")
-                         return handleLoginForm(currentUrl, username, pass)
+                         return handleLoginForm(currentUrl, username, pass, baseHeaders, currentCookies)
                     }
-                    
+
                 } else {
                     // Stopped redirecting
                     if (response.url.contains("auth.astro.com.my/login")) {
                          System.out.println("DEBUG AstroGo Login: Landed on Login Page. Handling Form Submission...")
-                         return handleLoginForm(response.url, username, pass)
+                         return handleLoginForm(response.url, username, pass, baseHeaders, currentCookies)
                     }
-                    
+
                     System.out.println("DEBUG AstroGo Login: Stopped at ${response.url} without token.")
+                    // If we stopped at a page, print some content to see if it's a CAPTCHA or error
+                    if (attempts == 0) System.out.println("DEBUG AstroGo Body Preview: ${response.text.take(500)}")
                     break
                 }
                 attempts++
@@ -247,15 +269,28 @@ class AstroGo : MainAPI() {
         }
     }
 
-    private suspend fun handleLoginForm(loginUrl: String, username: String, pass: String): Boolean {
+    private suspend fun handleLoginForm(
+        loginUrl: String, 
+        username: String, 
+        pass: String, 
+        baseHeaders: Map<String, String>, 
+        existingCookies: MutableMap<String, String>
+    ): Boolean {
          try {
-             // 1. Fetch the page to get CSRF
+             // 1. Fetch the page to get CSRF (using existing cookies)
              System.out.println("DEBUG AstroGo Login: Fetching HTML from $loginUrl")
-             val pageResp = app.get(loginUrl)
+             val pageResp = app.get(loginUrl, headers = baseHeaders, cookies = existingCookies)
+             pageResp.cookies.forEach { (k, v) -> existingCookies[k] = v }
+             
              val html = pageResp.text
              
+             // Check if we hit a CAPTCHA
+             if (html.contains("hcaptcha", ignoreCase = true) || html.contains("security check", ignoreCase = true)) {
+                 System.out.println("DEBUG AstroGo Login: HIT CAPTCHA! Cannot proceed programmatically without solving.")
+                 return false
+             }
+
              // 2. Extract CSRF
-             // Extract named inputs to be robust
              val csrfToken = Regex("""name=["']csrf_token["'][^>]*?value=["']([^"']+)["']""").find(html)?.groupValues?.get(1) 
                              ?: Regex("""value=["']([^"']+)["'][^>]*?name=["']csrf_token["']""").find(html)?.groupValues?.get(1)
              
@@ -266,9 +301,8 @@ class AstroGo : MainAPI() {
              System.out.println("DEBUG AstroGo Login: CSRF Token extracted.")
              
              // 3. Prepare Form Data
-             val postUrl = loginUrl // Browser posts to same URL
+             val postUrl = loginUrl 
              
-             // NiceHttp 'data' argument sends application/x-www-form-urlencoded by default
              val formData = mapOf(
                 "identifier" to username,
                 "password" to pass,
@@ -276,12 +310,24 @@ class AstroGo : MainAPI() {
                 "csrf_token" to csrfToken
              )
              
+             // Headers for POST: Add Referer/Origin
+             val postHeaders = baseHeaders + mapOf(
+                 "Referer" to loginUrl,
+                 "Origin" to "https://auth.astro.com.my",
+                 "Content-Type" to "application/x-www-form-urlencoded"
+             )
+             
              System.out.println("DEBUG AstroGo Login: Posting Form to $postUrl")
              val postResp = app.post(
                  postUrl, 
+                 headers = postHeaders,
                  data = formData, 
+                 cookies = existingCookies,
                  allowRedirects = false
              )
+             
+             // Update cookies again
+             postResp.cookies.forEach { (k, v) -> existingCookies[k] = v }
              
              System.out.println("DEBUG AstroGo Login: POST Code: ${postResp.code}")
              
@@ -299,13 +345,13 @@ class AstroGo : MainAPI() {
                          return true
                      }
                      
-                     // Handle relative
                       if (nextUrl.startsWith("/")) {
                           nextUrl = "https://auth.astro.com.my$nextUrl"
                       }
                       
                       System.out.println("DEBUG AstroGo Login: Redirecting to: $nextUrl")
-                      val resp = app.get(nextUrl, allowRedirects = false)
+                      val resp = app.get(nextUrl, headers = baseHeaders, cookies = existingCookies, allowRedirects = false)
+                      resp.cookies.forEach { (k, v) -> existingCookies[k] = v }
                       
                       val loc = resp.headers["Location"]
                       if (resp.code in 300..308 && loc != null) {
