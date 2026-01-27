@@ -625,7 +625,7 @@ class AstroGo : MainAPI() {
  
             response?.categories?.forEach { category ->
                 val title = category.title ?: request.name
-                val params = category.content?.mapNotNull { it.toSearchResponse() }
+                val params = category.content?.mapNotNull { it.toSearchResponse(true) }
                 
                 if (!params.isNullOrEmpty()) {
                     if (!itemsMap.containsKey(title)) {
@@ -636,7 +636,7 @@ class AstroGo : MainAPI() {
             }
 
             if (response?.content != null) {
-                 val contents = response.content.mapNotNull { it.toSearchResponse() }
+                 val contents = response.content.mapNotNull { it.toSearchResponse(true) }
                  if (contents.isNotEmpty()) {
                      // If itemsMap is empty, use request.name. Else use "Featured" or merge to existing
                      // User requested "load in home row" implying merge if possible.
@@ -660,7 +660,13 @@ class AstroGo : MainAPI() {
             }
             
             System.out.println("DEBUG AstroGo Main Page Items: ${items.size}")
-            return newHomePageResponse(items)
+            System.out.println("DEBUG AstroGo Main Page Items: ${items.size}")
+            
+            // Fix Looping: Disable pagination for Hub/Node pages which use bulkContent
+            val isHubPage = request.name == "Home" || request.name == "Kids" || request.name == "Sports" || request.name == "Max"
+            val hasNextPage = if (isHubPage) false else items.isNotEmpty()
+            
+            return newHomePageResponse(items, hasNextPage)
         } catch (e: Exception) {
             e.printStackTrace()
             System.out.println("DEBUG AstroGo Main Page Error: ${e.message}")
@@ -668,7 +674,7 @@ class AstroGo : MainAPI() {
         }
     }
 
-    private fun AstroContent.toSearchResponse(): SearchResponse? {
+    private fun AstroContent.toSearchResponse(preferLandscape: Boolean = false): SearchResponse? {
         // Prioritize ID that looks like a UUID or Composite ID
         val candidates = listOfNotNull(this.id, this.packId, this.externalId)
         val id = candidates.find { it.contains("~") } 
@@ -677,14 +683,19 @@ class AstroGo : MainAPI() {
               ?: return null
         val title = this.title ?: return null
         
-        // GLOBAL LANDSCAPE PREFERENCE (Hardcoded)
-        val poster = this.media?.find { it.url?.contains("LAND_917x516") == true }?.url 
+        val poster = if (preferLandscape) {
+             this.media?.find { it.url?.contains("LAND_917x516") == true }?.url 
              ?: this.media?.find { it.url?.contains("LAND") == true }?.url 
              ?: this.media?.find { it.url?.contains("backdrop") == true }?.url
              // Fallback to PORT if LAND not found
              ?: this.media?.find { it.url?.contains("PORT_476x716") == true }?.url 
              ?: this.media?.find { it.url?.contains("PORT") == true }?.url 
              ?: this.media?.firstOrNull()?.url
+        } else {
+             this.media?.find { it.url?.contains("PORT_476x716") == true }?.url 
+             ?: this.media?.find { it.url?.contains("PORT") == true }?.url 
+             ?: this.media?.firstOrNull()?.url
+        }
         
         val encodedTitle = java.net.URLEncoder.encode(title, "UTF-8")
         val encodedPoster = if (poster != null) java.net.URLEncoder.encode(poster, "UTF-8") else ""
