@@ -200,6 +200,16 @@ class AstroSettingsFragment(
         webView.loadUrl(authUrl)
         
         dialog.show()
+        
+        // Fix for keyboard not showing in WebView inside Dialog
+        webView.requestFocus()
+        webView.isFocusable = true
+        webView.isFocusableInTouchMode = true
+        
+        dialog.window?.let { window ->
+             window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or android.view.WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM)
+             window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
+        }
     }
 
     private fun close() {
