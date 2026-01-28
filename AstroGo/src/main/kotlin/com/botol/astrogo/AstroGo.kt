@@ -836,7 +836,8 @@ class AstroGo : MainAPI() {
                  // Refresh Grid for this specific channel
                  // Encode liveId just in case it has spaces
                  val encodedLiveId = java.net.URLEncoder.encode(liveId, "UTF-8")
-                 val gridUrl = "$apiUrl/agg/grid?channels=$encodedLiveId&eventsLimit=1&isPlayable=true&clientToken=$encodedToken"
+                 // REMOVED clientToken to match getMainPage behavior (User reported it works without it)
+                 val gridUrl = "$apiUrl/agg/grid?channels=$encodedLiveId&eventsLimit=1&isPlayable=true"
                  val gridText = app.get(gridUrl, headers = headers).text
                  val gridResponse = AppUtils.parseJson<AstroResponse>(gridText)
                  
@@ -868,9 +869,9 @@ class AstroGo : MainAPI() {
 
              if (!activeDetailId.isNullOrEmpty()) {
                  try {
-                     val encodedId = java.net.URLEncoder.encode(activeDetailId, "UTF-8")
+                     // Use RAW ID (No encoding) - Astro APIs generally expect raw colons/tildes in path for contentInstances
                      // Add clientToken to detail fetch to avoid 403/Restricted Data (Short synopsis)
-                     val detailUrl = "$apiUrl/contentInstances/$encodedId?clientToken=$encodedToken"
+                     val detailUrl = "$apiUrl/contentInstances/$activeDetailId?clientToken=$encodedToken"
                      val detailText = app.get(detailUrl, headers = headers).text
                      val detail = AppUtils.parseJson<AstroContent>(detailText)
                      
