@@ -672,9 +672,14 @@ class AstroGo : MainAPI() {
                     val event = channel.currentEvent ?: channel.events?.firstOrNull()
                     val title = channel.title ?: channel.name ?: event?.title ?: "Live Channel"
                     
-                    val poster = event?.media?.find { it.url?.contains("LAND_917x516") == true }?.url 
+                    // Row Poster Priority:
+                    // 1. Channel "Poster" (Backdrop) - Explicitly requested by user ("type":"poster")
+                    // 2. Channel "LAND" image
+                    // 3. Fallback to Event LAND (if any) - User discouraged this for row, but kept as deep fallback
+                    // 4. Logo (default)
+                    val poster = channel.media?.find { it.type == "poster" }?.url
+                               ?: channel.media?.find { it.url?.contains("LAND") == true }?.url
                                ?: event?.media?.find { it.url?.contains("LAND") == true }?.url
-                               ?: channel.media?.find { it.url?.contains("LAND_917x516") == true }?.url 
                                ?: channel.media?.firstOrNull()?.url
                     
                     val encodedTitle = java.net.URLEncoder.encode(title, "UTF-8")
