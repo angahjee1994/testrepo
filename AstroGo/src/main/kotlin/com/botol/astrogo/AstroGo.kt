@@ -78,9 +78,17 @@ class AstroGo : MainAPI() {
                 """.trimIndent()
                 System.out.println("DEBUG AstroGo Interceptor Payload: $jsonBody")
                 
-                val newRequest = request.newBuilder()
+                val profileId = extractorLink.headers["X-Internal-Profile-Id"] ?: ""
+
+                val newRequestBuilder = request.newBuilder()
                     .post(jsonBody.toRequestBody("application/json".toMediaTypeOrNull()))
-                    .build()
+                
+                if (profileId.isNotEmpty()) {
+                    newRequestBuilder.addHeader("x-astro-profile-id", profileId)
+                    System.out.println("DEBUG AstroGo Interceptor: Added x-astro-profile-id=$profileId")
+                }
+                
+                val newRequest = newRequestBuilder.build()
 
                 val response = chain.proceed(newRequest)
                 if (!response.isSuccessful) {
@@ -1212,7 +1220,8 @@ class AstroGo : MainAPI() {
                                 "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                                 "Referer" to "https://astrogo.astro.com.my/",
                                 "X-Astro-Content-ID" to contentId, // This is fine
-                                "X-Internal-Drm-Token" to drmToken // Internal name
+                                "X-Internal-Drm-Token" to drmToken, // Internal name
+                                "X-Internal-Profile-Id" to profileId // Pass for Interceptor
                             )
                         }
                     )
