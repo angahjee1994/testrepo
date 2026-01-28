@@ -815,13 +815,37 @@ class AstroGo : MainAPI() {
              var durationMin: Int? = null
              var tags: List<String>? = null
              
+             
              // If we have a detailId, try to fetch rich details
              val detailId = params["detailId"]
-             System.out.println("DEBUG AstroGo Live Detail Fetch: ID=$detailId")
+             
+             // BUT first, let's try to REFRESH the detailId from the Grid to ensure it's "Live" and not stale
+             // The user reported "missing details", likely because the Home Page didn't provide a valid ID
+             // or the ID expired.
+             var activeDetailId = detailId
+             
+             try {
+                 // Refresh Grid for this specific channel
+                 val gridUrl = "$apiUrl/agg/grid?channels=$liveId&eventsLimit=1&isPlayable=true"
+                 val gridText = app.get(gridUrl, headers = headers).text
+                 val gridResponse = AppUtils.parseJson<AstroResponse>(gridText)
+                 val freshEvent = gridResponse.channels?.firstOrNull()?.currentEvent 
+                                ?: gridResponse.channels?.firstOrNull()?.events?.firstOrNull()
+                 
+                 if (freshEvent?.id != null) {
+                      activeDetailId = freshEvent.id
+                      // Also update fallback data from fresh grid
+                      title = freshEvent.title ?: title
+                      if (freshEvent.synopsis != null) plot = freshEvent.synopsis
+                 }
+                 System.out.println("DEBUG AstroGo Refreshed Detail ID: $activeDetailId")
+             } catch (e: Exception) {
+                 System.out.println("DEBUG AstroGo Grid Refresh Failed: ${e.message}")
+             }
 
-             if (!detailId.isNullOrEmpty()) {
+             if (!activeDetailId.isNullOrEmpty()) {
                  try {
-                     val detailUrl = "$apiUrl/contentInstances/$detailId"
+                     val detailUrl = "$apiUrl/contentInstances/$activeDetailId"
                      val detailText = app.get(detailUrl, headers = headers).text
                      val detail = AppUtils.parseJson<AstroContent>(detailText)
                      
@@ -841,7 +865,7 @@ class AstroGo : MainAPI() {
                          tags = detail.genres?.mapNotNull { it.name }
                          System.out.println("DEBUG AstroGo Live Detail Fetch Success: $title")
                      } catch (e: Exception) {
-                         System.out.println("DEBUG AstroGo Live Detail Fetch Failed ($detailId): ${e.message}")
+                         System.out.println("DEBUG AstroGo Live Detail Fetch Failed ($activeDetailId): ${e.message}")
                          e.printStackTrace()
                      }
                  }
