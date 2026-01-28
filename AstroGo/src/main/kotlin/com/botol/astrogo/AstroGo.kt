@@ -669,7 +669,7 @@ class AstroGo : MainAPI() {
             if (response?.channels != null) {
                 val channelItems = response.channels.mapNotNull { channel ->
                     val id = channel.id ?: return@mapNotNull null
-                    val event = channel.currentEvent ?: channel.events?.firstOrNull()
+                    val event = channel.schedule?.firstOrNull() ?: channel.currentEvent ?: channel.events?.firstOrNull()
                     val title = channel.title ?: channel.name ?: event?.title ?: "Live Channel"
                     
                     // Row Poster Priority:
@@ -834,7 +834,10 @@ class AstroGo : MainAPI() {
                  val gridUrl = "$apiUrl/agg/grid?channels=$liveId&eventsLimit=1&isPlayable=true"
                  val gridText = app.get(gridUrl, headers = headers).text
                  val gridResponse = AppUtils.parseJson<AstroResponse>(gridText)
-                 val freshEvent = gridResponse.channels?.firstOrNull()?.currentEvent 
+                 
+                 // API returns "schedule" list for grid. "currentEvent" is not there.
+                 val freshEvent = gridResponse.channels?.firstOrNull()?.schedule?.firstOrNull()
+                                ?: gridResponse.channels?.firstOrNull()?.currentEvent 
                                 ?: gridResponse.channels?.firstOrNull()?.events?.firstOrNull()
                  
                  if (freshEvent?.id != null) {
@@ -1305,6 +1308,7 @@ class AstroGo : MainAPI() {
         @JsonProperty("name") val name: String? = null,
         @JsonProperty("media") val media: List<AstroMedia>? = null,
         @JsonProperty("events") val events: List<AstroEvent>? = null,
+        @JsonProperty("schedule") val schedule: List<AstroEvent>? = null, // Added for correct Grid parsing
         @JsonProperty("currentEvent") val currentEvent: AstroEvent? = null // Often used in 'Now On TV'
     )
 
