@@ -26,7 +26,8 @@ class AstroGo : MainAPI() {
     override val supportedTypes = setOf(TvType.Live, TvType.Movie, TvType.TvSeries)
 
     // configuration
-    private var clientToken = "v:1!r:80800!ur:GUEST_REGION!community:Malaysia%20Live!t:k!dt:PC!f:Astro_unmanaged!pd:CHROME-FF!pt:Adults"
+    // configuration
+    private var clientToken = getKey<String>("astro_client_token") ?: "v:1!r:80800!ur:GUEST_REGION!community:Malaysia%20Live!t:k!dt:PC!f:Astro_unmanaged!pd:CHROME-FF!pt:Adults"
     private var bearerToken = getKey<String>("astro_bearer_token") ?: ""
 
     override val mainPage = mainPageOf(
@@ -1143,13 +1144,17 @@ class AstroGo : MainAPI() {
              profileId = getKey<String>("astro_profile_id") ?: ""
         }
 
-        val headers = mapOf(
+        val headers = mutableMapOf(
             "Authorization" to "Bearer $bearerToken",
             "Origin" to "https://astrogo.astro.com.my",
             "Referer" to "https://astrogo.astro.com.my/",
             "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Accept" to "application/json"
         )
+        // Add Profile ID header if available - Critical for some content, but don't block if missing (Guest)
+        if (profileId.isNotEmpty() && profileId != "NOT_FOUND") {
+            headers["x-astro-profile-id"] = profileId
+        }
         System.out.println("DEBUG AstroGo LoadLinks Headers: $headers")
 
         try {
@@ -1301,11 +1306,38 @@ class AstroGo : MainAPI() {
                 if (foundId != null) {
                     setKey("astro_profile_id", foundId)
                     System.out.println("DEBUG AstroGo Profile Selected: $foundId (Strategy determined)")
+                    
+                    // Attempt to extract Region info to update Client Token
+                    try {
+                        val regionRegex = "\"userRegion\"\\s*:\\s*\"([^\"]+)\"".toRegex()
+                        val commRegex = "\"community\"\\s*:\\s*\"([^\"]+)\"".toRegex()
+                        val ridRegex = "\"regionId\"\\s*:\\s*(?:\"(\\d+)\"|(\\d+))".toRegex()
+                        
+                        val region = regionRegex.find(response)?.groupValues?.get(1)
+                        val community = commRegex.find(response)?.groupValues?.get(1)
+                        val ridMatch = ridRegex.find(response)
+                        val regionId = ridMatch?.groups?.get(1)?.value ?: ridMatch?.groups?.get(2)?.value
+
+                        if (region != null && regionId != null) {
+                             val commEncoded = (community ?: "Malaysia Live").replace(" ", "%20")
+                             val newClientToken = "v:1!r:$regionId!ur:$region!community:$commEncoded!t:k!dt:PC!f:Astro_unmanaged!pd:CHROME-FF!pt:Adults"
+                             clientToken = newClientToken
+                             setKey("astro_client_token", newClientToken)
+                             System.out.println("DEBUG AstroGo ClientToken Updated: $clientToken")
+                        }
+                    } catch (e: Exception) {
+                        System.out.println("DEBUG AstroGo ClientToken Update Failed: ${e.message}")
+                    }
+
                     return // Success
                 }
 
             } catch (e: Exception) {
                 System.out.println("DEBUG AstroGo Profile Fetch Error ($url): ${e.message}")
+                if (e.message?.contains("401") == true || e.message?.contains("Unauthorized") == true) {
+                     System.out.println("DEBUG AstroGo Profile Fetch Unauthorized (Likely Guest Token). Stopping search.")
+                     break
+                }
             }
         }
         
