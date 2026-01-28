@@ -792,6 +792,7 @@ class AstroGo : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse {
+        System.out.println("DEBUG AstroGo Entering load() with URL: $url")
         val baseId = url.substringBefore("?")
         val titleParam = if (url.contains("title=")) java.net.URLDecoder.decode(url.substringAfter("title=").substringBefore("&"), "UTF-8") else null
         val posterParam = if (url.contains("poster=")) java.net.URLDecoder.decode(url.substringAfter("poster=").substringBefore("&"), "UTF-8") else null
@@ -1243,9 +1244,10 @@ class AstroGo : MainAPI() {
 
         // endpoints to try
         val endpoints = listOf(
-            "https://auth.astro.com.my/userinfo",
-            "https://auth.astro.com.my/oauth2/userinfo",
-            "$apiUrl/users/me/profiles?clientToken=$clientToken" // Legacy/CTAP try last
+            "$apiUrl/users/me/profiles", // Try without clientToken first (likely cause of method error)
+            "$apiUrl/users/me/profiles?clientToken=$clientToken", // Retry with it just in case
+            "$apiUrl/users/me", // Alternative endpoint
+            "https://auth.astro.com.my/userinfo"
         )
 
         for (url in endpoints) {
