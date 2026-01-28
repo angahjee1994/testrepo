@@ -829,9 +829,13 @@ class AstroGo : MainAPI() {
              // or the ID expired.
              var activeDetailId = detailId
              
+             // Encode clientToken for use in URLs
+             val rawToken = clientToken.replace("%20", " ")
+             val encodedToken = java.net.URLEncoder.encode(rawToken, "UTF-8").replace("+", "%20")
+
              try {
                  // Refresh Grid for this specific channel
-                 val gridUrl = "$apiUrl/agg/grid?channels=$liveId&eventsLimit=1&isPlayable=true"
+                 val gridUrl = "$apiUrl/agg/grid?channels=$liveId&eventsLimit=1&isPlayable=true&clientToken=$encodedToken"
                  val gridText = app.get(gridUrl, headers = headers).text
                  val gridResponse = AppUtils.parseJson<AstroResponse>(gridText)
                  
@@ -845,25 +849,46 @@ class AstroGo : MainAPI() {
                       // Also update fallback data from fresh grid
                       title = freshEvent.title ?: title
                       if (freshEvent.synopsis != null) plot = freshEvent.synopsis
+                      
+                      // Critical: Get fallback poster from Grid in case Detail API fails
+                      // Try to get high quality poster from grid event
+                      poster = freshEvent.media?.find { it.url?.contains("LAND_917x516") == true }?.url 
+                               ?: freshEvent.media?.find { it.url?.contains("LAND") == true }?.url
+                               ?: poster
                  }
                  System.out.println("DEBUG AstroGo Refreshed Detail ID: $activeDetailId")
              } catch (e: Exception) {
                  System.out.println("DEBUG AstroGo Grid Refresh Failed: ${e.message}")
              }
 
+             // Determine background poster (Header Image)
+             // Start with what we have from params/grid
+             var backgroundPoster = poster 
+
              if (!activeDetailId.isNullOrEmpty()) {
                  try {
-                     val detailUrl = "$apiUrl/contentInstances/$activeDetailId"
+                     val encodedId = java.net.URLEncoder.encode(activeDetailId, "UTF-8")
+                     // Add clientToken to detail fetch to avoid 403/Restricted Data (Short synopsis)
+                     val detailUrl = "$apiUrl/contentInstances/$encodedId?clientToken=$encodedToken"
                      val detailText = app.get(detailUrl, headers = headers).text
                      val detail = AppUtils.parseJson<AstroContent>(detailText)
                      
                      title = detail.title ?: detail.episodeTitle ?: title
                      plot = detail.longSynopsis ?: detail.synopsis ?: plot
                      
-                     // Try to get high quality poster from detail
-                     poster = detail.media?.find { it.url?.contains("LAND_917x516") == true }?.url 
-                              ?: detail.media?.find { it.url?.contains("LAND") == true }?.url
-                              ?: poster
+                     // LIVE TV SPECIFIC: 
+                     // Use LAND image for Background/Header
+                     // Use PORT image for Poster (if available), else LAND
+                     
+                     val landImage = detail.media?.find { it.url?.contains("LAND_917x516") == true }?.url 
+                                   ?: detail.media?.find { it.url?.contains("LAND") == true }?.url
+                     
+                     if (landImage != null) {
+                         backgroundPoster = landImage
+                         // If we only had a poster before, maybe update it? 
+                         // Usually for TV, posterUrl is portrait, background is landscape.
+                         // But if we don't have a portrait, use landscape for both.
+                     }
                               
                      // Parse duration
                      val durSec = detail.duration?.toIntOrNull()
@@ -880,6 +905,7 @@ class AstroGo : MainAPI() {
              
              return newMovieLoadResponse(title, url, TvType.Live, "Live:$liveId") {
                  this.posterUrl = poster
+                 this.backgroundPosterUrl = backgroundPoster 
                  this.plot = plot
                  if (durationMin != null) this.duration = durationMin
                  if (tags != null) this.tags = tags
