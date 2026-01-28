@@ -829,13 +829,14 @@ class AstroGo : MainAPI() {
              // or the ID expired.
              var activeDetailId = detailId
              
-             // Encode clientToken for use in URLs
-             val rawToken = clientToken.replace("%20", " ")
-             val encodedToken = java.net.URLEncoder.encode(rawToken, "UTF-8").replace("+", "%20")
+             // Use clientToken as-is (already contains %20, ! and :) - Do NOT encode strictly
+             val encodedToken = clientToken 
 
              try {
                  // Refresh Grid for this specific channel
-                 val gridUrl = "$apiUrl/agg/grid?channels=$liveId&eventsLimit=1&isPlayable=true&clientToken=$encodedToken"
+                 // Encode liveId just in case it has spaces
+                 val encodedLiveId = java.net.URLEncoder.encode(liveId, "UTF-8")
+                 val gridUrl = "$apiUrl/agg/grid?channels=$encodedLiveId&eventsLimit=1&isPlayable=true&clientToken=$encodedToken"
                  val gridText = app.get(gridUrl, headers = headers).text
                  val gridResponse = AppUtils.parseJson<AstroResponse>(gridText)
                  
