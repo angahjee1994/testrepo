@@ -27,7 +27,8 @@ class AstroGo : MainAPI() {
 
     // configuration
     // configuration
-    private var clientToken = getKey<String>("astro_client_token") ?: "v:1!r:80800!ur:GUEST_REGION!community:Malaysia%20Live!t:k!dt:PC!f:Astro_unmanaged!pd:CHROME-FF!pt:Adults"
+    // HARDCODED TOKEN AS REQUESTED BY USER
+    private var clientToken = getKey<String>("astro_client_token") ?: "v:1!r:80200!ur:SARAWAK!community:Malaysia%20Live!t:k!dt:PC!f:Astro_unmanaged!pd:CHROME-FF!pt:Adults"
     private var bearerToken = getKey<String>("astro_bearer_token") ?: ""
 
     override val mainPage = mainPageOf(
@@ -1310,42 +1311,6 @@ class AstroGo : MainAPI() {
                     }
                     
                     // Strategy B: OIDC Fallbacks
-                    if (foundId == null) {
-                         val subRegex = "\"sub\"\\s*:\\s*\"([^\"]+)\"".toRegex()
-                         val subMatch = subRegex.find(response)
-                         val subVal = subMatch?.groupValues?.get(1)
-                         if (subVal != null && subVal.isNotEmpty()) {
-                              foundId = subVal
-                              setKey("astro_profile_id", foundId)
-                         }
-                    }
-                }
-
-                // 2. Try to update Client Token if it's still Guest
-                if (!tokenUpdated) {
-                    try {
-                        val regionRegex = "\"userRegion\"\\s*:\\s*\"([^\"]+)\"".toRegex()
-                        val commRegex = "\"community\"\\s*:\\s*\"([^\"]+)\"".toRegex()
-                        val ridRegex = "\"regionId\"\\s*:\\s*(?:\"(\\d+)\"|(\\d+))".toRegex()
-                        
-                        val region = regionRegex.find(response)?.groupValues?.get(1)
-                        val community = commRegex.find(response)?.groupValues?.get(1)
-                        val ridMatch = ridRegex.find(response)
-                        val regionId = ridMatch?.groups?.get(1)?.value ?: ridMatch?.groups?.get(2)?.value
-
-                        if (region != null && regionId != null) {
-                             val commEncoded = (community ?: "Malaysia Live").replace(" ", "%20")
-                             val newClientToken = "v:1!r:$regionId!ur:$region!community:$commEncoded!t:k!dt:PC!f:Astro_unmanaged!pd:CHROME-FF!pt:Adults"
-                             clientToken = newClientToken
-                             setKey("astro_client_token", newClientToken)
-                             System.out.println("DEBUG AstroGo ClientToken Updated to User Region: $clientToken")
-                             tokenUpdated = true
-                        }
-                    } catch (e: Exception) {
-                        System.out.println("DEBUG AstroGo ClientToken Update Failed parsing: ${e.message}")
-                    }
-                }
-
             } catch (e: Exception) {
                 System.out.println("DEBUG AstroGo Profile Fetch Error ($url): ${e.message}")
             }
