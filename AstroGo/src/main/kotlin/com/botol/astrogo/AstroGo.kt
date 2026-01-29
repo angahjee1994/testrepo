@@ -20,7 +20,7 @@ import okio.Buffer
 class AstroGo : MainAPI() {
     override var mainUrl = "https://astrogo.astro.com.my"
     private val apiUrl = "https://sg-sg-sg.astro.com.my:9443/ctap/r1.6.0"
-    override var name = "AstroGo V2"
+    override var name = "AstroGoV2"
     override val hasMainPage = true
     override var lang = "ms"
     override val supportedTypes = setOf(TvType.Live, TvType.Movie, TvType.TvSeries)
@@ -42,13 +42,14 @@ class AstroGo : MainAPI() {
     )
 
     override fun getVideoInterceptor(extractorLink: ExtractorLink): Interceptor {
+        System.out.println("DEBUG AstroGoV2: getVideoInterceptor called for link: ${extractorLink.name} url: ${extractorLink.url}")
         return Interceptor { chain ->
             val request = chain.request()
             val url = request.url.toString()
-            System.out.println("DEBUG AstroGo Interceptor: Checking URL: $url")
+            System.out.println("DEBUG AstroGoV2 Interceptor: Processing Request: $url")
             
             if (url.contains("vgemultidrm/v1/widevine/license")) {
-               System.out.println("DEBUG AstroGo Interceptor: Intercepting License Request: $url")
+               System.out.println("DEBUG AstroGoV2 Interceptor: Intercepting License Request: $url")
                 // Get stored headers from extractorLink
                 val contentId = extractorLink.headers["X-Astro-Content-ID"] ?: ""
                 val authKey = extractorLink.headers["X-Astro-Auth"] ?: ""
@@ -78,7 +79,7 @@ class AstroGo : MainAPI() {
                         "playbackSessionCookie": null
                     }
                 """.trimIndent()
-                System.out.println("DEBUG AstroGo Interceptor Payload: $jsonBody")
+                System.out.println("DEBUG AstroGoV2 Interceptor Payload: $jsonBody")
                 
                 val profileId = extractorLink.headers["X-Internal-Profile-Id"] ?: ""
 
@@ -87,7 +88,7 @@ class AstroGo : MainAPI() {
                 
                 if (profileId.isNotEmpty()) {
                     newRequestBuilder.addHeader("x-astro-profile-id", profileId)
-                    System.out.println("DEBUG AstroGo Interceptor: Added x-astro-profile-id=$profileId")
+                    System.out.println("DEBUG AstroGoV2 Interceptor: Added x-astro-profile-id=$profileId")
                 }
                 
                 val newRequest = newRequestBuilder.build()
@@ -95,7 +96,7 @@ class AstroGo : MainAPI() {
                 val response = chain.proceed(newRequest)
                 if (!response.isSuccessful) {
                      val errorBody = response.peekBody(Long.MAX_VALUE).string()
-                     System.out.println("DEBUG AstroGo Interceptor Error: Code=${response.code} Body=$errorBody")
+                     System.out.println("DEBUG AstroGoV2 Interceptor Error: Code=${response.code} Body=$errorBody")
                 }
                 
                 if (response.isSuccessful) {
@@ -120,6 +121,7 @@ class AstroGo : MainAPI() {
                 return@Interceptor response
             } else {
                 // For non-license requests (Stream/MPD), we MUST strip the internal API headers
+                System.out.println("DEBUG AstroGoV2 Interceptor: Passing through non-license request: $url")
                 val newRequest = request.newBuilder()
                    .removeHeader("X-Internal-Bearer") // Deprecated but safe to remove
                    .removeHeader("X-Astro-Auth")
@@ -1213,14 +1215,14 @@ class AstroGo : MainAPI() {
                         ) {
                             this.referer = mainUrl
                             this.licenseUrl = "https://sg-sg-sg.astro.com.my:9443/vgemultidrm/v1/widevine/license"
-                            System.out.println("DEBUG AstroGo newDrmExtractorLink: Setting licenseUrl=${this.licenseUrl}")
+                            // System.out.println("DEBUG AstroGo newDrmExtractorLink: Setting licenseUrl=${this.licenseUrl}")
                             
                             this.headers = mapOf(
                                 "Authorization" to "Bearer $bearerToken",
                                 "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                                 "Referer" to "https://astrogo.astro.com.my/",
                                 "X-Astro-Content-ID" to contentId,
-                                "X-Astro-Auth" to drmToken, // Use AstroGobak naming
+                                "X-Astro-Auth" to drmToken, 
                                 "X-Internal-Profile-Id" to profileId
                             )
                         }
@@ -1228,8 +1230,8 @@ class AstroGo : MainAPI() {
                 } else {
                     callback.invoke(
                         newExtractorLink(
-                            source = "AstroGo",
-                            name = "AstroGo",
+                            source = this.name,
+                            name = this.name,
                             url = streamUrl,
                             type = ExtractorLinkType.DASH
                         ) {
