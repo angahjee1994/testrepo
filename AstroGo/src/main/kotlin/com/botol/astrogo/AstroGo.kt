@@ -20,7 +20,7 @@ import okio.Buffer
 class AstroGo : MainAPI() {
     override var mainUrl = "https://astrogo.astro.com.my"
     private val apiUrl = "https://sg-sg-sg.astro.com.my:9443/ctap/r1.6.0"
-    override var name = "AstroGo"
+    override var name = "AstroGo V2"
     override val hasMainPage = true
     override var lang = "ms"
     override val supportedTypes = setOf(TvType.Live, TvType.Movie, TvType.TvSeries)
