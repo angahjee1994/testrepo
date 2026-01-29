@@ -1258,6 +1258,7 @@ class AstroGo : MainAPI() {
 
         // endpoints to try
         val endpoints = listOf(
+            "$apiUrl/household/me/devices", // BEST SOURCE: Contains 'activeUserProfile' - Critical Fix
             "$apiUrl/users/me/profiles", // Try without clientToken first (likely cause of method error)
             "$apiUrl/users/me/profiles?clientToken=$clientToken", // Retry with it just in case
             "$apiUrl/users/me", // Alternative endpoint
@@ -1277,8 +1278,16 @@ class AstroGo : MainAPI() {
 
                 var foundId: String? = null
 
+                // Strategy 0: Check for "activeUserProfile" (from devices endpoint) - This is the key for Playback entitlement
+                val activeProfileRegex = "\"activeUserProfile\"\\s*:\\s*\"([^\"]+)\"".toRegex()
+                val activeMatch = activeProfileRegex.find(response)
+                if (activeMatch != null) {
+                    foundId = activeMatch.groupValues[1]
+                    System.out.println("DEBUG AstroGo Found ActiveUserProfile: $foundId")
+                }
+
                 // Strategy A: Check for "profiles" array (CTAP) or custom claim
-                if (response.contains("profiles")) {
+                if (foundId == null && response.contains("profiles")) {
                     // Improved regex to handle "id": "123" AND "id": 123
                     val idRegex = "\"id\"\\s*:\\s*(?:\"([^\"]+)\"|([^,}\\s]+))".toRegex()
                     val matches = idRegex.findAll(response)
