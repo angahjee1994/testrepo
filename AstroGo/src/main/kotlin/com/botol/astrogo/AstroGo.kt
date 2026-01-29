@@ -295,9 +295,9 @@ class AstroGo : MainAPI() {
         if (bearerToken.isNotEmpty()) return 
 
         // Ensure clientToken is always populated
-        if (clientToken.isEmpty()) {
-            clientToken = generateClientToken()
-        }
+        // if (clientToken.isEmpty()) {
+        //    clientToken = "v:1!r:80200!ur:SARAWAK!community:Malaysia%20Live!t:k!dt:PC!f:Astro_unmanaged!pd:CHROME-FF!pt:Adults"
+        // }
 
         try {
             // URL discovered via user feedback (port 9443 removed)
@@ -790,7 +790,7 @@ class AstroGo : MainAPI() {
         )
 
         return try {
-            val response = app.get(url, headers = headers).parsedSafe<AstroResponse>()
+            val response = app.get(url, headers = headers).parsed<AstroResponse>()
             val results = response?.content?.mapNotNull { it.toSearchResponse() } ?: emptyList()
             System.out.println("DEBUG AstroGo Search Results: ${results.size}")
             results
@@ -849,8 +849,7 @@ class AstroGo : MainAPI() {
                  val encodedLiveId = java.net.URLEncoder.encode(liveId, "UTF-8")
                  // REMOVED clientToken to match getMainPage behavior (User reported it works without it)
                  val gridUrl = "$apiUrl/agg/grid?channels=$encodedLiveId&eventsLimit=1&isPlayable=true"
-                 val gridText = app.get(gridUrl, headers = headers).text
-                 val gridResponse = AppUtils.parseJson<AstroResponse>(gridText)
+                 val gridResponse = app.get(gridUrl, headers = headers).parsed<AstroResponse>()
                  
                  // API returns "schedule" list for grid. "currentEvent" is not there.
                  val freshEvent = gridResponse.channels?.firstOrNull()?.schedule?.firstOrNull()
@@ -1311,6 +1310,17 @@ class AstroGo : MainAPI() {
                     }
                     
                     // Strategy B: OIDC Fallbacks
+                    if (foundId == null) {
+                         val subRegex = "\"sub\"\\s*:\\s*\"([^\"]+)\"".toRegex()
+                         val subMatch = subRegex.find(response)
+                         val subVal = subMatch?.groupValues?.get(1)
+                         if (subVal != null && subVal.isNotEmpty()) {
+                              foundId = subVal
+                              setKey("astro_profile_id", foundId)
+                         }
+                    }
+                } // End of if foundId check
+
             } catch (e: Exception) {
                 System.out.println("DEBUG AstroGo Profile Fetch Error ($url): ${e.message}")
             }
@@ -1321,88 +1331,77 @@ class AstroGo : MainAPI() {
         }
     }
 
-    private fun generateClientToken(): String {
-        val version = "1"
-        val regionId = "80200"
-        val userRegion = "SARAWAK"
-        val community = "Malaysia%20Live"
-        val type = "k"
-        val deviceType = "PC"
-        val fleet = "Astro_unmanaged"
-        val platformDevice = "CHROME-FF"
-        val profileType = "Adults"
 
-        return "v:$version!r:$regionId!ur:$userRegion!community:$community!t:$type!dt:$deviceType!f:$fleet!pd:$platformDevice!pt:$profileType"
-    }
 
-    data class AstroResponse(
-        @JsonProperty("categories") val categories: List<AstroCategory>? = null,
-        @JsonProperty("content") val content: List<AstroContent>? = null,
-        @JsonProperty("channels") val channels: List<AstroChannel>? = null // Added for Grid
-    )
-
-    data class AstroChannel(
-        @JsonProperty("id") val id: String? = null,
-        @JsonProperty("title") val title: String? = null,
-        @JsonProperty("name") val name: String? = null,
-        @JsonProperty("media") val media: List<AstroMedia>? = null,
-        @JsonProperty("events") val events: List<AstroEvent>? = null,
-        @JsonProperty("schedule") val schedule: List<AstroEvent>? = null, // Added for correct Grid parsing
-        @JsonProperty("currentEvent") val currentEvent: AstroEvent? = null // Often used in 'Now On TV'
-    )
-
-    data class AstroEvent(
-        @JsonProperty("id") val id: String? = null,
-        @JsonProperty("title") val title: String? = null,
-        @JsonProperty("name") val name: String? = null,
-        @JsonProperty("startDate") val startDate: String? = null,
-        @JsonProperty("endDate") val endDate: String? = null,
-        @JsonProperty("synopsis") val synopsis: String? = null,
-        @JsonProperty("media") val media: List<AstroMedia>? = null // Added for poster extraction
-    )
-
-    data class AstroCategory(
-        @JsonProperty("title") val title: String? = null,
-        @JsonProperty("content") val content: List<AstroContent>? = null
-    )
-
-    data class AstroContent(
-        @JsonProperty("id") val id: String? = null,
-        @JsonProperty("packId") val packId: String? = null,
-        @JsonProperty("externalId") val externalId: String? = null,
-        @JsonProperty("title") val title: String? = null,
-        @JsonProperty("name") val name: String? = null,
-        @JsonProperty("synopsis") val synopsis: String? = null,
-        @JsonProperty("longSynopsis") val longSynopsis: String? = null, // Added
-        @JsonProperty("episodeTitle") val episodeTitle: String? = null, // Added
-        @JsonProperty("media") val media: List<AstroMedia>? = null,
-        @JsonProperty("contentType") val contentType: String? = null,
-        @JsonProperty("releaseDate") val releaseDate: String? = null,
-        @JsonProperty("duration") val duration: String? = null,
-        @JsonProperty("channel") val channel: AstroChannel? = null, // Added for nested channel info
-        @JsonProperty("genres") val genres: List<AstroGenre>? = null,
-        @JsonProperty("cast") val cast: List<AstroCast>? = null,
-        @JsonProperty("actors") val actors: List<String>? = null,
-        @JsonProperty("episodeNumber") val episodeNumber: Int? = null,
-        @JsonProperty("seasonNumber") val seasonNumber: Int? = null,
-        @JsonProperty("showId") val showId: String? = null,
-        @JsonProperty("seasonId") val seasonId: String? = null,
-        @JsonProperty("credits") val credits: Any? = null
-    )
-    
-    data class AstroCast(
-        @JsonProperty("name") val name: String? = null,
-        @JsonProperty("role") val role: String? = null
-    )
-
-    data class AstroGenre(
-        @JsonProperty("name") val name: String? = null
-    )
-
-    data class AstroMedia(
-        @JsonProperty("url") val url: String? = null,
-        @JsonProperty("width") val width: Int? = null,
-        @JsonProperty("height") val height: Int? = null,
-        @JsonProperty("type") val type: String? = null
-    )
 }
+
+data class AstroResponse(
+    @JsonProperty("categories") val categories: List<AstroCategory>? = null,
+    @JsonProperty("content") val content: List<AstroContent>? = null,
+    @JsonProperty("channels") val channels: List<AstroChannel>? = null // Added for Grid
+)
+
+data class AstroChannel(
+    @JsonProperty("id") val id: String? = null,
+    @JsonProperty("title") val title: String? = null,
+    @JsonProperty("name") val name: String? = null,
+    @JsonProperty("media") val media: List<AstroMedia>? = null,
+    @JsonProperty("events") val events: List<AstroEvent>? = null,
+    @JsonProperty("schedule") val schedule: List<AstroEvent>? = null, // Added for correct Grid parsing
+    @JsonProperty("currentEvent") val currentEvent: AstroEvent? = null // Often used in 'Now On TV'
+)
+
+data class AstroEvent(
+    @JsonProperty("id") val id: String? = null,
+    @JsonProperty("title") val title: String? = null,
+    @JsonProperty("name") val name: String? = null,
+    @JsonProperty("startDate") val startDate: String? = null,
+    @JsonProperty("endDate") val endDate: String? = null,
+    @JsonProperty("synopsis") val synopsis: String? = null,
+    @JsonProperty("media") val media: List<AstroMedia>? = null // Added for poster extraction
+)
+
+data class AstroCategory(
+    @JsonProperty("title") val title: String? = null,
+    @JsonProperty("content") val content: List<AstroContent>? = null
+)
+
+data class AstroContent(
+    @JsonProperty("id") val id: String? = null,
+    @JsonProperty("packId") val packId: String? = null,
+    @JsonProperty("externalId") val externalId: String? = null,
+    @JsonProperty("title") val title: String? = null,
+    @JsonProperty("name") val name: String? = null,
+    @JsonProperty("synopsis") val synopsis: String? = null,
+    @JsonProperty("longSynopsis") val longSynopsis: String? = null, // Added
+    @JsonProperty("episodeTitle") val episodeTitle: String? = null, // Added
+    @JsonProperty("media") val media: List<AstroMedia>? = null,
+    @JsonProperty("contentType") val contentType: String? = null,
+    @JsonProperty("releaseDate") val releaseDate: String? = null,
+    @JsonProperty("duration") val duration: String? = null,
+    @JsonProperty("channel") val channel: AstroChannel? = null, // Added for nested channel info
+    @JsonProperty("genres") val genres: List<AstroGenre>? = null,
+    @JsonProperty("cast") val cast: List<AstroCast>? = null,
+    @JsonProperty("actors") val actors: List<String>? = null,
+    @JsonProperty("episodeNumber") val episodeNumber: Int? = null,
+    @JsonProperty("seasonNumber") val seasonNumber: Int? = null,
+    @JsonProperty("showId") val showId: String? = null,
+    @JsonProperty("seasonId") val seasonId: String? = null,
+    @JsonProperty("credits") val credits: Any? = null
+)
+
+data class AstroCast(
+    @JsonProperty("name") val name: String? = null,
+    @JsonProperty("role") val role: String? = null
+)
+
+data class AstroGenre(
+    @JsonProperty("name") val name: String? = null
+)
+
+data class AstroMedia(
+    @JsonProperty("url") val url: String? = null,
+    @JsonProperty("width") val width: Int? = null,
+    @JsonProperty("height") val height: Int? = null,
+    @JsonProperty("type") val type: String? = null
+)
