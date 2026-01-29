@@ -1254,18 +1254,25 @@ class AstroGo : MainAPI() {
     suspend fun fetchAndSaveProfile() {
         if (bearerToken.isEmpty() || profileFetchAttempted) return
         
-        profileFetchAttempted = true // Prevent spamming on every valid internal page load
+        profileFetchAttempted = true // Prevent spamming
 
         // endpoints to try
         val endpoints = listOf(
-            "$apiUrl/household/me/devices", // BEST SOURCE: Contains 'activeUserProfile' - Critical Fix
-            "$apiUrl/users/me/profiles", // Try without clientToken first (likely cause of method error)
-            "$apiUrl/users/me/profiles?clientToken=$clientToken", // Retry with it just in case
-            "$apiUrl/users/me", // Alternative endpoint
+            "$apiUrl/household/me/devices", // BEST SOURCE: Contains 'activeUserProfile' - Critical for Playback
+            "$apiUrl/users/me", // BEST SOURCE: Contains 'userRegion' - Critical for ClientToken
+            "$apiUrl/users/me/profiles", 
+            "$apiUrl/users/me/profiles?clientToken=$clientToken", 
             "https://auth.astro.com.my/userinfo"
         )
 
+        var foundId: String? = getKey<String>("astro_profile_id")
+        // Check if current token is Guest to determine if we need to update it
+        var tokenUpdated = !clientToken.contains("GUEST_REGION")
+
         for (url in endpoints) {
+            // If we have both, we can stop
+            if (foundId != null && tokenUpdated) break
+
             try {
                 val headers = mapOf(
                     "Authorization" to "Bearer $bearerToken",
@@ -1276,56 +1283,46 @@ class AstroGo : MainAPI() {
                 val response = app.get(url, headers = headers).text
                 System.out.println("DEBUG AstroGo Profile Response ($url): $response")
 
-                var foundId: String? = null
+                // 1. Try to find Profile ID if we don't have it (or if it was invalid)
+                if (foundId == null || foundId == "NOT_FOUND") {
+                    // Strategy 0: Check for "activeUserProfile" (from devices endpoint)
+                    val activeProfileRegex = "\"activeUserProfile\"\\s*:\\s*\"([^\"]+)\"".toRegex()
+                    val activeMatch = activeProfileRegex.find(response)
+                    if (activeMatch != null) {
+                        foundId = activeMatch.groupValues[1]
+                        System.out.println("DEBUG AstroGo Found ActiveUserProfile: $foundId")
+                        setKey("astro_profile_id", foundId)
+                    }
 
-                // Strategy 0: Check for "activeUserProfile" (from devices endpoint) - This is the key for Playback entitlement
-                val activeProfileRegex = "\"activeUserProfile\"\\s*:\\s*\"([^\"]+)\"".toRegex()
-                val activeMatch = activeProfileRegex.find(response)
-                if (activeMatch != null) {
-                    foundId = activeMatch.groupValues[1]
-                    System.out.println("DEBUG AstroGo Found ActiveUserProfile: $foundId")
-                }
-
-                // Strategy A: Check for "profiles" array (CTAP) or custom claim
-                if (foundId == null && response.contains("profiles")) {
-                    // Improved regex to handle "id": "123" AND "id": 123
-                    val idRegex = "\"id\"\\s*:\\s*(?:\"([^\"]+)\"|([^,}\\s]+))".toRegex()
-                    val matches = idRegex.findAll(response)
-                    
-                    for (m in matches) {
-                        val v = m.groups[1]?.value ?: m.groups[2]?.value
-                        if (v != null && v != "NOT_FOUND" && v != "NOT_ENTITLED") {
-                            foundId = v
-                            break
+                    // Strategy A: Check for "profiles" array (CTAP)
+                    if (foundId == null && response.contains("profiles")) {
+                        val idRegex = "\"id\"\\s*:\\s*(?:\"([^\"]+)\"|([^,}\\s]+))".toRegex()
+                        val matches = idRegex.findAll(response)
+                        for (m in matches) {
+                            val v = m.groups[1]?.value ?: m.groups[2]?.value
+                            if (v != null && v != "NOT_FOUND" && v != "NOT_ENTITLED") {
+                                foundId = v
+                                setKey("astro_profile_id", foundId)
+                                System.out.println("DEBUG AstroGo Found Profile ID from profiles list: $foundId")
+                                break
+                            }
                         }
                     }
-                }
-
-                // Strategy B: Check for "sub" (OIDC)
-                if (foundId == null) {
-                    val subRegex = "\"sub\"\\s*:\\s*\"([^\"]+)\"".toRegex()
-                    val subMatch = subRegex.find(response)
-                    val subVal = subMatch?.groupValues?.get(1)
-                    if (subVal != null && subVal.isNotEmpty()) {
-                         foundId = subVal
+                    
+                    // Strategy B: OIDC Fallbacks
+                    if (foundId == null) {
+                         val subRegex = "\"sub\"\\s*:\\s*\"([^\"]+)\"".toRegex()
+                         val subMatch = subRegex.find(response)
+                         val subVal = subMatch?.groupValues?.get(1)
+                         if (subVal != null && subVal.isNotEmpty()) {
+                              foundId = subVal
+                              setKey("astro_profile_id", foundId)
+                         }
                     }
                 }
 
-                // Strategy C: Check for "family_name" (OIDC - sometimes used as account ID)
-                if (foundId == null) {
-                     val famRegex = "\"family_name\"\\s*:\\s*\"([^\"]+)\"".toRegex()
-                     val famMatch = famRegex.find(response)
-                     val famVal = famMatch?.groupValues?.get(1)
-                     if (famVal != null && famVal.isNotEmpty()) {
-                        foundId = famVal
-                     }
-                }
-                
-                if (foundId != null) {
-                    setKey("astro_profile_id", foundId)
-                    System.out.println("DEBUG AstroGo Profile Selected: $foundId (Strategy determined)")
-                    
-                    // Attempt to extract Region info to update Client Token
+                // 2. Try to update Client Token if it's still Guest
+                if (!tokenUpdated) {
                     try {
                         val regionRegex = "\"userRegion\"\\s*:\\s*\"([^\"]+)\"".toRegex()
                         val commRegex = "\"community\"\\s*:\\s*\"([^\"]+)\"".toRegex()
@@ -1341,25 +1338,22 @@ class AstroGo : MainAPI() {
                              val newClientToken = "v:1!r:$regionId!ur:$region!community:$commEncoded!t:k!dt:PC!f:Astro_unmanaged!pd:CHROME-FF!pt:Adults"
                              clientToken = newClientToken
                              setKey("astro_client_token", newClientToken)
-                             System.out.println("DEBUG AstroGo ClientToken Updated: $clientToken")
+                             System.out.println("DEBUG AstroGo ClientToken Updated to User Region: $clientToken")
+                             tokenUpdated = true
                         }
                     } catch (e: Exception) {
-                        System.out.println("DEBUG AstroGo ClientToken Update Failed: ${e.message}")
+                        System.out.println("DEBUG AstroGo ClientToken Update Failed parsing: ${e.message}")
                     }
-
-                    return // Success
                 }
 
             } catch (e: Exception) {
                 System.out.println("DEBUG AstroGo Profile Fetch Error ($url): ${e.message}")
-                if (e.message?.contains("401") == true || e.message?.contains("Unauthorized") == true) {
-                     System.out.println("DEBUG AstroGo Profile Fetch Unauthorized (Likely Guest Token). Stopping search.")
-                     break
-                }
             }
         }
         
-        System.out.println("DEBUG AstroGo Failed to fetch any valid profile ID.")
+        if (foundId == null) {
+             System.out.println("DEBUG AstroGo Failed to fetch any valid profile ID.")
+        }
     }
 
     private fun generateClientToken(): String {
