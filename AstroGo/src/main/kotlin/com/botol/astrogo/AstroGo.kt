@@ -5,10 +5,9 @@ import com.lagradost.cloudstream3.utils.*
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.AcraApplication.Companion.getKey
 import com.lagradost.cloudstream3.AcraApplication.Companion.setKey
-// import com.fasterxml.jackson.databind.JsonNode // Removed to avoid errors
-// import com.fasterxml.jackson.databind.ObjectMapper // Removed to avoid errors
-// import com.fasterxml.jackson.module.kotlin.readValue // Removed to avoid errors
-
+import com.fasterxml.jackson.databind.DeserializationFeature
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import java.util.UUID
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -25,9 +24,8 @@ class AstroGo : MainAPI() {
     override var lang = "ms"
     override val supportedTypes = setOf(TvType.Live, TvType.Movie, TvType.TvSeries)
 
-    // configuration
-    // configuration
-    // HARDCODED TOKEN AS REQUESTED BY USER
+    private val mapper = ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false).registerKotlinModule()
+
     private var clientToken = getKey<String>("astro_client_token") ?: "v:1!r:80200!ur:SARAWAK!community:Malaysia%20Live!t:k!dt:PC!f:Astro_unmanaged!pd:CHROME-FF!pt:Adults"
     private var bearerToken = getKey<String>("astro_bearer_token") ?: ""
 
@@ -42,14 +40,11 @@ class AstroGo : MainAPI() {
     )
 
     override fun getVideoInterceptor(extractorLink: ExtractorLink): Interceptor {
-        System.out.println("DEBUG AstroGoV2: getVideoInterceptor called for link: ${extractorLink.name} url: ${extractorLink.url}")
         return Interceptor { chain ->
             val request = chain.request()
             val url = request.url.toString()
-            System.out.println("DEBUG AstroGoV2 Interceptor: Processing Request: $url")
             
             if (url.contains("vgemultidrm/v1/widevine/license")) {
-               System.out.println("DEBUG AstroGoV2 Interceptor: Intercepting License Request: $url")
                 // Get stored headers from extractorLink
                 val contentId = extractorLink.headers["X-Astro-Content-ID"] ?: ""
                 val authKey = extractorLink.headers["X-Astro-Auth"] ?: ""
@@ -59,7 +54,7 @@ class AstroGo : MainAPI() {
                 val trueAuthToken = authKey.split("&").find { it.startsWith("AuthToken=") }?.substringAfter("AuthToken=")
                 val finalContentId = assetId ?: contentId
                 val finalAuthToken = trueAuthToken ?: authKey
-
+            
                 // Read original binary body (the raw challenge)
                 val originalBodyBytes = request.body?.let { body ->
                     val buffer = Buffer()
@@ -68,7 +63,7 @@ class AstroGo : MainAPI() {
                 } ?: ByteArray(0)
                 
                 val challengeBase64 = Base64.encodeToString(originalBodyBytes, Base64.NO_WRAP)
-
+            
                 val jsonBody = """
                     {
                         "contentID": "$finalContentId",
@@ -76,34 +71,42 @@ class AstroGo : MainAPI() {
                         "authorizationToken": "$finalAuthToken",
                         "authorizationTokenType": "1",
                         "licenseChallenge": "$challengeBase64",
+                        "keyReference": null,
                         "playbackSessionCookie": null
                     }
                 """.trimIndent()
-                System.out.println("DEBUG AstroGoV2 Interceptor Payload: $jsonBody")
                 
                 val profileId = extractorLink.headers["X-Internal-Profile-Id"] ?: ""
-
+            
                 val newRequestBuilder = request.newBuilder()
                     .post(jsonBody.toRequestBody("application/json".toMediaTypeOrNull()))
+                    .header("Accept", "*/*") // Matches user spec
+                    .header("Accept-Language", "en")
+                    // .header("Accept-Encoding", "gzip, deflate, br, zstd") // OkHttp handles this automatically
+                    .header("Cache-Control", "no-cache , no-store")
+                    .header("Connection", "keep-alive")
+                    .header("Content-Type", "application/json")
+                    .header("Origin", "https://astrogo.astro.com.my")
+                    .header("Referer", "https://astrogo.astro.com.my/")
+                    .header("Sec-Ch-Ua", "\"Not(A:Brand\";v=\"8\", \"Chromium\";v=\"144\", \"Google Chrome\";v=\"144\"")
+                    .header("Sec-Ch-Ua-Mobile", "?0")
+                    .header("Sec-Ch-Ua-Platform", "\"Windows\"")
+                    .header("Sec-Fetch-Dest", "empty")
+                    .header("Sec-Fetch-Mode", "cors")
+                    .header("Sec-Fetch-Site", "same-site")
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36")
                 
                 if (profileId.isNotEmpty()) {
                     newRequestBuilder.addHeader("x-astro-profile-id", profileId)
-                    System.out.println("DEBUG AstroGoV2 Interceptor: Added x-astro-profile-id=$profileId")
                 }
                 
                 val newRequest = newRequestBuilder.build()
-
+            
                 val response = chain.proceed(newRequest)
-                if (!response.isSuccessful) {
-                     val errorBody = response.peekBody(Long.MAX_VALUE).string()
-                     System.out.println("DEBUG AstroGoV2 Interceptor Error: Code=${response.code} Body=$errorBody")
-                }
                 
                 if (response.isSuccessful) {
                     val responseBody = response.body?.string() ?: ""
                     try {
-                        // Regex parse licenseData which is an array of strings
-                        // "licenseData": [ "BASE64..." ]
                         val licenseRegex = "\"licenseData\"\\s*:\\s*\\[\\s*\"([^\"]+)\"".toRegex()
                         val match = licenseRegex.find(responseBody)
                         val license = match?.groupValues?.get(1)
@@ -111,7 +114,7 @@ class AstroGo : MainAPI() {
                         if (!license.isNullOrEmpty()) {
                             val licenseBytes = Base64.decode(license, Base64.DEFAULT)
                             return@Interceptor response.newBuilder()
-                                .body(licenseBytes.toResponseBody(null)) // type unknown, null safe
+                                .body(licenseBytes.toResponseBody(null))
                                 .build()
                         }
                     } catch (e: Exception) {
@@ -120,17 +123,14 @@ class AstroGo : MainAPI() {
                 }
                 return@Interceptor response
             } else {
-                // For non-license requests (Stream/MPD), we MUST strip the internal API headers
-                System.out.println("DEBUG AstroGoV2 Interceptor: Passing through non-license request: $url")
                 val newRequest = request.newBuilder()
-                   .removeHeader("X-Internal-Bearer") // Deprecated but safe to remove
+                   .removeHeader("X-Internal-Bearer")
                    .removeHeader("X-Astro-Auth")
                    .removeHeader("X-Astro-Content-ID")
                    .removeHeader("X-VGE-Service-ID")
                    .removeHeader("X-VGE-Client")
                    .removeHeader("X-Identity-Profile-Id")
                    .removeHeader("X-Internal-Profile-Id")
-                   // Explicitly remove Authorization for media segments to avoid 403
                    .removeHeader("Authorization") 
                    .build()
                 return@Interceptor chain.proceed(newRequest)
@@ -189,9 +189,7 @@ class AstroGo : MainAPI() {
             try {
                 // 1. Fetch devices first
                 val devicesUrl = "$apiUrl/household/me/devices"
-                System.out.println("DEBUG AstroGo Logout: Fetching from $devicesUrl")
                 val response = app.get(devicesUrl, headers = headers).text
-                System.out.println("DEBUG AstroGo Logout: JSON=$response")
                 
                 // 2. Parse Valid IDs (Fallback Pool)
                 // Filter for removable IDs (skip Set-top boxes with short IDs)
@@ -273,11 +271,10 @@ class AstroGo : MainAPI() {
                      val delResp = app.delete(deleteUrl, headers = headers)
                      System.out.println("DEBUG AstroGo Logout: DELETE Code=${delResp.code} Body=${delResp.text}")
                 } else {
-                     System.out.println("DEBUG AstroGo Logout: No suitable device found to remove.")
                 }
 
             } catch (e: Exception) {
-                System.out.println("DEBUG AstroGo Logout Error: ${e.message}")
+                e.printStackTrace()
             }
         }
 
@@ -348,7 +345,6 @@ class AstroGo : MainAPI() {
     }
 
     suspend fun login(username: String, pass: String): Boolean {
-        System.out.println("DEBUG AstroGo Login: Starting for user $username")
         return try {
             val clientId = "browser"
             val authState = "bootup"
@@ -367,7 +363,6 @@ class AstroGo : MainAPI() {
             // 1. Start OAuth Flow
             // URL strictly matched to user's request
             val authUrl = "https://sg-sg-sg.astro.com.my:9443/oauth2/authorize?client_id=$clientId&state=$authState&redirect_uri=$encodedRedirectUri&response_type=token"
-            System.out.println("DEBUG AstroGo Login: Auth URL: $authUrl")
 
             var currentUrl = authUrl
             var attempts = 0
@@ -422,13 +417,9 @@ class AstroGo : MainAPI() {
                 } else {
                     // Stopped redirecting
                     if (response.url.contains("auth.astro.com.my/login")) {
-                         System.out.println("DEBUG AstroGo Login: Landed on Login Page. Handling Form Submission...")
                          return handleLoginForm(response.url, username, pass, baseHeaders, currentCookies)
                     }
 
-                    System.out.println("DEBUG AstroGo Login: Stopped at ${response.url} without token.")
-                    // If we stopped at a page, print some content to see if it's a CAPTCHA or error
-                    if (attempts == 0) System.out.println("DEBUG AstroGo Body Preview: ${response.text.take(500)}")
                     break
                 }
                 attempts++
@@ -648,7 +639,6 @@ class AstroGo : MainAPI() {
 
         try {
             val responseBody = app.get(url, headers = headers).text
-            System.out.println("DEBUG AstroGo Main Page Response: $responseBody")
             val response = AppUtils.parseJson<AstroResponse>(responseBody)
             val items = ArrayList<HomePageList>()
             val addedTitles = HashSet<String>()
@@ -725,9 +715,6 @@ class AstroGo : MainAPI() {
                 items.add(HomePageList(title, contents, true))
             }
             
-            System.out.println("DEBUG AstroGo Main Page Items: ${items.size}")
-            System.out.println("DEBUG AstroGo Main Page Items: ${items.size}")
-            
             // Fix Looping: Disable pagination for Hub/Node pages which use bulkContent
             val isHubPage = request.name == "Home" || request.name == "Kids" || request.name == "Sports" || request.name == "Max"
             val hasNextPage = if (isHubPage) false else items.isNotEmpty()
@@ -735,7 +722,6 @@ class AstroGo : MainAPI() {
             return newHomePageResponse(items, hasNextPage)
         } catch (e: Exception) {
             e.printStackTrace()
-            System.out.println("DEBUG AstroGo Main Page Error: ${e.message}")
             return newHomePageResponse(emptyList())
         }
     }
@@ -786,8 +772,6 @@ class AstroGo : MainAPI() {
         val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
         val url = "$apiUrl/agg/content?limit=40&q=$encodedQuery&source=vod&sort=relevancy&isErotic=false&isAdult=false"
         
-        System.out.println("DEBUG AstroGo Search URL: $url")
-        
         val headers = mapOf(
             "Authorization" to "Bearer $bearerToken",
             "Accept" to "application/json"
@@ -796,11 +780,9 @@ class AstroGo : MainAPI() {
         return try {
             val response = app.get(url, headers = headers).parsed<AstroResponse>()
             val results = response?.content?.mapNotNull { it.toSearchResponse() } ?: emptyList()
-            System.out.println("DEBUG AstroGo Search Results: ${results.size}")
             results
         } catch (e: Exception) {
             e.printStackTrace()
-            System.out.println("DEBUG AstroGo Search Error: ${e.message}")
             emptyList()
         }
     }
@@ -1180,11 +1162,8 @@ class AstroGo : MainAPI() {
                  "$apiUrl/devices/me/playsessions?instanceId=$cleanId&startingPosition=0"
             }
             
-            System.out.println("DEBUG AstroGo Request URL: $sessionUrl")
-            
             // Using POST as this is a session creation endpoint
             val response = app.post(sessionUrl, headers = headers).text
-            System.out.println("DEBUG AstroGo Response: $response")
             
             val json = mapper.readTree(response)
             
@@ -1201,8 +1180,6 @@ class AstroGo : MainAPI() {
                             ?: json.get("drmProperties")?.get("contentId")?.asText()
                             ?: baseId // Fallback to baseId from URL if not found in JSON
 
-            System.out.println("DEBUG AstroGo DRM Data: ContentID=$contentId Token=${drmToken?.take(10)}...")
-
             if (!streamUrl.isNullOrEmpty()) {
                 if (!drmToken.isNullOrEmpty() && !contentId.isNullOrEmpty()) {
                     callback.invoke(
@@ -1215,7 +1192,6 @@ class AstroGo : MainAPI() {
                         ) {
                             this.referer = mainUrl
                             this.licenseUrl = "https://sg-sg-sg.astro.com.my:9443/vgemultidrm/v1/widevine/license"
-                            // System.out.println("DEBUG AstroGo newDrmExtractorLink: Setting licenseUrl=${this.licenseUrl}")
                             
                             this.headers = mapOf(
                                 "Authorization" to "Bearer $bearerToken",
@@ -1280,10 +1256,8 @@ class AstroGo : MainAPI() {
                     "Authorization" to "Bearer $bearerToken",
                     "Accept" to "application/json"
                 )
-                System.out.println("DEBUG AstroGo Fetching Profile from: $url")
                 
                 val response = app.get(url, headers = headers).text
-                System.out.println("DEBUG AstroGo Profile Response ($url): $response")
 
                 // 1. Try to find Profile ID if we don't have it (or if it was invalid)
                 if (foundId == null || foundId == "NOT_FOUND") {
@@ -1292,7 +1266,6 @@ class AstroGo : MainAPI() {
                     val activeMatch = activeProfileRegex.find(response)
                     if (activeMatch != null) {
                         foundId = activeMatch.groupValues[1]
-                        System.out.println("DEBUG AstroGo Found ActiveUserProfile: $foundId")
                         setKey("astro_profile_id", foundId)
                     }
 
@@ -1305,7 +1278,6 @@ class AstroGo : MainAPI() {
                             if (v != null && v != "NOT_FOUND" && v != "NOT_ENTITLED") {
                                 foundId = v
                                 setKey("astro_profile_id", foundId)
-                                System.out.println("DEBUG AstroGo Found Profile ID from profiles list: $foundId")
                                 break
                             }
                         }
@@ -1324,7 +1296,7 @@ class AstroGo : MainAPI() {
                 } // End of if foundId check
 
             } catch (e: Exception) {
-                System.out.println("DEBUG AstroGo Profile Fetch Error ($url): ${e.message}")
+                e.printStackTrace()
             }
         }
         
