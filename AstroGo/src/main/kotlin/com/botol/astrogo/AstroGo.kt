@@ -45,6 +45,7 @@ class AstroGo : MainAPI() {
         return Interceptor { chain ->
             val request = chain.request()
             val url = request.url.toString()
+            System.out.println("DEBUG AstroGo Interceptor: Checking URL: $url")
             
             if (url.contains("vgemultidrm/v1/widevine/license")) {
                System.out.println("DEBUG AstroGo Interceptor: Intercepting License Request: $url")
@@ -1204,8 +1205,8 @@ class AstroGo : MainAPI() {
                 if (!drmToken.isNullOrEmpty() && !contentId.isNullOrEmpty()) {
                     callback.invoke(
                         newDrmExtractorLink(
-                            source = "AstroGo",
-                            name = "AstroGo",
+                            source = this.name,
+                            name = this.name,
                             url = streamUrl,
                             type = ExtractorLinkType.DASH,
                             uuid = UUID.fromString("edef8ba9-79d6-4ace-a3c8-27dcd51d21ed")
