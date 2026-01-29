@@ -50,13 +50,13 @@ class AstroGo : MainAPI() {
                System.out.println("DEBUG AstroGo Interceptor: Intercepting License Request: $url")
                 // Get stored headers from extractorLink
                 val contentId = extractorLink.headers["X-Astro-Content-ID"] ?: ""
-                val internalDrm = extractorLink.headers["X-Internal-Drm-Token"] ?: ""
+                val authKey = extractorLink.headers["X-Astro-Auth"] ?: ""
                 
                 // Parse AssetId and AuthToken from AuthKey (blob)
-                val assetId = internalDrm.split("&").find { it.startsWith("AssetId=") }?.substringAfter("AssetId=")
-                val trueAuthToken = internalDrm.split("&").find { it.startsWith("AuthToken=") }?.substringAfter("AuthToken=")
+                val assetId = authKey.split("&").find { it.startsWith("AssetId=") }?.substringAfter("AssetId=")
+                val trueAuthToken = authKey.split("&").find { it.startsWith("AuthToken=") }?.substringAfter("AuthToken=")
                 val finalContentId = assetId ?: contentId
-                val finalAuthToken = trueAuthToken ?: internalDrm
+                val finalAuthToken = trueAuthToken ?: authKey
 
                 // Read original binary body (the raw challenge)
                 val originalBodyBytes = request.body?.let { body ->
@@ -120,13 +120,14 @@ class AstroGo : MainAPI() {
             } else {
                 // For non-license requests (Stream/MPD), we MUST strip the internal API headers
                 val newRequest = request.newBuilder()
-                   .removeHeader("X-Internal-Bearer")
-                   .removeHeader("X-Internal-Drm-Token")
+                   .removeHeader("X-Internal-Bearer") // Deprecated but safe to remove
+                   .removeHeader("X-Astro-Auth")
                    .removeHeader("X-Astro-Content-ID")
                    .removeHeader("X-VGE-Service-ID")
                    .removeHeader("X-VGE-Client")
                    .removeHeader("X-Identity-Profile-Id")
-                   // Explicitly remove Authorization just in case
+                   .removeHeader("X-Internal-Profile-Id")
+                   // Explicitly remove Authorization for media segments to avoid 403
                    .removeHeader("Authorization") 
                    .build()
                 return@Interceptor chain.proceed(newRequest)
@@ -1214,14 +1215,12 @@ class AstroGo : MainAPI() {
                             System.out.println("DEBUG AstroGo newDrmExtractorLink: Setting licenseUrl=${this.licenseUrl}")
                             
                             this.headers = mapOf(
-                                // Use INTERNAL names so they aren't sent as standard Auth headers by default
-                                // preventing 403 blocks from CloudFront
-                                "X-Internal-Bearer" to "Bearer $bearerToken",
+                                "Authorization" to "Bearer $bearerToken",
                                 "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                                 "Referer" to "https://astrogo.astro.com.my/",
-                                "X-Astro-Content-ID" to contentId, // This is fine
-                                "X-Internal-Drm-Token" to drmToken, // Internal name
-                                "X-Internal-Profile-Id" to profileId // Pass for Interceptor
+                                "X-Astro-Content-ID" to contentId,
+                                "X-Astro-Auth" to drmToken, // Use AstroGobak naming
+                                "X-Internal-Profile-Id" to profileId
                             )
                         }
                     )
