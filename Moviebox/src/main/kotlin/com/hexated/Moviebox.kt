@@ -26,6 +26,14 @@ class Moviebox : MainAPI() {
         TvType.AsianDrama
     )
 
+    companion object {
+        private val bannedLanguages = setOf(
+            "English", "French", "Hindi", "Bengali", "Urdu", "Punjabi",
+            "Tamil", "Telugu", "Malayalam", "Kannada", "Arabic",
+            "Tagalog", "Indonesian", "Russian", "Kurdish"
+        )
+    }
+
     override val mainPage: List<MainPageData> = mainPageOf(
         "4123278689004061520" to "Trending Movie",
         "6766346312503248424" to "Trending Series",
@@ -109,12 +117,7 @@ class Moviebox : MainAPI() {
                 ?.filterNot { item ->
                     val title = item.title.orEmpty()
                     val corner = item.corner.orEmpty()
-                    val banned = listOf(
-                        "English", "French", "Hindi", "Bengali", "Urdu", "Punjabi",
-                        "Tamil", "Telugu", "Malayalam", "Kannada", "Arabic",
-                        "Tagalog", "Indonesian", "Russian", "Kurdish"
-                    )
-                    banned.any { lang ->
+                    bannedLanguages.any { lang ->
                         corner.equals(lang, true) ||
                                 title.contains("$lang Dub", true) ||
                                 title.contains("$lang Sub", true) ||
@@ -137,7 +140,7 @@ class Moviebox : MainAPI() {
                 return block()
             } catch (e: Exception) {
                 lastException = e
-                kotlinx.coroutines.delay(1000L)
+                kotlinx.coroutines.delay(300L)
             }
         }
         return null
@@ -181,11 +184,16 @@ class Moviebox : MainAPI() {
             )
         }?.distinctBy { it.actor }
 
-        val recommendations =
-            app.get("$mainUrl/wefeed-h5-bff/web/subject/detail-rec?subjectId=$id&page=1&perPage=12")
-                .parsedSafe<Media>()?.data?.items?.map {
-                    it.toSearchResponse(this)
-                }
+        val recommendationsDeferred = kotlinx.coroutines.async {
+            try {
+                app.get("$mainUrl/wefeed-h5-bff/web/subject/detail-rec?subjectId=$id&page=1&perPage=12")
+                    .parsedSafe<Media>()?.data?.items?.map {
+                        it.toSearchResponse(this@Moviebox)
+                    }
+            } catch (e: Exception) {
+                null
+            }
+        }
 
         return if (tvType == TvType.TvSeries) {
             val episode = document?.resource?.seasons?.map { seasons ->
@@ -212,7 +220,7 @@ class Moviebox : MainAPI() {
                 this.tags = tags
                 this.score = Score.from10(rating)
                 this.actors = actors
-                this.recommendations = recommendations
+                this.recommendations = recommendationsDeferred.await()
                 addTrailer(trailer, addRaw = true)
             }
         } else {
@@ -228,7 +236,7 @@ class Moviebox : MainAPI() {
                 this.tags = tags
                 this.score = Score.from10(rating)
                 this.actors = actors
-                this.recommendations = recommendations
+                this.recommendations = recommendationsDeferred.await()
                 addTrailer(trailer, addRaw = true)
             }
         }
