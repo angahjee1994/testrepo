@@ -9,6 +9,8 @@ import com.lagradost.cloudstream3.utils.AppUtils.toJson
 import com.lagradost.nicehttp.RequestBodyTypes
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.async
 
 class Moviebox : MainAPI() {
     override var mainUrl = "https://moviebox.ac"
@@ -160,7 +162,7 @@ class Moviebox : MainAPI() {
             ?: throw ErrorLoadingException()
     }
 
-    override suspend fun load(url: String): LoadResponse {
+    override suspend fun load(url: String): LoadResponse = coroutineScope {
         val id = url.substringAfterLast("/")
         val document = app.get("$secondAPIUrl/wefeed-h5-bff/web/subject/detail?subjectId=$id")
             .parsedSafe<MediaDetail>()?.data
@@ -184,7 +186,7 @@ class Moviebox : MainAPI() {
             )
         }?.distinctBy { it.actor }
 
-        val recommendationsDeferred = kotlinx.coroutines.async {
+        val recommendationsDeferred = async {
             try {
                 app.get("$mainUrl/wefeed-h5-bff/web/subject/detail-rec?subjectId=$id&page=1&perPage=12")
                     .parsedSafe<Media>()?.data?.items?.map {
@@ -195,7 +197,7 @@ class Moviebox : MainAPI() {
             }
         }
 
-        return if (tvType == TvType.TvSeries) {
+        if (tvType == TvType.TvSeries) {
             val episode = document?.resource?.seasons?.map { seasons ->
                 (if (seasons.allEp.isNullOrEmpty()) (1..seasons.maxEp!!) else seasons.allEp.split(",")
                     .map { it.toInt() })
