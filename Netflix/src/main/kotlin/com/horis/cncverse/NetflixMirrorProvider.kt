@@ -23,7 +23,7 @@ class NetflixMirrorProvider : MainAPI() {
     TvType.Movie,
     TvType.TvSeries,
   )
-  override var lang = "hi"
+  override var lang = "en"
 
   override var mainUrl = "https://net20.cc"
   private var newUrl = "https://net51.cc"
@@ -37,13 +37,14 @@ class NetflixMirrorProvider : MainAPI() {
   
   companion object {
       var context: android.content.Context? = null
+      const val USER_TOKEN = "233123f803cf02184bf6c67e149cdd50"
   }
 
   override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
     cookie_value = if (cookie_value.isEmpty()) bypass(mainUrl) else cookie_value
     val cookies = mapOf(
       "t_hash_t" to cookie_value,
-      "user_token" to "233123f803cf02184bf6c67e149cdd50",
+      "user_token" to USER_TOKEN,
       "ott" to "nf",
       "hd" to "on"
     )
@@ -221,6 +222,7 @@ class NetflixMirrorProvider : MainAPI() {
     val (title, id) = parseJson<LoadData>(data)
     val cookies = mapOf(
       "t_hash_t" to cookie_value,
+      "user_token" to USER_TOKEN,
       "ott" to "nf",
       "hd" to "on"
     )
