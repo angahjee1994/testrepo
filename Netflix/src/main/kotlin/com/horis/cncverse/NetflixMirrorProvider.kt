@@ -203,9 +203,7 @@ class NetflixMirrorProvider : MainAPI() {
       this.tags = if (netflixMetadata?.genre != null) listOf(netflixMetadata.genre) else genre
       this.actors = netflixMetadata?.actors?.map { ActorData(Actor(it)) } ?: cast
       this.duration = runTime
-      this.rating = if (netflixMetadata?.contentRating != null) 
-          (if (netflixMetadata.contentRating == "18+") 1800 else 0) 
-          else null
+      this.contentRating = netflixMetadata?.contentRating
 
         // Overwrite Episodes with Netflix Metadata if available
         if (netflixMetadata != null && netflixMetadata.episodes.isNotEmpty()) {
