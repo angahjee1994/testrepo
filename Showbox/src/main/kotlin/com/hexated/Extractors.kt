@@ -34,9 +34,9 @@ object Extractors : Showbox() {
         // No childmode when getting links
         // New api does not return video links :(
         val query = if (type == ResponseTypes.Movies.value) {
-            """{"childmode":"0","uid":"","app_version":"11.5","appid":"$appId","module":"Movie_downloadurl_v3","channel":"Website","mid":"$id","lang":"","expired_date":"${getExpiryDate()}","platform":"android","oss":"1","group":""}"""
+            """{"childmode":"0","uid":"","app_version":"$appVersion","appid":"$appId","module":"Movie_downloadurl_v3","channel":"Website","mid":"$id","lang":"","expired_date":"${getExpiryDate()}","platform":"android","oss":"1","group":""}"""
         } else {
-            """{"childmode":"0","app_version":"11.5","module":"TV_downloadurl_v3","channel":"Website","episode":"$episode","expired_date":"${getExpiryDate()}","platform":"android","tid":"$id","oss":"1","uid":"","appid":"$appId","season":"$season","lang":"en","group":""}"""
+            """{"childmode":"0","app_version":"$appVersion","module":"TV_downloadurl_v3","channel":"Website","episode":"$episode","expired_date":"${getExpiryDate()}","platform":"android","tid":"$id","oss":"1","uid":"","appid":"$appId","season":"$season","lang":"en","group":""}"""
         }
 
         val linkData = queryApiParsed<LinkDataProp>(query, false)
@@ -48,9 +48,9 @@ object Extractors : Showbox() {
         val fid = linkData.data?.list?.firstOrNull { it.fid != null }?.fid
 
         val subtitleQuery = if (type == ResponseTypes.Movies.value) {
-            """{"childmode":"0","fid":"$fid","uid":"","app_version":"11.5","appid":"$appId","module":"Movie_srt_list_v2","channel":"Website","mid":"$id","lang":"en","expired_date":"${getExpiryDate()}","platform":"android"}"""
+            """{"childmode":"0","fid":"$fid","uid":"","app_version":"$appVersion","appid":"$appId","module":"Movie_srt_list_v2","channel":"Website","mid":"$id","lang":"en","expired_date":"${getExpiryDate()}","platform":"android"}"""
         } else {
-            """{"childmode":"0","fid":"$fid","app_version":"11.5","module":"TV_srt_list_v2","channel":"Website","episode":"$episode","expired_date":"${getExpiryDate()}","platform":"android","tid":"$id","uid":"","appid":"$appId","season":"$season","lang":"en"}"""
+            """{"childmode":"0","fid":"$fid","app_version":"$appVersion","module":"TV_srt_list_v2","channel":"Website","episode":"$episode","expired_date":"${getExpiryDate()}","platform":"android","tid":"$id","uid":"","appid":"$appId","season":"$season","lang":"en"}"""
         }
 
         val subtitles = queryApiParsed<SubtitleDataProp>(subtitleQuery).data
@@ -72,7 +72,7 @@ object Extractors : Showbox() {
         episode: Int? = null,
         callback: (ExtractorLink) -> Unit,
     ) {
-        val UI_COOKIES = base64Decode("ZXlKMGVYQWlPaUpLVjFRaUxDSmhiR2NpT2lKSVV6STFOaUo5LmV5SnBZWFFpT2pFM05UZ3dOakU0TkRVc0ltNWlaaUk2TVRjMU9EQTJNVGcwTlN3aVpYaHdJam94TnpnNU1UWTFPRFkxTENKa1lYUmhJanA3SW5WcFpDSTZNVEF4T0Rnek1pd2lkRzlyWlc0aU9pSXhPRFF3T0RWbVlXSXdOemt6WVRWaU5EVmpNek0zWW1FMFkyUXpZVGN4TXlKOWZRLjZfM0NvbTZvXzhxV3FCa1pyaTlabUtOVkdYRy1OSDRRVTdmaGxqZ3p0Z0U=")
+        val UI_COOKIES = base64Decode("ZXlKMGVYQWlPaUpLVjFRaUxDSmhiR2NpT2lKSVV6STFOaUo5LmV5SnBZWFFpT2pFM05UZ3dOakU0TkRVc0ltNWlaaUk2TVRjMU9EQTJNVGcwTlN3aVpYaHdJam94TnpnNU1UWTFPRFkxTENKa1lYUmhJanA3SW5WcFpDSTZNVEF4T0Rnek1pd2lkRzlyWlc0aU9pSXhPRFF3T0RWbVlXSXdOemt6WVRWaU5EVmpFek0zWW1FMFkyUXpZVGN4TXlKOWZRLjZfM0NvbTZvXzhxV3FCa1pyaTlabUtOVkdYRy1OSDRRVTdmaGxqZ3p0Z0U=")
         val (seasonSlug, episodeSlug) = getEpisodeSlug(season, episode)
         val shareKey = app.get("$thirdAPI/mbp/to_share_page?box_type=$type&mid=${mediaId}&json=1")
             .parsedSafe<ExternalResponse>()?.data?.link?.substringAfterLast("/") ?: return
