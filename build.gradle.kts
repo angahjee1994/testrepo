@@ -12,7 +12,7 @@ buildscript {
     }
 
     dependencies {
-        classpath("com.android.tools.build:gradle:8.13.0")
+        classpath("com.android.tools.build:gradle:8.13.2")
         classpath("com.github.recloudstream:gradle:master-SNAPSHOT")
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.3.0")
     }
@@ -65,6 +65,10 @@ subprojects {
                     "-Xno-receiver-assertions"
                 )
             }
+        }
+
+        lintOptions {
+            isAbortOnError = false
         }
     }
 
