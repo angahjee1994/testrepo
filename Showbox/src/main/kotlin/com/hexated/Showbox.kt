@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty
 import com.hexated.Extractors.base64DefaultDecode
 import com.hexated.Extractors.base64DefaultEncode
 import com.hexated.Extractors.invokeExternalSource
+import com.hexated.Extractors.invokeInternalSource
 import com.hexated.Extractors.invokeVdrk
 import com.hexated.Extractors.invokeWatchsomuch
 import com.hexated.Extractors.invokeWyzie
