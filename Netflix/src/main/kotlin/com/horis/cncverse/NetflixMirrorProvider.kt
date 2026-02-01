@@ -51,7 +51,12 @@ class NetflixMirrorProvider : MainAPI() {
     val scriptContent = response.substringAfter("netflix.reactContext =").substringBefore(";</script>")
     val jsonString = if (scriptContent.startsWith(" {")) scriptContent.trim() else "{$scriptContent"
     
-    val rawJson = tryParseJson<NetflixReactContext>(jsonString) ?: return null
+    // Sanitize non-standard hex escapes (e.g. \x2F -> /)
+    val sanitizedJson = jsonString.replace(Regex("\\\\x([0-9A-Fa-f]{2})")) { 
+        it.groupValues[1].toInt(16).toChar().toString() 
+    }
+    
+    val rawJson = tryParseJson<NetflixReactContext>(sanitizedJson) ?: return null
     val rows = rawJson.models?.nonmemberCollection?.data?.rows ?: return null
     
     val homePageList = rows.mapNotNull { row ->
