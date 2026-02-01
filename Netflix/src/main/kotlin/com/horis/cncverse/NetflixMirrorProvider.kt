@@ -12,6 +12,7 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.httpsify
 import com.lagradost.cloudstream3.utils.getQualityFromName
+import com.lagradost.cloudstream3.amap
 import okhttp3.Headers
 import okhttp3.Interceptor
 import okhttp3.Response
