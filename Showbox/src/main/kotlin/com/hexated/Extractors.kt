@@ -34,9 +34,9 @@ object Extractors : Showbox() {
         // No childmode when getting links
         // New api does not return video links :(
         val query = if (type == ResponseTypes.Movies.value) {
-            """{"childmode":"0","uid":"","app_version":"11.5","appid":"$appId","module":"Movie_downloadurl_v3","channel":"Website","mid":"$id","lang":"","expired_date":"${getExpiryDate()}","platform":"android","oss":"1","group":""}"""
+            """{"childmode":"0","uid":"","app_version":"11.5","appid":"27","module":"Movie_downloadurl_v3","channel":"Website","mid":"$id","lang":"","expired_date":"${getExpiryDate()}","platform":"android","oss":"1","group":""}"""
         } else {
-            """{"childmode":"0","app_version":"11.5","module":"TV_downloadurl_v3","channel":"Website","episode":"$episode","expired_date":"${getExpiryDate()}","platform":"android","tid":"$id","oss":"1","uid":"","appid":"$appId","season":"$season","lang":"en","group":""}"""
+            """{"childmode":"0","app_version":"11.5","module":"TV_downloadurl_v3","channel":"Website","episode":"$episode","expired_date":"${getExpiryDate()}","platform":"android","tid":"$id","oss":"1","uid":"","appid":"27","season":"$season","lang":"en","group":""}"""
         }
 
         val linkData = queryApiParsed<LinkDataProp>(query, false)
@@ -48,9 +48,9 @@ object Extractors : Showbox() {
         val fid = linkData.data?.list?.firstOrNull { it.fid != null }?.fid
 
         val subtitleQuery = if (type == ResponseTypes.Movies.value) {
-            """{"childmode":"0","fid":"$fid","uid":"","app_version":"11.5","appid":"$appId","module":"Movie_srt_list_v2","channel":"Website","mid":"$id","lang":"en","expired_date":"${getExpiryDate()}","platform":"android"}"""
+            """{"childmode":"0","fid":"$fid","uid":"","app_version":"11.5","appid":"27","module":"Movie_srt_list_v2","channel":"Website","mid":"$id","lang":"en","expired_date":"${getExpiryDate()}","platform":"android"}"""
         } else {
-            """{"childmode":"0","fid":"$fid","app_version":"11.5","module":"TV_srt_list_v2","channel":"Website","episode":"$episode","expired_date":"${getExpiryDate()}","platform":"android","tid":"$id","uid":"","appid":"$appId","season":"$season","lang":"en"}"""
+            """{"childmode":"0","fid":"$fid","app_version":"11.5","module":"TV_srt_list_v2","channel":"Website","episode":"$episode","expired_date":"${getExpiryDate()}","platform":"android","tid":"$id","uid":"","appid":"27","season":"$season","lang":"en"}"""
         }
 
         val subtitles = queryApiParsed<SubtitleDataProp>(subtitleQuery).data
