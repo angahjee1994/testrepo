@@ -13,6 +13,7 @@ class Dramabox : MainAPI() {
     private val playerApiUrl = "https://dracin-web-eight.vercel.app" 
     override var name = "Dramabox"
     override val hasMainPage = true
+    override val instantLinkLoading = true
     override var lang = "en"
     override val supportedTypes = setOf(TvType.AsianDrama)
 
@@ -21,9 +22,11 @@ class Dramabox : MainAPI() {
         "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
     )
 
+    private var cachedLangPrefix: String? = null
     private fun getLangPrefix(): String {
+        cachedLangPrefix?.let { return it }
         val storedLang = com.lagradost.cloudstream3.AcraApplication.getKey<String>("dramabox_language") ?: "en"
-        return when (storedLang) {
+        val prefix = when (storedLang) {
             "id", "in", "id-ID" -> "/in"
             "es", "es-ES" -> "/es"
             "fr", "fr-FR" -> "/fr"
@@ -36,6 +39,8 @@ class Dramabox : MainAPI() {
             "pt" -> "/pt"
             else -> "" 
         }
+        cachedLangPrefix = prefix
+        return prefix
     }
 
     override val mainPage = mainPageOf(
@@ -122,7 +127,7 @@ class Dramabox : MainAPI() {
                         val resp = app.get(episodesUrl, timeout = 30L).parsedSafe<Array<DramaboxEpisode>>()
                         if (!resp.isNullOrEmpty()) return@async resp
                     } catch (e: Exception) { }
-                    if (i < 2) delay(1000)
+                    if (i < 2) delay(300)
                 }
                 null
             }
@@ -154,7 +159,7 @@ class Dramabox : MainAPI() {
             if (movieTags.isEmpty()) movieTags = doc.select(".tags a, .genre a, div[class*='tags'] span").map { it.text() }
 
             val episodesData = episodes.map { ep ->
-                newEpisode(LoadLinksData(bookId, ep.chapterId.orEmpty()).toJson()) {
+                newEpisode(LoadLinksData(bookId, ep.chapterId.orEmpty(), ep.cdnList).toJson()) {
                     this.name = ep.chapterName
                     this.episode = ep.chapterIndex?.plus(1)
                     this.posterUrl = ep.chapterImg
@@ -171,11 +176,14 @@ class Dramabox : MainAPI() {
 
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
         val loadData = parseJson<LoadLinksData>(data)
-        val episodesUrl = "$playerApiUrl/api/dramabox/allepisode/${loadData.bookId}"
-        val episodes = app.get(episodesUrl).parsedSafe<Array<DramaboxEpisode>>() ?: return false
-        val chapter = episodes.find { it.chapterId == loadData.chapterId } ?: return false
+        
+        val cdnList = loadData.cdnList ?: run {
+            val episodesUrl = "$playerApiUrl/api/dramabox/allepisode/${loadData.bookId}"
+            val episodes = app.get(episodesUrl).parsedSafe<Array<DramaboxEpisode>>() ?: return false
+            episodes.find { it.chapterId == loadData.chapterId }?.cdnList
+        } ?: return false
 
-        chapter.cdnList?.forEach { cdn ->
+        cdnList.forEach { cdn ->
             cdn.videoPathList?.forEach { video ->
                 callback.invoke(newExtractorLink(this@Dramabox.name, this@Dramabox.name, video.videoPath ?: return@forEach, INFER_TYPE) {
                     this.quality = getQualityFromName(video.quality.toString())
@@ -219,7 +227,11 @@ class Dramabox : MainAPI() {
         @JsonProperty("labels") val labels: List<String>? = null,
         @JsonProperty("typeTwoNames") val typeTwoNames: List<String>? = null
     )
-    data class LoadLinksData(@JsonProperty("bookId") val bookId: String, @JsonProperty("chapterId") val chapterId: String)
+    data class LoadLinksData(
+        @JsonProperty("bookId") val bookId: String, 
+        @JsonProperty("chapterId") val chapterId: String,
+        @JsonProperty("cdnList") val cdnList: List<CdnItem>? = null
+    )
     data class DramaboxEpisode(
         @JsonProperty("chapterId") val chapterId: String? = null,
         @JsonProperty("chapterIndex") val chapterIndex: Int? = null,
