@@ -43,23 +43,36 @@ class NetflixMirrorProvider : MainAPI() {
   }
 
   override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
-    cookie_value = if (cookie_value.isEmpty()) bypass(mainUrl) else cookie_value
-    val cookies = mapOf(
-      "t_hash_t" to cookie_value,
-      "user_token" to USER_TOKEN,
-      "ott" to "nf",
-      "hd" to "on"
-    )
-    val document = app.get(
-      "$mainUrl/home",
-      cookies = cookies,
-      referer = "$mainUrl/",
-    ).document
-    // .tray-container, #top10,
-    val items = document.select(".lolomoRow").amap {
-      it.toHomePageList()
+    // 100% Native Netflix Home Page (Genre 839338)
+    val url = "https://www.netflix.com/my-en/browse/genre/839338"
+    val response = app.get(url).text
+    
+    // Extract React Context
+    val scriptContent = response.substringAfter("netflix.reactContext =").substringBefore(";</script>")
+    val jsonString = if (scriptContent.startsWith(" {")) scriptContent.trim() else "{$scriptContent"
+    
+    val rawJson = tryParseJson<NetflixReactContext>(jsonString) ?: return null
+    val rows = rawJson.models?.nonmemberCollection?.data?.rows ?: return null
+    
+    val homePageList = rows.mapNotNull { row ->
+        val title = row.name ?: "Netflix"
+        // Avoid "Join Now" or empty rows if any
+        if (row.titles.isNullOrEmpty()) return@mapNotNull null
+        
+        val items = row.titles.mapNotNull { video ->
+            val id = video.id?.toString() ?: return@mapNotNull null
+            newAnimeSearchResponse(video.title ?: "", Id(id).toJson()) {
+                this.posterUrl = video.artwork?.url ?: video.boxart?.url
+                // Fallback to fetchNetflixMetadata if artwork missing? 
+                // The genre page usually has it.
+                this.posterHeaders = mapOf("Referer" to "$mainUrl/home")
+            }
+        }
+        
+        if (items.isEmpty()) null else HomePageList(title, items)
     }
-    return newHomePageResponse(items, false)
+
+    return newHomePageResponse(homePageList, false)
   }
 
   private suspend fun Element.toHomePageList(): HomePageList {
@@ -356,8 +369,26 @@ class NetflixMirrorProvider : MainAPI() {
         @JsonProperty("models") val models: NetflixModels?
     )
     data class NetflixModels(
-        @JsonProperty("graphql") val graphql: NetflixGraphql?
+        @JsonProperty("graphql") val graphql: NetflixGraphql?,
+        @JsonProperty("nonmemberCollection") val nonmemberCollection: NetflixCollectionModel?
     )
+    data class NetflixCollectionModel(
+        @JsonProperty("data") val data: NetflixCollectionData?
+    )
+    data class NetflixCollectionData(
+        @JsonProperty("rows") val rows: List<NetflixRow>?
+    )
+    data class NetflixRow(
+        @JsonProperty("name") val name: String?,
+        @JsonProperty("titles") val titles: List<NetflixTitle>?
+    )
+    data class NetflixTitle(
+        @JsonProperty("id") val id: Long?,
+        @JsonProperty("title") val title: String?,
+        @JsonProperty("artwork") val artwork: NetflixArt?,
+        @JsonProperty("boxart") val boxart: NetflixArt?
+    )
+    
     data class NetflixGraphql(
         @JsonProperty("data") val data: Map<String, Any>?
     )
