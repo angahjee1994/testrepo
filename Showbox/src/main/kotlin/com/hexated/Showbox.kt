@@ -743,6 +743,16 @@ open class Showbox : MainAPI() {
 
         runAllAsync(
             {
+                invokeInternalSource(
+                    parsed.id,
+                    parsed.type,
+                    parsed.season,
+                    parsed.episode,
+                    subtitleCallback,
+                    callback
+                )
+            },
+            {
                 invokeExternalSource(
                     parsed.mediaId,
                     parsed.type,
