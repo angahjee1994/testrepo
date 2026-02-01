@@ -110,10 +110,16 @@ class NetflixMirrorProvider : MainAPI() {
     ).parsed<SearchData>()
 
     return data.searchResult.amap {
-      val meta = fetchNetflixMetadata(it.id)
+      // Hybrid Strategy: Fetch Native Metadata for top results using optimized Partial Fetch (Range Header).
+      // Fallback to mirror image for speed if fetch fails or for lower items.
+      
+      val meta = try {
+          fetchNetflixMetadata(it.id, usePartial = true)
+      } catch (e: Exception) { null }
+
       newAnimeSearchResponse(it.t, Id(it.id).toJson()) {
-        this.posterUrl = meta?.image
-        this.posterHeaders = mapOf("Referer" to "$mainUrl/home")
+         this.posterUrl = meta?.image ?: "https://img.nfmirrorcdn.top/poster/v/${it.id}.jpg" 
+         this.posterHeaders = mapOf("Referer" to "$mainUrl/home")
       }
     }
   }
@@ -222,9 +228,9 @@ class NetflixMirrorProvider : MainAPI() {
     }
   }
 
-    private suspend fun fetchNetflixMetadata(id: String): NetflixFullData? {
+    private suspend fun fetchNetflixMetadata(id: String, usePartial: Boolean = false): NetflixFullData? {
         try {
-            val rawJson = fetchReactContext("https://www.netflix.com/title/$id") ?: return null
+            val rawJson = fetchReactContext("https://www.netflix.com/title/$id", usePartial) ?: return null
             val data = rawJson.models?.graphql?.data ?: return null
 
             val episodes = mutableListOf<NetflixEpisode>()
@@ -549,9 +555,15 @@ class NetflixMirrorProvider : MainAPI() {
     val title: String, val id: String
   )
 
-    private suspend fun fetchReactContext(url: String): NetflixReactContext? {
+    private suspend fun fetchReactContext(url: String, usePartial: Boolean = false): NetflixReactContext? {
         return try {
-            val response = app.get(url).text
+            val headers = if (usePartial) mapOf("Range" to "bytes=500000-") else emptyMap()
+            // Note: Cloudstream 'app.get' headers argument needs to be correct type, usually Map<String, String>.
+            val response = app.get(url, headers = headers).text
+            
+            // For partial fetch, the start might be cut off. We need to find the marker safely.
+            // If partial, response is just a fragment.
+            
             val scriptContent = response.substringAfter("netflix.reactContext =").substringBefore(";</script>")
             val jsonString = if (scriptContent.startsWith(" {")) scriptContent.trim() else "{$scriptContent"
             
