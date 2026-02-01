@@ -73,7 +73,7 @@ class NetflixMirrorProvider : MainAPI() {
 
   private fun Element.toSearchResult(): SearchResponse? {
     val id = attr("data-src").substringAfterLast("/").substringBefore(".")
-    val posterUrl = "https://imgcdn.kim/poster/v/${id}.jpg"
+    val posterUrl = "https://imgcdn.media/poster/1920/${id}.jpg"
     val title = selectFirst("img")?.attr("alt") ?: ""
 
     return newAnimeSearchResponse(title, Id(id).toJson()) {
@@ -98,7 +98,7 @@ class NetflixMirrorProvider : MainAPI() {
 
     return data.searchResult.map {
       newAnimeSearchResponse(it.t, Id(it.id).toJson()) {
-        posterUrl = "https://img.nfmirrorcdn.top/poster/v/${it.id}.jpg"
+        posterUrl = "https://imgcdn.media/poster/1920/${it.id}.jpg"
         posterHeaders = mapOf("Referer" to "$mainUrl/home")
       }
     }
@@ -169,8 +169,8 @@ class NetflixMirrorProvider : MainAPI() {
     val type = if (data.episodes.first() == null) TvType.Movie else TvType.TvSeries
 
     return newTvSeriesLoadResponse(title, url, type, episodes) {
-      posterUrl = "https://img.nfmirrorcdn.top/poster/v/$id.jpg"
-      backgroundPosterUrl ="https://img.nfmirrorcdn.top/poster/h/$id.jpg"
+      posterUrl = data.image ?: "https://imgcdn.media/poster/1920/$id.jpg"
+      backgroundPosterUrl = data.image ?: "https://imgcdn.media/poster/1920/$id.jpg"
       posterHeaders = mapOf("Referer" to "$mainUrl/tv/home")
       plot = data.desc
       year = data.year.toIntOrNull()

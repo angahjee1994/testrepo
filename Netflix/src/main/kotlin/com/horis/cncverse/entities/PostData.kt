@@ -16,4 +16,5 @@ data class PostData(
     val match: String?,
     val runtime: String?,
     var suggest: List<Suggest>?,
+    val image: String?,
 )
