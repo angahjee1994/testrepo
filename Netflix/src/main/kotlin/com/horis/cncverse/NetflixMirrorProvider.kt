@@ -12,13 +12,11 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.httpsify
 import com.lagradost.cloudstream3.utils.getQualityFromName
-import com.lagradost.cloudstream3.amap
 import okhttp3.Headers
 import okhttp3.Interceptor
 import okhttp3.Response
 import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.APIHolder.unixTime
-import com.fasterxml.jackson.annotation.JsonProperty
 
 class NetflixMirrorProvider : MainAPI() {
   override val supportedTypes = setOf(
@@ -39,58 +37,46 @@ class NetflixMirrorProvider : MainAPI() {
   
   companion object {
       var context: android.content.Context? = null
-      const val USER_TOKEN = "233123f803cf02184bf6c67e149cdd50"
-      private val HEX_ESCAPE_REGEX = Regex("\\\\x([0-9A-Fa-f]{2})")
   }
 
   override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
-    // 100% Native Netflix Home Page (Genre 839338)
-    val rawJson = fetchReactContext("https://www.netflix.com/my-en/browse/genre/839338") ?: return null
-    val rows = rawJson.models?.nonmemberCollection?.data?.rows ?: return null
-    
-    val homePageList = rows.mapNotNull { row ->
-        val title = row.name ?: "Netflix"
-        // Avoid "Join Now" or empty rows if any
-        if (row.titles.isNullOrEmpty()) return@mapNotNull null
-        
-        val items = row.titles.mapNotNull { video ->
-            val id = video.id?.toString() ?: return@mapNotNull null
-            newAnimeSearchResponse(video.title ?: "", Id(id).toJson()) {
-                this.posterUrl = video.artwork?.url ?: video.boxart?.url
-                // Fallback to fetchNetflixMetadata if artwork missing? 
-                // The genre page usually has it.
-                this.posterHeaders = mapOf("Referer" to "$mainUrl/home")
-            }
-        }
-        
-        if (items.isEmpty()) null else HomePageList(title, items)
+    cookie_value = if (cookie_value.isEmpty()) bypass(mainUrl) else cookie_value
+    val cookies = mapOf(
+      "t_hash_t" to cookie_value,
+      "user_token" to "233123f803cf02184bf6c67e149cdd50",
+      "ott" to "nf",
+      "hd" to "on"
+    )
+    val document = app.get(
+      "$mainUrl/home",
+      cookies = cookies,
+      referer = "$mainUrl/",
+    ).document
+    // .tray-container, #top10,
+    val items = document.select(".lolomoRow").map {
+      it.toHomePageList()
     }
-
-    return newHomePageResponse(homePageList, false)
+    return newHomePageResponse(items, false)
   }
 
-  private suspend fun Element.toHomePageList(): HomePageList {
+  private fun Element.toHomePageList(): HomePageList {
     val name = selectFirst(".row-header-title")?.text()
     ?: selectFirst("h2.rowHeader")?.text()
     ?: select("h2, span").text()
     //article, .top10-post
-    val items = select(".boxart-image, img.lazy").amap {
+    val items = select(".boxart-image, img.lazy").mapNotNull {
       it.toSearchResult()
-    }.filterNotNull()
+    }
     return HomePageList(name, items)
   }
 
-  private suspend fun Element.toSearchResult(): SearchResponse? {
+  private fun Element.toSearchResult(): SearchResponse? {
     val id = attr("data-src").substringAfterLast("/").substringBefore(".")
-    // Removed nfmirrorcdn fallback
-    val meta = fetchNetflixMetadata(id)
-    val title = selectFirst("img")?.attr("alt") ?: meta?.title ?: ""
-    
-    // If metadata fails and we have no title/poster, we might skip or return basic
-    // But user wants strict Netflix data.
-    
+    val posterUrl = "https://imgcdn.kim/poster/v/${id}.jpg"
+    val title = selectFirst("img")?.attr("alt") ?: ""
+
     return newAnimeSearchResponse(title, Id(id).toJson()) {
-      this.posterUrl = meta?.image
+      this.posterUrl = posterUrl
       posterHeaders = mapOf("Referer" to "$mainUrl/home")
     }
   }
@@ -109,17 +95,10 @@ class NetflixMirrorProvider : MainAPI() {
       cookies = cookies
     ).parsed<SearchData>()
 
-    return data.searchResult.amap {
-      // Hybrid Strategy: Fetch Native Metadata for top results using optimized Partial Fetch (Range Header).
-      // Fallback to mirror image for speed if fetch fails or for lower items.
-      
-      val meta = try {
-          fetchNetflixMetadata(it.id, usePartial = true)
-      } catch (e: Exception) { null }
-
+    return data.searchResult.map {
       newAnimeSearchResponse(it.t, Id(it.id).toJson()) {
-         this.posterUrl = meta?.image ?: "https://img.nfmirrorcdn.top/poster/v/${it.id}.jpg" 
-         this.posterHeaders = mapOf("Referer" to "$mainUrl/home")
+        posterUrl = "https://img.nfmirrorcdn.top/poster/v/${it.id}.jpg"
+        posterHeaders = mapOf("Referer" to "$mainUrl/home")
       }
     }
   }
@@ -127,7 +106,6 @@ class NetflixMirrorProvider : MainAPI() {
   override suspend fun load(url: String): LoadResponse? {
     cookie_value = if (cookie_value.isEmpty()) bypass(mainUrl) else cookie_value
     val id = parseJson<Id>(url).id
-    val netflixMetadata = fetchNetflixMetadata(id)
     val cookies = mapOf(
       "t_hash_t" to cookie_value,
       "ott" to "nf",
@@ -190,310 +168,17 @@ class NetflixMirrorProvider : MainAPI() {
     val type = if (data.episodes.first() == null) TvType.Movie else TvType.TvSeries
 
     return newTvSeriesLoadResponse(title, url, type, episodes) {
-      this.posterUrl = netflixMetadata?.image
-      this.backgroundPosterUrl = netflixMetadata?.backgroundImage ?: netflixMetadata?.image
-      this.plot = netflixMetadata?.description
-      
-      // Store Logo in valid field or extra? TvSeriesLoadResponse usually doesn't have logo field directly exposed in basic constructor
-      // But we can check if 'logo' should be put in 'posterHeaders' or similar? 
-      // Actually Cloudstream doesn't show logos natively in the details view usually, but we can set it if supported.
-      // For now, we will verify the code works.
-      
-      this.year = data.year.toIntOrNull()
-      this.tags = if (netflixMetadata?.genre != null) listOf(netflixMetadata.genre) else genre
-      this.actors = netflixMetadata?.actors?.map { ActorData(Actor(it)) } ?: cast
+      posterUrl = "https://img.nfmirrorcdn.top/poster/v/$id.jpg"
+      backgroundPosterUrl ="https://img.nfmirrorcdn.top/poster/h/$id.jpg"
+      posterHeaders = mapOf("Referer" to "$mainUrl/tv/home")
+      plot = data.desc
+      year = data.year.toIntOrNull()
+      tags = genre
+      actors = cast
+      // FIXED: Use new score property instead of deprecated rating
       this.duration = runTime
-      this.contentRating = netflixMetadata?.contentRating
-
-        // Overwrite Episodes with Netflix Metadata if available
-        if (netflixMetadata != null && netflixMetadata.episodes.isNotEmpty()) {
-            episodes.clear()
-            netflixMetadata.episodes.forEach { ep ->
-                episodes.add(newEpisode(LoadData(title, ep.id ?: "")) {
-                    this.name = ep.title
-                    this.episode = ep.number
-                    // Map season logic if we can match IDs, otherwise default to flat list
-                    this.season = 1 // Placeholder unless we map seasons perfectly
-                    this.posterUrl = ep.image
-                    this.description = ep.synopsis
-                    this.runTime = ep.runtime?.div(60) // Runtime is usually seconds, verify?
-                })
-            }
-        }
-
-        if (netflixMetadata?.trailer?.contentUrl != null || netflixMetadata?.trailer?.thumbnailUrl != null) {
-             // addTrailer requires context or correct import, suppressing for now if unresolved
-             // addTrailer("Trailer", netflixMetadata.trailer.contentUrl, netflixMetadata.trailer.thumbnailUrl)
-        }
     }
   }
-
-    private suspend fun fetchNetflixMetadata(id: String, usePartial: Boolean = false): NetflixFullData? {
-        try {
-            // 1. Try JSON (Partial Fetch) - Fastest & Most Detailed
-            val rawJson = fetchReactContext("https://www.netflix.com/title/$id", usePartial)
-            val data = rawJson?.models?.graphql?.data
-            
-            if (data != null) {
-                 // ... (existing parsing logic) ...
-                 // This block will remain the same but inside this if
-                 val episodes = mutableListOf<NetflixEpisode>()
-                 val seasons = mutableListOf<NetflixSeason>()
-                 var title: String? = null
-                 var description: String? = null
-                 var posterImage: String? = null
-                 var backdropImage: String? = null
-                 var logoImage: String? = null
-                 var genres = mutableListOf<String>()
-                 var casts = mutableListOf<String>()
-                 var tags = mutableListOf<String>()
-                 var trailer: NetflixTrailer? = null
-                 var rating: String? = null
-    
-                 data.forEach { (key, value) ->
-                    val jsonValue = value.toJson() // Convert value to JSON string using extension
-                    
-                    if (key.startsWith("Episode:")) {
-                        val epNode = parseEpisode(jsonValue)
-                        if (epNode != null) episodes.add(epNode)
-                    } else if (key.startsWith("Season:")) {
-                         val seasNode = parseSeason(jsonValue)
-                         if (seasNode != null) seasons.add(seasNode)
-                    } else if (key.contains(id) && (key.startsWith("Video:") || key.startsWith("Show:") || key.startsWith("Movie:"))) {
-                        // Main Title Data - Key format examples: "Video:123", "Show:{"videoId":123...}", "Movie:{"videoId":123...}"
-                        val video = tryParseJson<NetflixVideoNode>(jsonValue)
-                        if (video != null) {
-                            title = video.title
-                            description = video.synopsis ?: video.shortSynopsis
-                            rating = video.maturity?.rating?.value
-                            
-                            // Image Extraction: Fallback to video node values immediately
-                            if (posterImage == null) posterImage = video.boxart?.url
-                            if (backdropImage == null) backdropImage = video.artwork?.url
-                             
-                            video.genres?.forEach { genres.add(it.name ?: "") }
-                            video.tags?.forEach { tags.add(it.name ?: "") }
-                            video.cast?.forEach { casts.add(it.name ?: "") }
-                            
-                            // Placeholder trailer logic (still null for now)
-                            if (video.trailer != null) {
-                                 trailer = NetflixTrailer(null, null) 
-                            }
-                        }
-                    }
-                }
-                
-                // Second pass for artwork (stored as separate keys usually)
-                data.forEach { (key, value) ->
-                    if (key.contains(id)) {
-                        val json = value.toJson()
-                        if (key.contains("BOXSHOT")) {
-                             val art = tryParseJson<NetflixArt>(json)
-                             if (art?.url != null) posterImage = art.url
-                        }
-                        if (key.contains("BILLBOARD") || key.contains("STORY_ART")) {
-                             val art = tryParseJson<NetflixArt>(json)
-                             if (art?.url != null && backdropImage == null) backdropImage = art.url // Prefer Billboard first
-                        }
-                         if (key.contains("LOGO_HORIZONTAL_CROPPED") || key.contains("BRAND_LOGO_CROPPED")) {
-                             val art = tryParseJson<NetflixArt>(json)
-                             if (art?.url != null) logoImage = art.url
-                        }
-                    }
-                 }
-                 
-                 // Fallback if specific keys not found (use the general video dict)
-                 val videoNode = data["Video:$id"]?.let { tryParseJson<NetflixVideoNode>(it.toJson()) }
-                 if (posterImage == null) posterImage = videoNode?.boxart?.url
-                 if (backdropImage == null) backdropImage = videoNode?.artwork?.url // artwork is often horizontal
-    
-                return NetflixFullData(
-                    title = title,
-                    description = description,
-                    image = posterImage, // Vertical
-                    backgroundImage = backdropImage, // Horizontal
-                    logoImage = logoImage, // Logo
-                    genre = genres.firstOrNull(),
-                    tags = tags,
-                    actors = casts,
-                    contentRating = rating,
-                    episodes = episodes,
-                    seasons = seasons,
-                    trailer = trailer
-                )
-            }
-            
-            // 2. Fallback: DOM Scraping (if JSON failed)
-            return scrapeNetflixMetadata(id)
-
-        } catch (e: Exception) {
-            e.printStackTrace()
-            // 3. Final Fallback: Scrape 
-            return scrapeNetflixMetadata(id)
-        }
-    }
-    
-    private suspend fun scrapeNetflixMetadata(id: String): NetflixFullData? {
-        return try {
-             val url = "https://www.netflix.com/title/$id"
-             // Fetch full page or head (Scraping needs head for og:tags)
-             val document = app.get(url).document
-             
-             val title = document.select("meta[property=og:title]").attr("content").replace(" | Netflix Official Site", "").replace("Watch ", "")
-             val description = document.select("meta[property=og:description]").attr("content")
-             val image = document.select("meta[property=og:image]").attr("content")
-             val trailerVideo = document.select("meta[property=og:video]").attr("content")
-             
-             // Try to find background/logo in css or img tags
-             // Searching for specific Netflix classes or just regexing the html for 'nflxso.net'
-             val images = document.select("img").map { it.attr("src") }.filter { it.contains("nflxso.net") }
-             val potentialBackdrop = images.find { it.contains("BILLBOARD") || it.contains("epi-port") } ?: image
-             
-             NetflixFullData(
-                title = title.ifEmpty { null },
-                description = description.ifEmpty { null },
-                image = image.ifEmpty { null },
-                backgroundImage = potentialBackdrop,
-                logoImage = null,
-                genre = null,
-                tags = null,
-                actors = null,
-                contentRating = null,
-                episodes = emptyList(), // Scraping episodes is hard without JSON
-                seasons = emptyList(),
-                trailer = if (trailerVideo.isNotEmpty()) NetflixTrailer(trailerVideo, null) else null
-            )
-        } catch (e: Exception) {
-            null
-        }
-    }
-    
-    private fun parseEpisode(json: String): NetflixEpisode? {
-         try {
-             val ep = AppUtils.tryParseJson<NetflixEpisodeNode>(json) ?: return null
-             return NetflixEpisode(
-                 id = ep.videoId?.toString(),
-                 title = ep.title,
-                 synopsis = ep.synopsis ?: ep.shortSynopsis,
-                 number = ep.number,
-                 seasonId = ep.season?.id, 
-                 image = ep.artwork?.url ?: ep.boxart?.url,
-                 runtime = ep.runtime
-             )
-         } catch (e: Exception) { return null }
-    }
-
-    private fun parseSeason(json: String): NetflixSeason? {
-        try {
-            val s = AppUtils.tryParseJson<NetflixSeasonNode>(json) ?: return null
-            return NetflixSeason(
-                id = s.videoId?.toString(),
-                title = s.title,
-                number = s.seasonNumber,
-                episodeIds = s.episodes?.edges?.mapNotNull { it.node?.ref } 
-            )
-        } catch (e: Exception) { return null }
-    }
-
-    data class NetflixReactContext(
-        @JsonProperty("models") val models: NetflixModels?
-    )
-    data class NetflixModels(
-        @JsonProperty("graphql") val graphql: NetflixGraphql?,
-        @JsonProperty("nonmemberCollection") val nonmemberCollection: NetflixCollectionModel?
-    )
-    data class NetflixCollectionModel(
-        @JsonProperty("data") val data: NetflixCollectionData?
-    )
-    data class NetflixCollectionData(
-        @JsonProperty("rows") val rows: List<NetflixRow>?
-    )
-    data class NetflixRow(
-        @JsonProperty("name") val name: String?,
-        @JsonProperty("titles") val titles: List<NetflixTitle>?
-    )
-    data class NetflixTitle(
-        @JsonProperty("id") val id: Long?,
-        @JsonProperty("title") val title: String?,
-        @JsonProperty("artwork") val artwork: NetflixArt?,
-        @JsonProperty("boxart") val boxart: NetflixArt?
-    )
-    
-    data class NetflixGraphql(
-        @JsonProperty("data") val data: Map<String, Any>?
-    )
-    
-    data class NetflixVideoNode(
-        @JsonProperty("title") val title: String?,
-        @JsonProperty("synopsis") val synopsis: String?,
-        @JsonProperty("shortSynopsis") val shortSynopsis: String?,
-        @JsonProperty("boxart") val boxart: NetflixArt?,
-        @JsonProperty("artwork") val artwork: NetflixArt?,
-        @JsonProperty("maturity") val maturity: NetflixMaturity?,
-        @JsonProperty("genres") val genres: List<NetflixName>?,
-        @JsonProperty("tags") val tags: List<NetflixName>?,
-        @JsonProperty("cast") val cast: List<NetflixName>?,
-        @JsonProperty("trailer") val trailer: Any?
-    )
-    data class NetflixArt(@JsonProperty("url") val url: String?)
-    data class NetflixMaturity(@JsonProperty("rating") val rating: NetflixRating?)
-    data class NetflixRating(@JsonProperty("value") val value: String?)
-    data class NetflixName(@JsonProperty("name") val name: String?)
-    
-    data class NetflixEpisodeNode(
-        @JsonProperty("videoId") val videoId: Long?,
-        @JsonProperty("title") val title: String?,
-        @JsonProperty("synopsis") val synopsis: String?,
-        @JsonProperty("shortSynopsis") val shortSynopsis: String?,
-        @JsonProperty("number") val number: Int?,
-        @JsonProperty("season") val season: NetflixRef?,
-        @JsonProperty("artwork") val artwork: NetflixArt?,
-        @JsonProperty("boxart") val boxart: NetflixArt?,
-        @JsonProperty("runtime") val runtime: Int?
-    )
-    data class NetflixSeasonNode(
-        @JsonProperty("videoId") val videoId: Long?,
-        @JsonProperty("title") val title: String?,
-        @JsonProperty("seasonNumber") val seasonNumber: Int?,
-        @JsonProperty("episodes") val episodes: NetflixEdges?
-    )
-    data class NetflixEdges(@JsonProperty("edges") val edges: List<NetflixEdge>?)
-    data class NetflixEdge(@JsonProperty("node") val node: NetflixRef?)
-    data class NetflixRef(@JsonProperty("ref") val ref: String?, @JsonProperty("id") val id: String?)
-    
-    data class NetflixFullData(
-        val title: String?,
-        val description: String?,
-        val image: String?,
-        val backgroundImage: String?,
-        val logoImage: String?,
-        val genre: String?,
-        val tags: List<String>?,
-        val actors: List<String>?,
-        val contentRating: String?,
-        val episodes: List<NetflixEpisode>,
-        val seasons: List<NetflixSeason>,
-        val trailer: NetflixTrailer?
-    )
-    data class NetflixEpisode(
-        val id: String?,
-        val title: String?,
-        val synopsis: String?,
-        val number: Int?,
-        val seasonId: String?,
-        val image: String?,
-        val runtime: Int?
-    )
-    data class NetflixSeason(
-        val id: String?,
-        val title: String?,
-        val number: Int?,
-        val episodeIds: List<String>?
-    )
-    data class NetflixTrailer(
-        val contentUrl: String?,
-        val thumbnailUrl: String?
-    )
 
   private suspend fun getEpisodes(
     title: String, eid: String, sid: String, page: Int
@@ -536,7 +221,6 @@ class NetflixMirrorProvider : MainAPI() {
     val (title, id) = parseJson<LoadData>(data)
     val cookies = mapOf(
       "t_hash_t" to cookie_value,
-      "user_token" to USER_TOKEN,
       "ott" to "nf",
       "hd" to "on"
     )
@@ -593,28 +277,4 @@ class NetflixMirrorProvider : MainAPI() {
   data class LoadData(
     val title: String, val id: String
   )
-
-    private suspend fun fetchReactContext(url: String, usePartial: Boolean = false): NetflixReactContext? {
-        return try {
-            val headers = if (usePartial) mapOf("Range" to "bytes=500000-") else emptyMap()
-            // Note: Cloudstream 'app.get' headers argument needs to be correct type, usually Map<String, String>.
-            val response = app.get(url, headers = headers).text
-            
-            // For partial fetch, the start might be cut off. We need to find the marker safely.
-            // If partial, response is just a fragment.
-            
-            val scriptContent = response.substringAfter("netflix.reactContext =").substringBefore(";</script>")
-            val jsonString = if (scriptContent.startsWith(" {")) scriptContent.trim() else "{$scriptContent"
-            
-            // Sanitize non-standard hex escapes (e.g. \x2F -> /)
-            // Use predefined static Regex for performance
-            val sanitizedJson = jsonString.replace(HEX_ESCAPE_REGEX) { 
-                it.groupValues[1].toInt(16).toChar().toString() 
-            }
-            tryParseJson<NetflixReactContext>(sanitizedJson)
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
-        }
-    }
 }
