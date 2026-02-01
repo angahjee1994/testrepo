@@ -303,8 +303,8 @@ open class Showbox : MainAPI() {
     private val appIdSecond = base64Decode("Y29tLm1vdmllYm94cHJvLmFuZHJvaWQ=")
     //    private val appVersion = "11.5"
 //    private val appVersionCode = "129"
-    protected val appVersion = "19.6"
-    protected val appVersionCode = "211"
+    protected val appVersion = "19.1"
+    protected val appVersionCode = "206"
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val hideNsfw = if (settingsForProvider.enableAdult) 0 else 1
