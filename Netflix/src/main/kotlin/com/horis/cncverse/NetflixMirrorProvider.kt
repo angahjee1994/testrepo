@@ -230,102 +230,141 @@ class NetflixMirrorProvider : MainAPI() {
 
     private suspend fun fetchNetflixMetadata(id: String, usePartial: Boolean = false): NetflixFullData? {
         try {
-            val rawJson = fetchReactContext("https://www.netflix.com/title/$id", usePartial) ?: return null
-            val data = rawJson.models?.graphql?.data ?: return null
-
-            val episodes = mutableListOf<NetflixEpisode>()
-            val seasons = mutableListOf<NetflixSeason>()
-            var title: String? = null
-            var description: String? = null
-            var posterImage: String? = null
-            var backdropImage: String? = null
-            var logoImage: String? = null
-            var genres = mutableListOf<String>()
-            var casts = mutableListOf<String>()
-            var tags = mutableListOf<String>()
-            var trailer: NetflixTrailer? = null
-            var rating: String? = null
-
-            data.forEach { (key, value) ->
-                val jsonValue = value.toJson() // Convert value to JSON string using extension
-                
-                if (key.startsWith("Episode:")) {
-                    val epNode = parseEpisode(jsonValue)
-                    if (epNode != null) episodes.add(epNode)
-                } else if (key.startsWith("Season:")) {
-                     val seasNode = parseSeason(jsonValue)
-                     if (seasNode != null) seasons.add(seasNode)
-                } else if (key.contains(id) && (key.startsWith("Video:") || key.startsWith("Show:") || key.startsWith("Movie:"))) {
-                    // Main Title Data - Key format examples: "Video:123", "Show:{"videoId":123...}", "Movie:{"videoId":123...}"
-                    val video = tryParseJson<NetflixVideoNode>(jsonValue)
-                    if (video != null) {
-                        title = video.title
-                        description = video.synopsis ?: video.shortSynopsis
-                        rating = video.maturity?.rating?.value
-                        
-                        // Image Extraction: Fallback to video node values immediately
-                        if (posterImage == null) posterImage = video.boxart?.url
-                        if (backdropImage == null) backdropImage = video.artwork?.url
-                         
-                        video.genres?.forEach { genres.add(it.name ?: "") }
-                        video.tags?.forEach { tags.add(it.name ?: "") }
-                        video.cast?.forEach { casts.add(it.name ?: "") }
-                        
-                        // Placeholder trailer logic (still null for now)
-                        if (video.trailer != null) {
-                             trailer = NetflixTrailer(null, null) 
+            // 1. Try JSON (Partial Fetch) - Fastest & Most Detailed
+            val rawJson = fetchReactContext("https://www.netflix.com/title/$id", usePartial)
+            val data = rawJson?.models?.graphql?.data
+            
+            if (data != null) {
+                 // ... (existing parsing logic) ...
+                 // This block will remain the same but inside this if
+                 val episodes = mutableListOf<NetflixEpisode>()
+                 val seasons = mutableListOf<NetflixSeason>()
+                 var title: String? = null
+                 var description: String? = null
+                 var posterImage: String? = null
+                 var backdropImage: String? = null
+                 var logoImage: String? = null
+                 var genres = mutableListOf<String>()
+                 var casts = mutableListOf<String>()
+                 var tags = mutableListOf<String>()
+                 var trailer: NetflixTrailer? = null
+                 var rating: String? = null
+    
+                 data.forEach { (key, value) ->
+                    val jsonValue = value.toJson() // Convert value to JSON string using extension
+                    
+                    if (key.startsWith("Episode:")) {
+                        val epNode = parseEpisode(jsonValue)
+                        if (epNode != null) episodes.add(epNode)
+                    } else if (key.startsWith("Season:")) {
+                         val seasNode = parseSeason(jsonValue)
+                         if (seasNode != null) seasons.add(seasNode)
+                    } else if (key.contains(id) && (key.startsWith("Video:") || key.startsWith("Show:") || key.startsWith("Movie:"))) {
+                        // Main Title Data - Key format examples: "Video:123", "Show:{"videoId":123...}", "Movie:{"videoId":123...}"
+                        val video = tryParseJson<NetflixVideoNode>(jsonValue)
+                        if (video != null) {
+                            title = video.title
+                            description = video.synopsis ?: video.shortSynopsis
+                            rating = video.maturity?.rating?.value
+                            
+                            // Image Extraction: Fallback to video node values immediately
+                            if (posterImage == null) posterImage = video.boxart?.url
+                            if (backdropImage == null) backdropImage = video.artwork?.url
+                             
+                            video.genres?.forEach { genres.add(it.name ?: "") }
+                            video.tags?.forEach { tags.add(it.name ?: "") }
+                            video.cast?.forEach { casts.add(it.name ?: "") }
+                            
+                            // Placeholder trailer logic (still null for now)
+                            if (video.trailer != null) {
+                                 trailer = NetflixTrailer(null, null) 
+                            }
                         }
                     }
                 }
+                
+                // Second pass for artwork (stored as separate keys usually)
+                data.forEach { (key, value) ->
+                    if (key.contains(id)) {
+                        val json = value.toJson()
+                        if (key.contains("BOXSHOT")) {
+                             val art = tryParseJson<NetflixArt>(json)
+                             if (art?.url != null) posterImage = art.url
+                        }
+                        if (key.contains("BILLBOARD") || key.contains("STORY_ART")) {
+                             val art = tryParseJson<NetflixArt>(json)
+                             if (art?.url != null && backdropImage == null) backdropImage = art.url // Prefer Billboard first
+                        }
+                         if (key.contains("LOGO_HORIZONTAL_CROPPED") || key.contains("BRAND_LOGO_CROPPED")) {
+                             val art = tryParseJson<NetflixArt>(json)
+                             if (art?.url != null) logoImage = art.url
+                        }
+                    }
+                 }
+                 
+                 // Fallback if specific keys not found (use the general video dict)
+                 val videoNode = data["Video:$id"]?.let { tryParseJson<NetflixVideoNode>(it.toJson()) }
+                 if (posterImage == null) posterImage = videoNode?.boxart?.url
+                 if (backdropImage == null) backdropImage = videoNode?.artwork?.url // artwork is often horizontal
+    
+                return NetflixFullData(
+                    title = title,
+                    description = description,
+                    image = posterImage, // Vertical
+                    backgroundImage = backdropImage, // Horizontal
+                    logoImage = logoImage, // Logo
+                    genre = genres.firstOrNull(),
+                    tags = tags,
+                    actors = casts,
+                    contentRating = rating,
+                    episodes = episodes,
+                    seasons = seasons,
+                    trailer = trailer
+                )
             }
             
-            // Second pass for artwork (stored as separate keys usually)
-            // Pattern: Video:80057281.artwork({"params":{"artworkType":"BOXSHOT"...}})
-            // But since we iterate 'data' map, we can just look for these keys directly or inside the video object if they were nested (they usually aren't). 
-            // Actually, the browser output shows them as top-level keys in 'data' like 'Show:{...}.artwork(...)' or in 'models' directly.
-            // Let's iterate 'data' again to find specific artwork nodes linked to this ID (or just strict key matching).
-            
-             data.forEach { (key, value) ->
-                if (key.contains(id)) {
-                    val json = value.toJson()
-                    if (key.contains("BOXSHOT")) {
-                         val art = tryParseJson<NetflixArt>(json)
-                         if (art?.url != null) posterImage = art.url
-                    }
-                    if (key.contains("BILLBOARD") || key.contains("STORY_ART")) {
-                         val art = tryParseJson<NetflixArt>(json)
-                         if (art?.url != null && backdropImage == null) backdropImage = art.url // Prefer Billboard first
-                    }
-                     if (key.contains("LOGO_HORIZONTAL_CROPPED") || key.contains("BRAND_LOGO_CROPPED")) {
-                         val art = tryParseJson<NetflixArt>(json)
-                         if (art?.url != null) logoImage = art.url
-                    }
-                }
-             }
-             
-             // Fallback if specific keys not found (use the general video dict)
-             val videoNode = data["Video:$id"]?.let { tryParseJson<NetflixVideoNode>(it.toJson()) }
-             if (posterImage == null) posterImage = videoNode?.boxart?.url
-             if (backdropImage == null) backdropImage = videoNode?.artwork?.url // artwork is often horizontal
-
-            return NetflixFullData(
-                title = title,
-                description = description,
-                image = posterImage, // Vertical
-                backgroundImage = backdropImage, // Horizontal
-                logoImage = logoImage, // Logo
-                genre = genres.firstOrNull(),
-                tags = tags,
-                actors = casts,
-                contentRating = rating,
-                episodes = episodes,
-                seasons = seasons,
-                trailer = trailer
-            )
+            // 2. Fallback: DOM Scraping (if JSON failed)
+            return scrapeNetflixMetadata(id)
 
         } catch (e: Exception) {
             e.printStackTrace()
-            return null
+            // 3. Final Fallback: Scrape 
+            return scrapeNetflixMetadata(id)
+        }
+    }
+    
+    private suspend fun scrapeNetflixMetadata(id: String): NetflixFullData? {
+        return try {
+             val url = "https://www.netflix.com/title/$id"
+             // Fetch full page or head (Scraping needs head for og:tags)
+             val document = app.get(url).document
+             
+             val title = document.select("meta[property=og:title]").attr("content").replace(" | Netflix Official Site", "").replace("Watch ", "")
+             val description = document.select("meta[property=og:description]").attr("content")
+             val image = document.select("meta[property=og:image]").attr("content")
+             val trailerVideo = document.select("meta[property=og:video]").attr("content")
+             
+             // Try to find background/logo in css or img tags
+             // Searching for specific Netflix classes or just regexing the html for 'nflxso.net'
+             val images = document.select("img").map { it.attr("src") }.filter { it.contains("nflxso.net") }
+             val potentialBackdrop = images.find { it.contains("BILLBOARD") || it.contains("epi-port") } ?: image
+             
+             NetflixFullData(
+                title = title.ifEmpty { null },
+                description = description.ifEmpty { null },
+                image = image.ifEmpty { null },
+                backgroundImage = potentialBackdrop,
+                logoImage = null,
+                genre = null,
+                tags = null,
+                actors = null,
+                contentRating = null,
+                episodes = emptyList(), // Scraping episodes is hard without JSON
+                seasons = emptyList(),
+                trailer = if (trailerVideo.isNotEmpty()) NetflixTrailer(trailerVideo, null) else null
+            )
+        } catch (e: Exception) {
+            null
         }
     }
     
