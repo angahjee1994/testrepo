@@ -34,6 +34,10 @@ class NetflixMirrorProvider : MainAPI() {
   private val headers = mapOf(
     "X-Requested-With" to "XMLHttpRequest"
   )
+  
+  companion object {
+      var context: android.content.Context? = null
+  }
 
   override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
     cookie_value = if (cookie_value.isEmpty()) bypass(mainUrl) else cookie_value
@@ -143,12 +147,12 @@ class NetflixMirrorProvider : MainAPI() {
       })
     } else {
       data.episodes.filterNotNull().mapTo(episodes) {
-        newEpisode(LoadData(title, it.id)) {
+        newEpisode(LoadData(title, it.id ?: "")) {
           this.name = it.t
-          this.episode = it.ep.replace("E", "").toIntOrNull()
-          this.season = it.s.replace("S", "").toIntOrNull()
+          this.episode = it.ep?.replace("E", "")?.toIntOrNull()
+          this.season = it.s?.replace("S", "")?.toIntOrNull()
           this.posterUrl = "https://img.nfmirrorcdn.top/epimg/150/${it.id}.jpg"
-          this.runTime = it.time.replace("m", "").toIntOrNull()
+          this.runTime = it.time?.replace("m", "")?.toIntOrNull()
         }
       }
 
@@ -194,12 +198,12 @@ class NetflixMirrorProvider : MainAPI() {
         cookies = cookies
       ).parsed<EpisodesData>()
       data.episodes?.mapTo(episodes) {
-        newEpisode(LoadData(title, it.id)) {
+        newEpisode(LoadData(title, it.id ?: "")) {
           name = it.t
-          episode = it.ep.replace("E", "").toIntOrNull()
-          season = it.s.replace("S", "").toIntOrNull()
+          episode = it.ep?.replace("E", "")?.toIntOrNull()
+          season = it.s?.replace("S", "")?.toIntOrNull()
           this.posterUrl = "https://img.nfmirrorcdn.top/epimg/150/${it.id}.jpg"
-          this.runTime = it.time.replace("m", "").toIntOrNull()
+          this.runTime = it.time?.replace("m", "")?.toIntOrNull()
         }
       }
       if (data.nextPageShow == 0) break
