@@ -4,7 +4,6 @@ import com.fasterxml.jackson.annotation.JsonProperty
 import com.hexated.Extractors.base64DefaultDecode
 import com.hexated.Extractors.base64DefaultEncode
 import com.hexated.Extractors.invokeExternalSource
-import com.hexated.Extractors.invokeInternalSource
 import com.hexated.Extractors.invokeVdrk
 import com.hexated.Extractors.invokeWatchsomuch
 import com.hexated.Extractors.invokeWyzie
@@ -304,8 +303,8 @@ open class Showbox : MainAPI() {
     private val appIdSecond = base64Decode("Y29tLm1vdmllYm94cHJvLmFuZHJvaWQ=")
     //    private val appVersion = "11.5"
 //    private val appVersionCode = "129"
-    protected val appVersion = "11.5"
-    protected val appVersionCode = "129"
+    private val appVersion = "19.1"
+    private val appVersionCode = "206"
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val hideNsfw = if (settingsForProvider.enableAdult) 0 else 1
@@ -743,16 +742,6 @@ open class Showbox : MainAPI() {
         val parsed = parseJson<LinkData>(data)
 
         runAllAsync(
-            {
-                invokeInternalSource(
-                    parsed.id,
-                    parsed.type,
-                    parsed.season,
-                    parsed.episode,
-                    subtitleCallback,
-                    callback
-                )
-            },
             {
                 invokeExternalSource(
                     parsed.mediaId,
