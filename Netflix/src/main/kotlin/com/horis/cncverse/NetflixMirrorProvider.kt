@@ -40,6 +40,7 @@ class NetflixMirrorProvider : MainAPI() {
   companion object {
       var context: android.content.Context? = null
       const val USER_TOKEN = "233123f803cf02184bf6c67e149cdd50"
+      private val HEX_ESCAPE_REGEX = Regex("\\\\x([0-9A-Fa-f]{2})")
   }
 
   override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
@@ -248,17 +249,17 @@ class NetflixMirrorProvider : MainAPI() {
                 } else if (key.startsWith("Season:")) {
                      val seasNode = parseSeason(jsonValue)
                      if (seasNode != null) seasons.add(seasNode)
-                } else if (key.startsWith("Video:$id")) {
-                    // Main Title Data
+                } else if (key.contains(id) && (key.startsWith("Video:") || key.startsWith("Show:") || key.startsWith("Movie:"))) {
+                    // Main Title Data - Key format examples: "Video:123", "Show:{"videoId":123...}", "Movie:{"videoId":123...}"
                     val video = tryParseJson<NetflixVideoNode>(jsonValue)
                     if (video != null) {
                         title = video.title
                         description = video.synopsis ?: video.shortSynopsis
                         rating = video.maturity?.rating?.value
                         
-                        // Image Extraction Logic
-                        // Prefer BOXSHOT for Poster, BILLBOARD for Backdrop
-                        // Inspect 'artwork' keys which are specialized
+                        // Image Extraction: Fallback to video node values immediately
+                        if (posterImage == null) posterImage = video.boxart?.url
+                        if (backdropImage == null) backdropImage = video.artwork?.url
                          
                         video.genres?.forEach { genres.add(it.name ?: "") }
                         video.tags?.forEach { tags.add(it.name ?: "") }
@@ -555,7 +556,8 @@ class NetflixMirrorProvider : MainAPI() {
             val jsonString = if (scriptContent.startsWith(" {")) scriptContent.trim() else "{$scriptContent"
             
             // Sanitize non-standard hex escapes (e.g. \x2F -> /)
-            val sanitizedJson = jsonString.replace(Regex("\\\\x([0-9A-Fa-f]{2})")) { 
+            // Use predefined static Regex for performance
+            val sanitizedJson = jsonString.replace(HEX_ESCAPE_REGEX) { 
                 it.groupValues[1].toInt(16).toChar().toString() 
             }
             tryParseJson<NetflixReactContext>(sanitizedJson)
