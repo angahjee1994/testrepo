@@ -44,19 +44,7 @@ class NetflixMirrorProvider : MainAPI() {
 
   override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
     // 100% Native Netflix Home Page (Genre 839338)
-    val url = "https://www.netflix.com/my-en/browse/genre/839338"
-    val response = app.get(url).text
-    
-    // Extract React Context
-    val scriptContent = response.substringAfter("netflix.reactContext =").substringBefore(";</script>")
-    val jsonString = if (scriptContent.startsWith(" {")) scriptContent.trim() else "{$scriptContent"
-    
-    // Sanitize non-standard hex escapes (e.g. \x2F -> /)
-    val sanitizedJson = jsonString.replace(Regex("\\\\x([0-9A-Fa-f]{2})")) { 
-        it.groupValues[1].toInt(16).toChar().toString() 
-    }
-    
-    val rawJson = tryParseJson<NetflixReactContext>(sanitizedJson) ?: return null
+    val rawJson = fetchReactContext("https://www.netflix.com/my-en/browse/genre/839338") ?: return null
     val rows = rawJson.models?.nonmemberCollection?.data?.rows ?: return null
     
     val homePageList = rows.mapNotNull { row ->
@@ -235,14 +223,7 @@ class NetflixMirrorProvider : MainAPI() {
 
     private suspend fun fetchNetflixMetadata(id: String): NetflixFullData? {
         try {
-            val response = app.get("https://www.netflix.com/title/$id").text
-            // Extract the React Context JSON
-            // Pattern looks for window.netflix = ... ; or netflix.reactContext = ...
-            val scriptContent = response.substringAfter("netflix.reactContext =").substringBefore(";</script>")
-            val jsonString = if (scriptContent.startsWith(" {")) scriptContent.trim() else "{$scriptContent" 
-            
-            // We need to parse this complex object. It contains 'models' -> 'graphql' -> 'data'
-            val rawJson = tryParseJson<NetflixReactContext>(jsonString) ?: return null
+            val rawJson = fetchReactContext("https://www.netflix.com/title/$id") ?: return null
             val data = rawJson.models?.graphql?.data ?: return null
 
             val episodes = mutableListOf<NetflixEpisode>()
@@ -566,4 +547,21 @@ class NetflixMirrorProvider : MainAPI() {
   data class LoadData(
     val title: String, val id: String
   )
+
+    private suspend fun fetchReactContext(url: String): NetflixReactContext? {
+        return try {
+            val response = app.get(url).text
+            val scriptContent = response.substringAfter("netflix.reactContext =").substringBefore(";</script>")
+            val jsonString = if (scriptContent.startsWith(" {")) scriptContent.trim() else "{$scriptContent"
+            
+            // Sanitize non-standard hex escapes (e.g. \x2F -> /)
+            val sanitizedJson = jsonString.replace(Regex("\\\\x([0-9A-Fa-f]{2})")) { 
+                it.groupValues[1].toInt(16).toChar().toString() 
+            }
+            tryParseJson<NetflixReactContext>(sanitizedJson)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
 }
