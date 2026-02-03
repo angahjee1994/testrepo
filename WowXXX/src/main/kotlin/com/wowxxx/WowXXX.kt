@@ -3,8 +3,6 @@ package com.wowxxx
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import org.jsoup.nodes.Element
-import com.fasterxml.jackson.annotation.JsonProperty
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 
 class WowXXX : MainAPI() {
     override var mainUrl = "https://www.wow.xxx"
@@ -109,19 +107,17 @@ class WowXXX : MainAPI() {
     }
 
     // JSON-LD classes
-    @JsonIgnoreProperties(ignoreUnknown = true)
     data class LdJsonVideo(
-        @JsonProperty("name") val name: String?,
-        @JsonProperty("description") val description: String?,
-        @JsonProperty("thumbnailUrl") val thumbnailUrl: String?,
-        @JsonProperty("duration") val duration: String?,
-        @JsonProperty("interactionStatistic") val interactionStatistic: List<InteractionStatistic>?
+        val name: String?,
+        val description: String?,
+        val thumbnailUrl: String?,
+        val duration: String?,
+        val interactionStatistic: List<InteractionStatistic>?
     )
 
-    @JsonIgnoreProperties(ignoreUnknown = true)
     data class InteractionStatistic(
-        @JsonProperty("interactionType") val interactionType: String?,
-        @JsonProperty("userInteractionCount") val userInteractionCount: String?
+        val interactionType: String?,
+        val userInteractionCount: String?
     )
     
     private fun getDurationFromString(duration: String?): Int? {
