@@ -16,7 +16,7 @@ class KingBokep : MainAPI() {
 
     override val mainPage = mainPageOf(
         "$mainUrl/" to "Latest",
-        "$mainUrl/category/indonesia/" to "Bokep Indo",
+        "$mainUrl//category/jilbab/" to "Jilbab",
         "$mainUrl/category/viral/" to "Indo Viral",
         "$mainUrl/category/bispak/" to "Bispak",
         "$mainUrl/category/chindo/" to "Chindo",
