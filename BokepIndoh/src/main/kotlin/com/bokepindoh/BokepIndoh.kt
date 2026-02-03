@@ -111,7 +111,7 @@ class BokepIndoh : MainAPI() {
             }
             
             if (videoUrl != null) {
-                val name = if (data.contains("luluvid")) "LuluStream" else "BebasNonton"
+                val name = "BokepIndoh"
                 val type = if (videoUrl.contains(".m3u8")) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
                 
                  callback.invoke(
