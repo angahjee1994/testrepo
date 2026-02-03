@@ -80,29 +80,28 @@ class BokepIndoh : MainAPI() {
             var videoUrl: String? = null
             
             val scripts = document.select("script")
-            // Regex to match .m3u8 or .mp4 links
-            val videoRegex = """https?://[^"']+\.(m3u8|mp4)[^"']*""".toRegex()
+            // Regex to match .m3u8 or .mp4 links (handle escaped slashes)
+            val videoRegex = """https?:\\?\/\\?\/[^"']+\.(m3u8|mp4)(?:[^"']*)""".toRegex()
             
             for (script in scripts) {
-                val content = script.html()
+                // Trim content to ensure Unpacker works if it expects strict start
+                val content = script.html().trim()
                 
                 // 1. Try direct match
                 var match = videoRegex.find(content)
                 if (match != null) {
-                    videoUrl = match.value
+                    videoUrl = match.value.replace("\\/", "/") // Fix escaped slashes
                     break
                 }
                 
                 // 2. Try unpacking if packed
-                if (content.contains("eval(function(p,a,c,k,e,d)")) {
-                    try {
-                        val unpacked = getPacked(content)
-                        if (unpacked != null) {
-                            match = videoRegex.find(unpacked)
-                            if (match != null) {
-                                videoUrl = match.value
-                                break
-                            }
+                try {
+                    val unpacked = getPacked(content)
+                    if (unpacked != null) {
+                        match = videoRegex.find(unpacked)
+                        if (match != null) {
+                            videoUrl = match.value.replace("\\/", "/")
+                            break
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()
