@@ -14,11 +14,7 @@ class BokepIndoh : MainAPI() {
 
     override val mainPage = mainPageOf(
         mainUrl to "Latest Updates",
-        "$mainUrl/bokep-indo/" to "Bokep Indo",
-        "$mainUrl/video-bokep-jepang-sub-indo/" to "Bokep Jepang",
-        "$mainUrl/bokep-barat/" to "Bokep Barat",
-        "$mainUrl/bokep-viral/" to "Bokep Viral",
-        "$mainUrl/nonton-bokep-jilbab/" to "Bokep Jilbab"
+        "$mainUrl/category/bokep-jav/" to "Bokep Indo"
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
