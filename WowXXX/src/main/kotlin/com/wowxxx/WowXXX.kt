@@ -56,8 +56,10 @@ class WowXXX : MainAPI() {
                         this.posterUrl = json.thumbnailUrl
                         this.plot = json.description
                         this.duration = getDurationFromString(json.duration)
-                        // Cast to Double/Float as needed, assuming score takes numeric
-                        this.score = json.interactionStatistic?.find { it.interactionType?.contains("WatchAction") == true }?.userInteractionCount?.toDoubleOrNull()
+                        this.plot = json.description
+                        this.duration = getDurationFromString(json.duration)
+                        // Views cannot be mapped to Score (0-10/100) safely without normalizing
+                        // this.score = ... 
                     }
                 }
             } catch (e: Exception) {
