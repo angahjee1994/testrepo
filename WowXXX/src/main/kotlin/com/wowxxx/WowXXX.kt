@@ -56,7 +56,8 @@ class WowXXX : MainAPI() {
                         this.posterUrl = json.thumbnailUrl
                         this.plot = json.description
                         this.duration = getDurationFromString(json.duration)
-                        this.rating = json.interactionStatistic?.find { it.interactionType?.contains("WatchAction") == true }?.userInteractionCount?.toIntOrNull()
+                        // Cast to Double/Float as needed, assuming score takes numeric
+                        this.score = json.interactionStatistic?.find { it.interactionType?.contains("WatchAction") == true }?.userInteractionCount?.toDoubleOrNull()
                     }
                 }
             } catch (e: Exception) {
