@@ -3,6 +3,9 @@ package com.wowxxx
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import org.jsoup.nodes.Element
+import com.lagradost.cloudstream3.Actor
+import com.lagradost.cloudstream3.ActorData
+import com.lagradost.cloudstream3.ActorRole
 
 class WowXXX : MainAPI() {
     override var mainUrl = "https://www.wow.xxx"
@@ -76,7 +79,9 @@ class WowXXX : MainAPI() {
         if (description.isNullOrEmpty()) description = document.selectFirst("meta[name=description]")?.attr("content")
 
         val tags = document.select("a.btn_tag").map { it.text().trim() }
-        val actors = document.select("a.btn_model").map { ActorData(newMovieSearchResponse(it.text().trim(), it.attr("href"), TvType.NSFW), it.text().trim()) }
+        val actors = document.select("a.btn_model").map { 
+            ActorData(Actor(it.text().trim(), ""), role = ActorRole.Main) 
+        }
 
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = poster
