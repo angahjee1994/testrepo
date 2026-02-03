@@ -61,7 +61,7 @@ class KingBokep : MainAPI() {
         val document = app.get(url).document
 
 
-        val ldJsonScript = document.select("script[type=application/ld+json]").firstOrNull()?.data()
+        val ldJsonScripts = document.select("script[type=application/ld+json]")
         
         var title: String? = null
         var description: String? = null
@@ -69,18 +69,21 @@ class KingBokep : MainAPI() {
         var duration: String? = null
         var tags = emptyList<String>()
         
-        if (ldJsonScript != null) {
+        for (script in ldJsonScripts) {
             try {
-                val json = AppUtils.parseJson<LdJsonVideo>(ldJsonScript)
-                title = json.name
-                description = json.description
-                poster = when (val thumb = json.thumbnailUrl) {
-                    is String -> thumb
-                    is List<*> -> thumb.firstOrNull()?.toString()
-                    else -> null
+                val json = AppUtils.parseJson<LdJsonVideo>(script.data())
+                if (!json.contentUrl.isNullOrEmpty() || !json.thumbnailUrl.toString().isNullOrEmpty()) {
+                    title = json.name
+                    description = json.description
+                    poster = when (val thumb = json.thumbnailUrl) {
+                        is String -> thumb
+                        is List<*> -> thumb.firstOrNull()?.toString()
+                        else -> null
+                    }
+                    duration = json.duration
+                    tags = json.keywords?.split(",")?.map { it.trim() } ?: emptyList()
+                    break // Found the video object
                 }
-                duration = json.duration
-                tags = json.keywords?.split(",")?.map { it.trim() } ?: emptyList()
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -110,16 +113,44 @@ class KingBokep : MainAPI() {
     }
 
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
+    override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
         val document = app.get(data).document
-        val ldJsonScript = document.select("script[type=application/ld+json]").firstOrNull()?.data() ?: return false
+        val ldJsonScripts = document.select("script[type=application/ld+json]")
         
+        // 1. Try JSON-LD
+        for (script in ldJsonScripts) {
+            try {
+                val json = AppUtils.parseJson<LdJsonVideo>(script.data())
+                val m3u8Url = json.contentUrl
+                
+                if (!m3u8Url.isNullOrEmpty()) {
+                    callback.invoke(
+                        newExtractorLink(
+                            name,
+                            name,
+                            m3u8Url,
+                            ExtractorLinkType.M3U8
+                        ) {
+                            this.referer = "$mainUrl/"
+                            this.quality = getQualityFromName("HD")
+                        }
+                    )
+                    return true
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        // 2. Try Regex Fallback for .m3u8
         try {
-            val json = AppUtils.parseJson<LdJsonVideo>(ldJsonScript)
-            val m3u8Url = json.contentUrl
-            
-            if (!m3u8Url.isNullOrEmpty()) {
+            val html = document.html()
+            val m3u8Regex = """https?://[^"']+\.m3u8""".toRegex()
+            val match = m3u8Regex.find(html)
+            if (match != null) {
+                val m3u8Url = match.value
                 callback.invoke(
-                    newExtractorLink(
+                     newExtractorLink(
                         name,
                         name,
                         m3u8Url,
@@ -134,6 +165,7 @@ class KingBokep : MainAPI() {
         } catch (e: Exception) {
             e.printStackTrace()
         }
+
         return false
     }
 
