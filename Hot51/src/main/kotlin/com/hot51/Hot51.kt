@@ -12,7 +12,7 @@ class Hot51 : MainAPI() {
     override val supportedTypes = setOf(TvType.NSFW)
 
     // API Endpoints
-    private val apiUrl = "https://api.fnccdn.com/501/api/plr/zbliv"
+    private val apiUrl = "https://api.fnccdn.com/501/api/plr/h5/v3"
     private val merchantId = "501"
 
     override suspend fun loadLinks(
@@ -40,7 +40,7 @@ class Hot51 : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val labelId = if (request.data.isNullOrBlank() || request.data == "popular") "1" else request.data
         val timestamp = System.currentTimeMillis() / 1000
-        val url = "$apiUrl/public/live/h5/liveCenter?pageNum=$page&pageSize=50&labelId=$labelId&merchantId=$merchantId&lang=ENU&t=$timestamp"
+        val url = "$apiUrl/public/live/lrl?pageNum=$page&pageSize=50&labelId=$labelId&merchantId=$merchantId&area=MY&lang=ENU&t=$timestamp"
         
         val response = app.get(url).parsedSafe<LiveCenterResponse>()
         val items = response?.records?.map { item ->
