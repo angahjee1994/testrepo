@@ -2,6 +2,7 @@ package com.bokepindoh
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
+import com.lagradost.cloudstream3.utils.JsUnpacker
 import org.jsoup.nodes.Element
 
 class BokepIndoh : MainAPI() {
@@ -136,6 +137,6 @@ class BokepIndoh : MainAPI() {
     private fun getPacked(script: String): String? {
         val trimmed = script.trim()
         if (!trimmed.contains("eval(function(p,a,c,k,e,d)")) return null
-        return JsUnpacker.unpackAndCombine(trimmed)
+        return JsUnpacker(trimmed).unpack()
     }
 }
