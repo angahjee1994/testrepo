@@ -40,7 +40,9 @@ class Hot51 : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val labelId = if (request.data.isNullOrBlank() || request.data == "popular") "1" else request.data
         val timestamp = System.currentTimeMillis() / 1000
-        val url = "$apiUrl/public/live/lrl?pageNum=$page&pageSize=50&labelId=$labelId&merchantId=$merchantId&area=MY&lang=ENU&t=$timestamp"
+        
+        val baseUrl = "$apiUrl/public/live/lrl?pageNum=$page&pageSize=50&merchantId=$merchantId&area=MY&lang=ENU&t=$timestamp"
+        val url = if (labelId == "1") baseUrl else "$baseUrl&labelId=$labelId"
         
         val response = app.get(url).parsedSafe<LiveCenterResponse>()
         val items = response?.records?.map { item ->
