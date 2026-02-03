@@ -15,6 +15,17 @@ class Hot51 : MainAPI() {
     private val apiUrl = "https://api.fnccdn.com/501/api/plr/h5/v3"
     private val merchantId = "501"
 
+    override suspend fun load(url: String): LoadResponse {
+        val id = url.substringAfterLast("/")
+        return newLiveStreamLoadResponse(
+            name = "Live Stream",
+            url = id,
+            dataUrl = id
+        ) {
+            this.posterUrl = "$mainUrl/assets/img/logo.png" // Fallback or could fetch
+        }
+    }
+
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
@@ -38,9 +49,16 @@ class Hot51 : MainAPI() {
     }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val labelId = if (request.data.isNullOrBlank() || request.data == "popular") "1" else request.data
+        val data = request.data ?: "1"
+        val isCountry = data == "ID" || data == "VN"
+        
+        val area = if (isCountry) data else "MY"
+        val labelId = if (isCountry || data == "1") "" else data
+        
         val timestamp = System.currentTimeMillis() / 1000
-        val url = "$apiUrl/public/live/lrl?pageNum=$page&pageSize=20&labelId=$labelId&merchantId=$merchantId&area=MY&lang=ENU&t=$timestamp"
+        
+        val baseUrl = "$apiUrl/public/live/lrl?pageNum=$page&pageSize=20&merchantId=$merchantId&area=$area&lang=ENU&t=$timestamp"
+        val url = if (labelId.isNotEmpty()) "$baseUrl&labelId=$labelId" else baseUrl
         
         val response = app.get(url).parsedSafe<LiveCenterResponse>()
         val items = response?.records?.map { item ->
@@ -58,11 +76,8 @@ class Hot51 : MainAPI() {
 
     override val mainPage = mainPageOf(
         "1" to "Popular",
-        "2" to "Toy",
-        "1583463376967712769" to "Show",
-        "1583464242682724353" to "Fun",
-        "1583463902190084098" to "Star",
-        "1751227074630479874" to "PK"
+        "ID" to "Indonesia",
+        "VN" to "Vietnam"
     )
 
     // Data Classes
