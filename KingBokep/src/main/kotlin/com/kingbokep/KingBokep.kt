@@ -18,10 +18,6 @@ class KingBokep : MainAPI() {
         "$mainUrl/" to "Latest",
         "$mainUrl/category/indonesia/" to "Bokep Indo",
         "$mainUrl/category/viral/" to "Indo Viral",
-        "$mainUrl/category/jav-sub-indo/" to "JAV Sub Indo",
-
-
-
         "$mainUrl/category/bispak/" to "Bispak",
         "$mainUrl/category/chindo/" to "Chindo",
         "$mainUrl/category/ruang-bokep/" to "Ruang Bokep",
@@ -44,7 +40,9 @@ class KingBokep : MainAPI() {
     private fun Element.toSearchResult(): SearchResponse? {
         val title = this.attr("title").ifEmpty { this.selectFirst("span")?.text()?.trim() } ?: return null
         val href = fixUrl(this.attr("href"))
-        val posterUrl = this.selectFirst("img")?.attr("src")
+        val posterUrl = this.selectFirst("img")?.let { img ->
+            img.attr("data-src").ifEmpty { img.attr("src") }
+        }
         return newMovieSearchResponse(title, href, TvType.NSFW) {
             this.posterUrl = posterUrl
         }
@@ -113,7 +111,7 @@ class KingBokep : MainAPI() {
     }
 
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
-    override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
+
         val document = app.get(data).document
         val ldJsonScripts = document.select("script[type=application/ld+json]")
         
