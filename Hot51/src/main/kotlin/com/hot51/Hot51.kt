@@ -15,9 +15,32 @@ class Hot51 : MainAPI() {
     private val apiUrl = "https://api.fnccdn.com/501/api/plr/zbliv"
     private val merchantId = "501"
 
+    override suspend fun loadLinks(
+        data: String,
+        isCasting: Boolean,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        val anchorId = data
+        val timestamp = System.currentTimeMillis() / 1000
+        val infoUrl = "$apiUrl/h5/v3/public/live/room-info?merchantId=$merchantId&anchorId=$anchorId&roomType=1&t=$timestamp"
+        val response = app.get(infoUrl).parsedSafe<RoomInfoResponse>()
+        val streamUrl = response?.data?.pullUrl?.hls ?: response?.data?.pullUrl?.flv ?: return false
+        callback(
+            newExtractorLink(
+                this.name,
+                this.name,
+                streamUrl,
+                ExtractorLinkType.M3U8
+            )
+        )
+        return true
+    }
+
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val labelId = if (request.data == "popular") "1" else request.data
-        val url = "$apiUrl/public/live/h5/liveCenter?pageNum=$page&pageSize=50&labelId=$labelId&merchantId=$merchantId&lang=ENU&t=${System.currentTimeMillis()}"
+        val labelId = if (request.data.isNullOrBlank() || request.data == "popular") "1" else request.data
+        val timestamp = System.currentTimeMillis() / 1000
+        val url = "$apiUrl/public/live/h5/liveCenter?pageNum=$page&pageSize=50&labelId=$labelId&merchantId=$merchantId&lang=ENU&t=$timestamp"
         
         val response = app.get(url).parsedSafe<LiveCenterResponse>()
         val items = response?.records?.map { item ->
@@ -33,7 +56,14 @@ class Hot51 : MainAPI() {
         return newHomePageResponse(HomePageList(request.name, items, (response?.current ?: 0) < (response?.pages ?: 0)))
     }
 
-    // ... (Main Page definition) ...
+    override val mainPage = mainPageOf(
+        "1" to "Popular",
+        "2" to "Toy",
+        "1583463376967712769" to "Show",
+        "1583464242682724353" to "Fun",
+        "1583463902190084098" to "Star",
+        "1751227074630479874" to "PK"
+    )
 
     // Data Classes
     data class LiveCenterResponse(

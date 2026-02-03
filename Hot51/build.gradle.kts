@@ -1,3 +1,5 @@
+version = 1
+
 android {
     namespace = "com.hot51"
     buildFeatures {
