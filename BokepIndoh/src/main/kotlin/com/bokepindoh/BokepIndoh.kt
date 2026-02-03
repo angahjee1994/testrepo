@@ -13,8 +13,7 @@ class BokepIndoh : MainAPI() {
     override val supportedTypes = setOf(TvType.NSFW)
 
     override val mainPage = mainPageOf(
-        "$mainUrl/category/bokep-indo/" to "Latest Updates",
-        "$mainUrl/category/bokep-jav/" to "Bokep Indo"
+        "$mainUrl/category/bokep-indo/" to "Bokep Indo"
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
