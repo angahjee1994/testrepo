@@ -9,7 +9,7 @@ class Hot51 : MainAPI() {
     override var name = "Hot51"
     override val hasMainPage = true
     override var lang = "id"
-    override val supportedTypes = setOf(TvType.Live)
+    override val supportedTypes = setOf(TvType.NSFW)
 
     // API Endpoints
     private val apiUrl = "https://api.fnccdn.com/501/api/plr/zbliv"
@@ -20,81 +20,30 @@ class Hot51 : MainAPI() {
         val url = "$apiUrl/public/live/h5/liveCenter?pageNum=$page&pageSize=50&labelId=$labelId&merchantId=$merchantId&lang=ENU&t=${System.currentTimeMillis()}"
         
         val response = app.get(url).parsedSafe<LiveCenterResponse>()
-        val items = response?.data?.records?.map { item ->
+        val items = response?.records?.map { item ->
             newMovieSearchResponse(
                 item.liveName ?: item.anchorNickname ?: "Unknown",
-                item.anchorId ?: "",
-                TvType.Live
+                item.anchorId ?: item.id ?: "",
+                TvType.NSFW
             ) {
                 this.posterUrl = item.coverUrl ?: item.avatar
             }
         } ?: emptyList()
 
-        return newHomePageResponse(HomePageList(request.name, items, (response?.data?.current ?: 0) < (response?.data?.pages ?: 0)))
+        return newHomePageResponse(HomePageList(request.name, items, (response?.current ?: 0) < (response?.pages ?: 0)))
     }
 
-    override val mainPage = mainPageOf(
-        "1" to "Popular",
-        "2" to "Toy",
-        "3" to "Show",
-        "8" to "Vietnam",
-        "9" to "Indonesia"
-    )
-
-    override suspend fun load(url: String): LoadResponse? {
-        val anchorId = url
-        
-        val infoUrl = "$apiUrl/h5/v3/public/live/room-info?merchantId=$merchantId&anchorId=$anchorId&roomType=1&t=${System.currentTimeMillis()}"
-        val response = app.get(infoUrl).parsedSafe<RoomInfoResponse>()
-        val data = response?.data ?: return null
-
-        return newMovieLoadResponse(
-            data.anchorNickname ?: "Live Stream",
-            anchorId,
-            TvType.Live,
-            anchorId // data passed to loadLinks
-        ) {
-            this.posterUrl = data.roomCover ?: data.avatar
-            this.plot = data.roomNotice
-            this.tags = listOfNotNull(data.area)
-        }
-    }
-
-    override suspend fun loadLinks(
-        data: String,
-        isCasting: Boolean,
-        subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
-    ): Boolean {
-        val anchorId = data
-        val infoUrl = "$apiUrl/h5/v3/public/live/room-info?merchantId=$merchantId&anchorId=$anchorId&roomType=1&t=${System.currentTimeMillis()}"
-        val response = app.get(infoUrl).parsedSafe<RoomInfoResponse>()
-        val streamUrl = response?.data?.pullUrl?.hls ?: response?.data?.pullUrl?.flv ?: return false
-
-        callback.invoke(
-            newExtractorLink(
-                this.name,
-                "HotLive11 HLS",
-                streamUrl,
-                ExtractorLinkType.M3U8
-            )
-        )
-        return true
-    }
+    // ... (Main Page definition) ...
 
     // Data Classes
     data class LiveCenterResponse(
-        @JsonProperty("code") val code: Int?,
-        @JsonProperty("data") val data: LiveCenterData?
-    )
-
-    data class LiveCenterData(
         @JsonProperty("records") val records: List<LiveRecord>?,
         @JsonProperty("current") val current: Int?,
         @JsonProperty("pages") val pages: Int?
     )
 
     data class LiveRecord(
+        @JsonProperty("id") val id: String?,
         @JsonProperty("anchorId") val anchorId: String?,
         @JsonProperty("anchorNickname") val anchorNickname: String?,
         @JsonProperty("liveName") val liveName: String?,

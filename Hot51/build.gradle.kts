@@ -15,6 +15,6 @@ cloudstream {
     language = "id"
     authors = listOf("botol")
     status = 3
-    tvTypes = listOf("Live")
-    iconUrl = "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/HotLive11/logo.png"
+    tvTypes = listOf("NSFW")
+    iconUrl = "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/Hot51/logo.png"
 }
