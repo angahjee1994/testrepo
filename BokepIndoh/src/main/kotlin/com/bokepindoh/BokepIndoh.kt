@@ -85,10 +85,28 @@ class BokepIndoh : MainAPI() {
             
             for (script in scripts) {
                 val content = script.html()
-                val match = videoRegex.find(content)
+                
+                // 1. Try direct match
+                var match = videoRegex.find(content)
                 if (match != null) {
                     videoUrl = match.value
                     break
+                }
+                
+                // 2. Try unpacking if packed
+                if (content.contains("eval(function(p,a,c,k,e,d)")) {
+                    try {
+                        val unpacked = getPacked(content)
+                        if (unpacked != null) {
+                            match = videoRegex.find(unpacked)
+                            if (match != null) {
+                                videoUrl = match.value
+                                break
+                            }
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
                 }
             }
             
