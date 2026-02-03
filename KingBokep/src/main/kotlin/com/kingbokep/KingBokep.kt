@@ -74,11 +74,14 @@ class KingBokep : MainAPI() {
                 val json = AppUtils.parseJson<LdJsonVideo>(ldJsonScript)
                 title = json.name
                 description = json.description
-                poster = json.thumbnailUrl?.firstOrNull() ?: json.thumbnailUrl.toString()
+                poster = when (val thumb = json.thumbnailUrl) {
+                    is String -> thumb
+                    is List<*> -> thumb.firstOrNull()?.toString()
+                    else -> null
+                }
                 duration = json.duration
                 tags = json.keywords?.split(",")?.map { it.trim() } ?: emptyList()
             } catch (e: Exception) {
-
                 e.printStackTrace()
             }
         }
@@ -122,6 +125,7 @@ class KingBokep : MainAPI() {
                         m3u8Url,
                         ExtractorLinkType.M3U8
                     ) {
+                        this.referer = "$mainUrl/"
                         this.quality = getQualityFromName("HD")
                     }
                 )
@@ -137,7 +141,7 @@ class KingBokep : MainAPI() {
     data class LdJsonVideo(
         @JsonProperty("name") val name: String?,
         @JsonProperty("description") val description: String?,
-        @JsonProperty("thumbnailUrl") val thumbnailUrl: List<String>?,
+        @JsonProperty("thumbnailUrl") val thumbnailUrl: Any?,
         @JsonProperty("contentUrl") val contentUrl: String?,
         @JsonProperty("duration") val duration: String?,
         @JsonProperty("keywords") val keywords: String?
