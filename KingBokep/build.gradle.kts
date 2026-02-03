@@ -19,5 +19,5 @@ cloudstream {
     status = 3 // will be 3 if unspecified
     tvTypes = listOf("NSFW")
 
-    // iconUrl = "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/KingBokep/logo.png" 
+    iconUrl = "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/KingBokep/logo.png" 
 }
