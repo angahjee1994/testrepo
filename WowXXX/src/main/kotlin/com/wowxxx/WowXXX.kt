@@ -17,8 +17,18 @@ class WowXXX : MainAPI() {
 
     override val mainPage = mainPageOf(
         "$mainUrl/" to "Latest Videos",
-        "$mainUrl/best/" to "Best Videos",
-        "$mainUrl/search/asian/" to "Asian"
+        "$mainUrl/networks/brazzers-com/" to "Brazzers",
+        "$mainUrl/networks/mylf-com/" to "MYLF",
+        "$mainUrl/networks/tushy-com/" to "TUSHY",
+        "$mainUrl/networks/blacked/" to "BLACKED",
+        "$mainUrl/networks/adult-time/" to "Adult Time",
+        "$mainUrl/networks/teamskeet-com/" to "Team Skeet",
+        "$mainUrl/networks/kink-com/" to "Kink",
+        "$mainUrl/networks/nubiles-porn-com/" to "Nubiles Porn",
+        "$mainUrl/networks/fakehub/" to "FakeHub",
+        "$mainUrl/networks/oldje-com/" to "Oldje",
+        "$mainUrl/networks/pornforce/" to "PornForce",
+        "$mainUrl/networks/bangbros/" to "Bangbros"
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
@@ -50,33 +60,30 @@ class WowXXX : MainAPI() {
     override suspend fun load(url: String): LoadResponse? {
         val document = app.get(url).document
 
-        // Poster Logic: 1. LD-JSON 2. og:image 3. Fallback
-        var poster: String? = null
-        var description: String? = null
-        var title = "Unknown"
+        // Prioritize OG:Image as it is the most reliable (LD-JSON thumbnail often broken)
+        var poster: String? = document.selectFirst("meta[property=og:image]")?.attr("content")
+        var title = document.selectFirst("h1")?.text()?.trim() ?: "Unknown"
+        var description = document.selectFirst("meta[name=description]")?.attr("content")
         var duration: Int? = null
 
-         // Try LD-JSON first
+         // Parse LD-JSON for additional metadata (Title, Desc, Duration)
         val ldJsonScripts = document.select("script[type=application/ld+json]")
         for (script in ldJsonScripts) {
             try {
                 if (script.data().contains("VideoObject")) {
                     val json = AppUtils.parseJson<LdJsonVideo>(script.data())
                     title = json.name ?: title
-                    poster = json.thumbnailUrl
-                    description = json.description
+                    description = json.description ?: description
                     duration = getDurationFromString(json.duration)
-                    // No score mapping due to semantic mismatch
+                    // Only use JSON thumbnail if we still don't have one
+                    if (poster.isNullOrEmpty()) {
+                        poster = json.thumbnailUrl
+                    }
                 }
             } catch (e: Exception) {
                 // Ignore
             }
         }
-
-        // Fallback to CSS if LD-JSON failed or missed data
-        if (title == "Unknown") title = document.selectFirst("h1")?.text()?.trim() ?: "Unknown"
-        if (poster.isNullOrEmpty()) poster = document.selectFirst("meta[property=og:image]")?.attr("content")
-        if (description.isNullOrEmpty()) description = document.selectFirst("meta[name=description]")?.attr("content")
 
         val tags = document.select("a.btn_tag").map { it.text().trim() }
         val actors = document.select("a.btn_model").map { 
