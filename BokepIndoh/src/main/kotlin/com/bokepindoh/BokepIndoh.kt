@@ -57,10 +57,10 @@ class BokepIndoh : MainAPI() {
         
         val tags = document.select(".post-tags a").map { it.text() }
         val recommendations = document.select(".related-posts article").mapNotNull { it.toSearchResult() }
-
+        // Find Luluvid or Bebasnonton Iframe
         val iframeSrc = document.select("iframe").firstNotNullOfOrNull { 
             val src = it.attr("src")
-            if (src.contains("luluvid", ignoreCase = true)) src else null 
+            if (src.contains("luluvid", ignoreCase = true) || src.contains("bebasnonton", ignoreCase = true)) src else null 
         }
 
         if (iframeSrc == null) return null
@@ -78,27 +78,31 @@ class BokepIndoh : MainAPI() {
         try {
             val document = app.get(data).document
             
-            var m3u8Url: String? = null
+            var videoUrl: String? = null
             
             val scripts = document.select("script")
-            val m3u8Regex = """https?://[^"']+\.m3u8[^"']*""".toRegex()
+            // Regex to match .m3u8 or .mp4 links
+            val videoRegex = """https?://[^"']+\.(m3u8|mp4)[^"']*""".toRegex()
             
             for (script in scripts) {
                 val content = script.html()
-                val match = m3u8Regex.find(content)
+                val match = videoRegex.find(content)
                 if (match != null) {
-                    m3u8Url = match.value
+                    videoUrl = match.value
                     break
                 }
             }
             
-            if (m3u8Url != null) {
+            if (videoUrl != null) {
+                val name = if (data.contains("luluvid")) "LuluStream" else "BebasNonton"
+                val type = if (videoUrl.contains(".m3u8")) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
+                
                  callback.invoke(
                     newExtractorLink(
+                        this.name,
                         name,
-                        "LuluStream",
-                        m3u8Url,
-                        ExtractorLinkType.M3U8
+                        videoUrl,
+                        type
                     ) {
                         this.referer = data
                         this.quality = getQualityFromName("HD")
