@@ -18,12 +18,13 @@ class BokepIndoh : MainAPI() {
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val url = if (page == 1) request.data else "${request.data}page/$page/"
+        val url = if (page == 1) request.data else "${request.data.removeSuffix("/")}/page/$page/"
         val document = app.get(url).document
         
+        // Select articles from the list
         val home = document.select(".videos-list article").mapNotNull { it.toSearchResult() }
         
-        return newHomePageResponse(HomePageList(request.name, home, true))
+        return newHomePageResponse(HomePageList(request.name, home, home.isNotEmpty()))
     }
 
     private fun Element.toSearchResult(): SearchResponse? {
