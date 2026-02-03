@@ -103,9 +103,9 @@ class BokepIndoh : MainAPI() {
                             videoUrl = match.value.replace("\\/", "/")
                             break
                         }
-                    } catch (e: Exception) {
-                        e.printStackTrace()
                     }
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
             }
             
@@ -131,5 +131,11 @@ class BokepIndoh : MainAPI() {
             e.printStackTrace()
         }
         return false
+    }
+
+    private fun getPacked(script: String): String? {
+        val trimmed = script.trim()
+        if (!trimmed.contains("eval(function(p,a,c,k,e,d)")) return null
+        return JsUnpacker.unpackAndCombine(trimmed)
     }
 }
