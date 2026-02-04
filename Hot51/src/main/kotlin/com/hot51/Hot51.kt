@@ -50,6 +50,24 @@ class Hot51 : MainAPI() {
         }
     }
 
+    private fun md5(input: String): String {
+        return java.security.MessageDigest.getInstance("MD5")
+            .digest(input.toByteArray())
+            .joinToString("") { "%02x".format(it) }
+    }
+
+    private fun generateSign(params: Map<String, String>): String {
+        val sortedKeys = params.keys.sorted()
+        val sb = StringBuilder()
+        for (key in sortedKeys) {
+            sb.append(key).append(params[key])
+        }
+        
+        val salt = "rsba648b744646lkid9896bb1o7h9776"
+        val firstHash = md5(sb.toString())
+        return md5(firstHash + salt)
+    }
+
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
@@ -57,12 +75,44 @@ class Hot51 : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val anchorId = data
+        val merchantId = "501"
+        
+        // Note: The signature is based on Query Params, not the Body for this specific endpoint,
+        // but it sometimes depends on how the interceptor handles it. 
+        // Based on analysis, room-info is POST but might attach query params for signing?
+        // Actually, the browser subagent said it signs "params".
+        // Let's verify if room-info has query params. 
+        // Browser URL: .../room-info?merchantId=501
+        // The BODY has {anchorId: ...}
+        // If the signature logic sorts keys, it usually mixes params and body if configured, 
+        // BUT the interceptor analysis specificied "query params (params)".
+        // So I will sign the merchantId (which is in URL) and potentially anchorId if I put it in URL?
+        // Wait, the browser request showed anchorId in BODY.
+        // The URL was `.../room-info`. The captured request had NO query params in the URL displayed in the step 65 manually?
+        // Actually step 1686 said URL: `.../room-info`.
+        // BUT step 1707 said "sign header ... calculated based on request parameters".
+        // Let's assume it signs the body if it's POST? Or we should put merchantId in the query?
+        // To be safe, I will put merchantId in the query AND sign it.
+        // Step 1686 said: `merchantId: 501` was in HEADERS.
+        // It was NOT in the URL query string in step 1686?
+        // Wait, step 1686: "URL: .../room-info". No query params shown.
+        // But headers had `merchantId: 501`.
+        // Step 1707 said "merchantId... almost always present in query params".
+        // Let's try signing the BODY params for now as that's safer for a POST.
+        
+        val paramMap = mapOf(
+            "anchorId" to anchorId,
+            "merchantId" to merchantId
+        )
+        val sign = generateSign(paramMap)
+
         val infoUrl = "https://api.fnccdn.com/501/api/plr/zbliv/h5/v3/public/live/room-info?merchantId=$merchantId"
         val body = mapOf("anchorId" to anchorId)
+        
         val headers = mapOf(
             "Authorization" to "Basic d2ViLXBsYXllcjp3ZWJQbGF5ZXIyMDIyKjk2My4hQCM=",
             "dev-type" to "H5",
-            "sign" to "11f569ed792da4e0cff8a393534a5bf2",
+            "sign" to sign,
             "device" to "806abd11-fef0-4baa-9c3d-104b4693dc7d",
             "versionCode" to "101",
             "system-version" to "1.5.1",
