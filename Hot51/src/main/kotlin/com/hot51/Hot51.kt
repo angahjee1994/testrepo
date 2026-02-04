@@ -24,13 +24,13 @@ class Hot51 : MainAPI() {
     private val decryptIv = "0102030405060708"
 
     override suspend fun load(url: String): LoadResponse {
-        val (rawId, title, poster) = url.split(";", limit = 3) + listOf("", "", "")
+        val (rawId, title, poster, area) = url.split(";", limit = 4) + listOf("", "", "", "MY")
         val id = rawId.substringAfterLast("/").substringBefore("?") // Ensure we get only the numeric ID
         
         return newLiveStreamLoadResponse(
             name = title.ifEmpty { "Live Stream" },
             url = id,
-            dataUrl = id
+            dataUrl = "$id;$area"
         ) {
             this.posterUrl = poster
         }
@@ -75,7 +75,7 @@ class Hot51 : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val anchorId = data
+        val (anchorId, area) = data.split(";", limit = 2) + listOf("", "MY")
         val merchantId = "501"
         
         val paramMap = mapOf(
@@ -95,10 +95,11 @@ class Hot51 : MainAPI() {
             "versionCode" to "101",
             "system-version" to "1.5.1",
             "time-zone" to "GMT+08:00",
-            "Content-Type" to "application/json",
+            "Content-Type" to "application/json; charset=utf-8",
             "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
             "Origin" to "https://hotlive11.com",
-            "Referer" to "https://hotlive11.com/"
+            "Referer" to "https://hotlive11.com/",
+            "area" to area
         )
         
         val response = app.post(infoUrl, headers = headers, json = body).parsedSafe<RoomInfoResponse>()
@@ -143,7 +144,7 @@ class Hot51 : MainAPI() {
             
             newMovieSearchResponse(
                 title,
-                "$id;$title;$poster",
+                "$id;$title;$poster;$area",
                 TvType.NSFW
             ) {
                 this.posterUrl = poster
