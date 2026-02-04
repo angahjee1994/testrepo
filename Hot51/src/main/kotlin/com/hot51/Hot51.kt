@@ -98,14 +98,22 @@ class Hot51 : MainAPI() {
             "Content-Type" to "application/json"
         )
         
-        val response = app.post(infoUrl, headers = headers, json = body).parsedSafe<RoomInfoResponse>()
+        val responseText = app.post(infoUrl, headers = headers, json = body).text
+        val response = try {
+            AppUtils.parseJson<RoomInfoResponse>(responseText)
+        } catch (e: Exception) {
+            throw Error("Failed to parse: $responseText")
+        }
         
         // Try all possible sources: HLS, FLV, pullAddr, decrypted unlDefPa, or plain raw unlDefPa
         val streamUrl = response?.data?.pullUrl?.hls ?: response?.data?.pullUrl?.flv 
             ?: response?.data?.pullAddr
             ?: response?.data?.unlDefPa?.let { decrypt(it) }
-            ?: return false
             
+        if (streamUrl == null) {
+            throw Error("No link found. Server said: $responseText")
+        }
+
         callback(
             newExtractorLink(
                 this.name,
