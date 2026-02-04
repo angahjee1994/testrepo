@@ -183,8 +183,13 @@ class Hot51 : MainAPI() {
             val id = item.anchorId ?: item.id ?: ""
             val poster = item.coverUrl ?: item.avatar ?: ""
             
-            // Generate a valid URL with parameters for load() to parse
-            val roomUrl = "$apiUrl/room?anchorId=$id&area=$area&title=$title&poster=$poster"
+            // Generate a valid URL with encoded parameters for load() to parse
+            val encodedId = java.net.URLEncoder.encode(id, "UTF-8")
+            val encodedArea = java.net.URLEncoder.encode(area, "UTF-8")
+            val encodedTitle = java.net.URLEncoder.encode(title, "UTF-8")
+            val encodedPoster = java.net.URLEncoder.encode(poster, "UTF-8")
+            
+            val roomUrl = "$apiUrl/room?anchorId=$encodedId&area=$encodedArea&title=$encodedTitle&poster=$encodedPoster"
 
             newMovieSearchResponse(
                 title,
@@ -203,46 +208,46 @@ class Hot51 : MainAPI() {
         "ID" to "Indonesia",
         "VN" to "Vietnam"
     )
-
-    // Data Classes
-    data class LiveCenterResponse(
-        @JsonProperty("records") val records: List<LiveRecord>?,
-        @JsonProperty("current") val current: Int?,
-        @JsonProperty("pages") val pages: Int?
-    )
-
-    data class LiveRecord(
-        @JsonProperty("id") val id: String?,
-        @JsonProperty("anchorId") val anchorId: String?,
-        @JsonProperty("anchorNickname") val anchorNickname: String?,
-        @JsonProperty("liveName") val liveName: String?,
-        @JsonProperty("coverUrl") val coverUrl: String?,
-        @JsonProperty("avatar") val avatar: String?
-    )
-
-    data class RoomInfoResponse(
-        @JsonProperty("code") val code: Int?,
-        @JsonProperty("data") val data: RoomData?
-    )
-
-    data class RoomData(
-        @JsonProperty("anchorNickname") val anchorNickname: String?,
-        @JsonProperty("roomCover") val roomCover: String?,
-        @JsonProperty("avatar") val avatar: String?,
-        @JsonProperty("roomNotice") val roomNotice: String?,
-        @JsonProperty("area") val area: String?,
-        @JsonProperty("pullAddr") val pullAddr: String?,
-        @JsonProperty("unlDefPa") val unlDefPa: String?,
-        @JsonProperty("unlLowPa") val unlLowPa: String?,
-        @JsonProperty("pullUrl") val pullUrl: PullUrl? 
-    )
-
-    data class PullUrl(
-        @JsonProperty("hls") val hls: String?,
-        @JsonProperty("flv") val flv: String?
-    )
-    data class LinkData(
-        @JsonProperty("anchorId") val anchorId: String,
-        @JsonProperty("area") val area: String
-    )
 }
+
+// Data Classes
+data class LiveCenterResponse(
+    @JsonProperty("records") val records: List<LiveRecord>?,
+    @JsonProperty("current") val current: Int?,
+    @JsonProperty("pages") val pages: Int?
+)
+
+data class LiveRecord(
+    @JsonProperty("id") val id: String?,
+    @JsonProperty("anchorId") val anchorId: String?,
+    @JsonProperty("anchorNickname") val anchorNickname: String?,
+    @JsonProperty("liveName") val liveName: String?,
+    @JsonProperty("coverUrl") val coverUrl: String?,
+    @JsonProperty("avatar") val avatar: String?
+)
+
+data class RoomInfoResponse(
+    @JsonProperty("code") val code: Int?,
+    @JsonProperty("data") val data: RoomData?
+)
+
+data class RoomData(
+    @JsonProperty("anchorNickname") val anchorNickname: String?,
+    @JsonProperty("roomCover") val roomCover: String?,
+    @JsonProperty("avatar") val avatar: String?,
+    @JsonProperty("roomNotice") val roomNotice: String?,
+    @JsonProperty("area") val area: String?,
+    @JsonProperty("pullAddr") val pullAddr: String?,
+    @JsonProperty("unlDefPa") val unlDefPa: String?,
+    @JsonProperty("unlLowPa") val unlLowPa: String?,
+    @JsonProperty("pullUrl") val pullUrl: PullUrl? 
+)
+
+data class PullUrl(
+    @JsonProperty("hls") val hls: String?,
+    @JsonProperty("flv") val flv: String?
+)
+data class LinkData(
+    @JsonProperty("anchorId") val anchorId: String,
+    @JsonProperty("area") val area: String
+)
