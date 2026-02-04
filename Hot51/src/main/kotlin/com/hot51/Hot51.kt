@@ -90,6 +90,7 @@ class Hot51 : MainAPI() {
             "Authorization" to "Basic d2ViLXBsYXllcjp3ZWJQbGF5ZXIyMDIyKjk2My4hQCM=",
             "dev-type" to "H5",
             "sign" to sign,
+            "merchantId" to merchantId,
             "device" to "806abd11-fef0-4baa-9c3d-104b4693dc7d",
             "versionCode" to "101",
             "system-version" to "1.5.1",
