@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.hot51
 
 import com.lagradost.cloudstream3.*
@@ -46,8 +48,25 @@ class Hot51 : MainAPI() {
             val decryptedBytes = cipher.doFinal(decodedBytes)
             return String(decryptedBytes, Charsets.UTF_8)
         } catch (e: Exception) {
+            // Log error to be visible in the main loop if needed, or just return null
+            // We will modify loadLinks to expect potential failures
             e.printStackTrace()
             return null
+        }
+    }
+
+    // Diagnostic version of decrypt
+    private fun decryptDebug(encrypted: String): String {
+        try {
+            val keySpec = SecretKeySpec(decryptKey.toByteArray(Charsets.UTF_8), "AES")
+            val ivSpec = IvParameterSpec(decryptIv.toByteArray(Charsets.UTF_8))
+            val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
+            cipher.init(Cipher.DECRYPT_MODE, keySpec, ivSpec)
+            val decodedBytes = android.util.Base64.decode(encrypted, android.util.Base64.DEFAULT)
+            val decryptedBytes = cipher.doFinal(decodedBytes)
+            return String(decryptedBytes, Charsets.UTF_8)
+        } catch (e: Exception) {
+            return "Error: ${e.message}"
         }
     }
 
@@ -69,13 +88,16 @@ class Hot51 : MainAPI() {
         return md5(firstHash + salt)
     }
 
+    @Suppress("DEPRECATION")
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val (anchorId, area) = data.split(";", limit = 2) + listOf("", "MY")
+        val linkData = AppUtils.parseJson<LinkData>(data)
+        val anchorId = linkData.anchorId
+        val area = linkData.area
         val merchantId = "501"
         
         val paramMap = mapOf(
@@ -107,22 +129,38 @@ class Hot51 : MainAPI() {
         
         val response = app.post(infoUrl, headers = headers, json = body).parsedSafe<RoomInfoResponse>()
         
-        // Try all possible sources: HLS, FLV, pullAddr, decrypted unlDefPa, or plain raw unlDefPa
-        val streamUrl = response?.data?.pullUrl?.hls ?: response?.data?.pullUrl?.flv 
+        // Try all possible sources: HLS, FLV, pullAddr, decrypted unlDefPa, or unlLowPa
+        var streamUrl = response?.data?.pullUrl?.hls ?: response?.data?.pullUrl?.flv 
             ?: response?.data?.pullAddr
             ?: response?.data?.unlDefPa?.let { decrypt(it) }
-            
+            ?: response?.data?.unlLowPa?.let { decrypt(it) }
+
+        // Sanitize: If streamUrl is just a path, it might need a domain? 
+        // Usually these are full URLs. If it starts with error, clear it.
+        
         if (streamUrl == null) {
-            throw Error("No link. Body: $body. Data: ${response?.data}")
+            // Debugging: Try to see WHY decryption failed
+            val debugDef = response?.data?.unlDefPa?.let { decryptDebug(it) } ?: "N/A"
+            val debugLow = response?.data?.unlLowPa?.let { decryptDebug(it) } ?: "N/A"
+            throw Error("No link. Decrypt errors: Def=$debugDef, Low=$debugLow. Body: $body. Data: ${response?.data}")
+        }
+        
+        // If it was a debug error message (shouldn't happen with decrypt(), but checking)
+        if (streamUrl.startsWith("Error:")) {
+             throw Error("Decryption failed: $streamUrl")
         }
 
+        @Suppress("DEPRECATION")
         callback(
             newExtractorLink(
-                this.name,
-                this.name,
+                "Hot51",
+                "Hot51 Live",
                 streamUrl,
                 ExtractorLinkType.M3U8
-            )
+            ) {
+                this.referer = "https://hotlive11.com/"
+                this.quality = getQualityFromName("HD")
+            }
         )
         return true
     }
@@ -145,9 +183,12 @@ class Hot51 : MainAPI() {
             val id = item.anchorId ?: item.id ?: ""
             val poster = item.coverUrl ?: item.avatar ?: ""
             
+            // Generate a valid URL with parameters for load() to parse
+            val roomUrl = "$apiUrl/room?anchorId=$id&area=$area&title=$title&poster=$poster"
+
             newMovieSearchResponse(
                 title,
-                "$id;$title;$poster;$area",
+                roomUrl,
                 TvType.NSFW
             ) {
                 this.posterUrl = poster
@@ -192,11 +233,16 @@ class Hot51 : MainAPI() {
         @JsonProperty("area") val area: String?,
         @JsonProperty("pullAddr") val pullAddr: String?,
         @JsonProperty("unlDefPa") val unlDefPa: String?,
+        @JsonProperty("unlLowPa") val unlLowPa: String?,
         @JsonProperty("pullUrl") val pullUrl: PullUrl? 
     )
 
     data class PullUrl(
         @JsonProperty("hls") val hls: String?,
         @JsonProperty("flv") val flv: String?
+    )
+    data class LinkData(
+        @JsonProperty("anchorId") val anchorId: String,
+        @JsonProperty("area") val area: String
     )
 }
