@@ -89,7 +89,7 @@ class Hot51 : MainAPI() {
         val headers = mapOf(
             "Authorization" to "Basic d2ViLXBsYXllcjp3ZWJQbGF5ZXIyMDIyKjk2My4hQCM=",
             "dev-type" to "H5",
-            "sign" to sign,
+            "sign" to "11f569ed792da4e0cff8a393534a5bf2",
             "merchantId" to merchantId,
             "device" to "806abd11-fef0-4baa-9c3d-104b4693dc7d",
             "versionCode" to "101",
