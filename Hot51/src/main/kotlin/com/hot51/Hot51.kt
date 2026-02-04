@@ -10,6 +10,7 @@ import com.fasterxml.jackson.annotation.JsonProperty
 import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
+import android.util.Log
 
 class Hot51 : MainAPI() {
     override var mainUrl = "https://hotlive11.com"
@@ -29,7 +30,18 @@ class Hot51 : MainAPI() {
     override suspend fun load(url: String): LoadResponse {
         // Parse parameters from the URL generated in getMainPage
         val uri = java.net.URI(url)
-        val params = uri.query.split("&").associate {
+        val query = uri.query
+        if (query.isNullOrEmpty()) {
+             // Fallback or throw? If handled upstream, maybe just empty map?
+             // But the stack trace shows it's critical. 
+             // We can return early or use empty params.
+             // But existing code uses 'id' from params.
+             // If query is null, anchorId is missing.
+             // Maybe parse 'data' if passed? 
+             // For now, let's just make it safe and let later checks fail if needed.
+        }
+        val safeQuery = query ?: ""
+        val params = safeQuery.split("&").filter { it.contains("=") }.associate {
             val (key, value) = it.split("=", limit = 2)
             key to java.net.URLDecoder.decode(value, "UTF-8")
         }
@@ -51,7 +63,8 @@ class Hot51 : MainAPI() {
         }
     }
 
-    private fun decrypt(encrypted: String): String? {
+    private fun decrypt(encrypted: String?): String? {
+        if (encrypted.isNullOrEmpty()) return null
         try {
             val keySpec = SecretKeySpec(decryptKey.toByteArray(Charsets.UTF_8), "AES")
             val ivSpec = IvParameterSpec(decryptIv.toByteArray(Charsets.UTF_8))
@@ -61,11 +74,23 @@ class Hot51 : MainAPI() {
             val decryptedBytes = cipher.doFinal(decodedBytes)
             return String(decryptedBytes, Charsets.UTF_8)
         } catch (e: Exception) {
-            // Log error to be visible in the main loop if needed, or just return null
-            // We will modify loadLinks to expect potential failures
-            e.printStackTrace()
-            return null
+            Log.e("Hot51", "Decrypt attempt 1 failed: ${e.message}")
         }
+        
+        // Try IV = Key as fallback
+        try {
+            val keySpec = SecretKeySpec(decryptKey.toByteArray(Charsets.UTF_8), "AES")
+            val ivSpec = IvParameterSpec(decryptKey.toByteArray(Charsets.UTF_8))
+            val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
+            cipher.init(Cipher.DECRYPT_MODE, keySpec, ivSpec)
+            val decodedBytes = android.util.Base64.decode(encrypted, android.util.Base64.DEFAULT)
+            val decryptedBytes = cipher.doFinal(decodedBytes)
+            Log.d("Hot51", "Decrypt success with IV=Key")
+            return String(decryptedBytes, Charsets.UTF_8)
+        } catch (e: Exception) {
+            Log.e("Hot51", "Decrypt attempt 2 failed: ${e.message}")
+        }
+        return null
     }
 
     // Diagnostic version of decrypt
