@@ -61,7 +61,7 @@ class Hot51 : MainAPI() {
         val sortedKeys = params.keys.sorted()
         val sb = StringBuilder()
         for (key in sortedKeys) {
-            sb.append(key).append(params[key])
+            sb.append(key).append("=").append(params[key])
         }
         
         val salt = "rsba648b744646lkid9896bb1o7h9776"
