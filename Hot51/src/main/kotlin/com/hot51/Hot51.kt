@@ -4,6 +4,7 @@ package com.hot51
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
+import com.lagradost.cloudstream3.utils.AppUtils.toJson
 import com.fasterxml.jackson.annotation.JsonProperty
 
 import javax.crypto.Cipher
@@ -26,13 +27,25 @@ class Hot51 : MainAPI() {
     private val decryptIv = "0102030405060708"
 
     override suspend fun load(url: String): LoadResponse {
-        val (rawId, title, poster, area) = url.split(";", limit = 4) + listOf("", "", "", "MY")
-        val id = rawId.substringAfterLast("/").substringBefore("?") // Ensure we get only the numeric ID
+        // Parse parameters from the URL generated in getMainPage
+        val uri = java.net.URI(url)
+        val params = uri.query.split("&").associate {
+            val (key, value) = it.split("=", limit = 2)
+            key to java.net.URLDecoder.decode(value, "UTF-8")
+        }
         
+        val id = params["anchorId"] ?: ""
+        val title = params["title"] ?: "Live Stream"
+        val poster = params["poster"] ?: ""
+        val area = params["area"] ?: "MY"
+        
+        // Pass JSON data to loadLinks
+        val dataUrl = LinkData(id, area).toJson()
+
         return newLiveStreamLoadResponse(
-            name = title.ifEmpty { "Live Stream" },
-            url = id,
-            dataUrl = "$id;$area"
+            name = title,
+            url = id, // explicit anchorId
+            dataUrl = dataUrl 
         ) {
             this.posterUrl = poster
         }
