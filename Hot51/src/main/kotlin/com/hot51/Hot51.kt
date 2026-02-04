@@ -23,9 +23,13 @@ class Hot51 : MainAPI() {
     private val apiUrl = "https://api.fnccdn.com/501/api/plr/h5/v3"
     private val merchantId = "501"
     
-    // Decryption Constants
-    private val decryptKey = "1558668820991598"
-    private val decryptIv = "0102030405060708"
+    // Decryption Constants (Old/Common)
+    private val decryptKeyOld = "1558668820991598"
+    private val decryptIvOld = "0102030405060708"
+    
+    // Decryption Constants (New/Room Specific)
+    private val decryptKeyNew = "star@livega*963."
+    private val decryptIvNew = "0608040307010502"
 
     override suspend fun load(url: String): LoadResponse {
         // Parse parameters from the URL generated in getMainPage
@@ -65,47 +69,37 @@ class Hot51 : MainAPI() {
 
     private fun decrypt(encrypted: String?): String? {
         if (encrypted.isNullOrEmpty()) return null
-        try {
-            val keySpec = SecretKeySpec(decryptKey.toByteArray(Charsets.UTF_8), "AES")
-            val ivSpec = IvParameterSpec(decryptIv.toByteArray(Charsets.UTF_8))
-            val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
-            cipher.init(Cipher.DECRYPT_MODE, keySpec, ivSpec)
-            val decodedBytes = android.util.Base64.decode(encrypted, android.util.Base64.DEFAULT)
-            val decryptedBytes = cipher.doFinal(decodedBytes)
-            return String(decryptedBytes, Charsets.UTF_8)
-        } catch (e: Exception) {
-            Log.e("Hot51", "Decrypt attempt 1 failed: ${e.message}")
-        }
         
-        // Try IV = Key as fallback
-        try {
-            val keySpec = SecretKeySpec(decryptKey.toByteArray(Charsets.UTF_8), "AES")
-            val ivSpec = IvParameterSpec(decryptKey.toByteArray(Charsets.UTF_8))
-            val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
-            cipher.init(Cipher.DECRYPT_MODE, keySpec, ivSpec)
-            val decodedBytes = android.util.Base64.decode(encrypted, android.util.Base64.DEFAULT)
-            val decryptedBytes = cipher.doFinal(decodedBytes)
-            Log.d("Hot51", "Decrypt success with IV=Key")
-            return String(decryptedBytes, Charsets.UTF_8)
-        } catch (e: Exception) {
-            Log.e("Hot51", "Decrypt attempt 2 failed: ${e.message}")
+        val combinations = listOf(
+            decryptKeyNew to decryptIvNew,
+            decryptKeyOld to decryptIvOld,
+            decryptKeyOld to decryptKeyOld // IV = Key fallback
+        )
+        
+        for ((idx, combo) in combinations.withIndex()) {
+            val (key, iv) = combo
+            try {
+                val keySpec = SecretKeySpec(key.toByteArray(Charsets.UTF_8), "AES")
+                val ivSpec = IvParameterSpec(iv.toByteArray(Charsets.UTF_8))
+                val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
+                cipher.init(Cipher.DECRYPT_MODE, keySpec, ivSpec)
+                val decodedBytes = android.util.Base64.decode(encrypted, android.util.Base64.DEFAULT)
+                val decryptedBytes = cipher.doFinal(decodedBytes)
+                val result = String(decryptedBytes, Charsets.UTF_8).trim()
+                if (result.isNotEmpty()) {
+                    Log.d("Hot51", "Decrypt success with combo ${idx + 1}")
+                    return result
+                }
+            } catch (e: Exception) {
+                Log.e("Hot51", "Decrypt attempt ${idx + 1} failed: ${e.message}")
+            }
         }
         return null
     }
 
     // Diagnostic version of decrypt
     private fun decryptDebug(encrypted: String): String {
-        try {
-            val keySpec = SecretKeySpec(decryptKey.toByteArray(Charsets.UTF_8), "AES")
-            val ivSpec = IvParameterSpec(decryptIv.toByteArray(Charsets.UTF_8))
-            val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
-            cipher.init(Cipher.DECRYPT_MODE, keySpec, ivSpec)
-            val decodedBytes = android.util.Base64.decode(encrypted, android.util.Base64.DEFAULT)
-            val decryptedBytes = cipher.doFinal(decodedBytes)
-            return String(decryptedBytes, Charsets.UTF_8)
-        } catch (e: Exception) {
-            return "Error: ${e.message}"
-        }
+         return decrypt(encrypted) ?: "Decryption Failed"
     }
 
     private fun md5(input: String): String {
