@@ -33,9 +33,9 @@ class Hot51 : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val anchorId = data
-        val timestamp = System.currentTimeMillis() / 1000
-        val infoUrl = "$apiUrl/h5/v3/public/live/room-info?merchantId=$merchantId&anchorId=$anchorId&roomType=1&t=$timestamp"
-        val response = app.get(infoUrl).parsedSafe<RoomInfoResponse>()
+        val infoUrl = "$apiUrl/public/live/room-info?merchantId=$merchantId"
+        val body = mapOf("anchorId" to anchorId)
+        val response = app.post(infoUrl, json = body).parsedSafe<RoomInfoResponse>()
         val streamUrl = response?.data?.pullUrl?.hls ?: response?.data?.pullUrl?.flv ?: return false
         callback(
             newExtractorLink(
