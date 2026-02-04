@@ -95,7 +95,10 @@ class Hot51 : MainAPI() {
             "versionCode" to "101",
             "system-version" to "1.5.1",
             "time-zone" to "GMT+08:00",
-            "Content-Type" to "application/json"
+            "Content-Type" to "application/json",
+            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
+            "Origin" to "https://hotlive11.com",
+            "Referer" to "https://hotlive11.com/"
         )
         
         val response = app.post(infoUrl, headers = headers, json = body).parsedSafe<RoomInfoResponse>()
