@@ -25,7 +25,7 @@ class Hot51 : MainAPI() {
 
     override suspend fun load(url: String): LoadResponse {
         val (rawId, title, poster) = url.split(";", limit = 3) + listOf("", "", "")
-        val id = rawId.substringAfterLast("/") // Ensure we get only the numeric ID
+        val id = rawId.substringAfterLast("/").substringBefore("?") // Ensure we get only the numeric ID
         
         return newLiveStreamLoadResponse(
             name = title.ifEmpty { "Live Stream" },
