@@ -4,16 +4,24 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.fasterxml.jackson.annotation.JsonProperty
 
+import javax.crypto.Cipher
+import javax.crypto.spec.IvParameterSpec
+import javax.crypto.spec.SecretKeySpec
+
 class Hot51 : MainAPI() {
     override var mainUrl = "https://hotlive11.com"
     override var name = "Hot51"
     override val hasMainPage = true
     override var lang = "id"
-    override val supportedTypes = setOf(TvType.Live)
+    override val supportedTypes = setOf(TvType.NSFW)
 
     // API Endpoints
     private val apiUrl = "https://api.fnccdn.com/501/api/plr/h5/v3"
     private val merchantId = "501"
+    
+    // Decryption Constants
+    private val decryptKey = "1558668820991598"
+    private val decryptIv = "0102030405060708"
 
     override suspend fun load(url: String): LoadResponse {
         val (id, title, poster) = url.split(";", limit = 3) + listOf("", "", "")
@@ -24,6 +32,21 @@ class Hot51 : MainAPI() {
             dataUrl = id
         ) {
             this.posterUrl = poster
+        }
+    }
+
+    private fun decrypt(encrypted: String): String? {
+        try {
+            val keySpec = SecretKeySpec(decryptKey.toByteArray(Charsets.UTF_8), "AES")
+            val ivSpec = IvParameterSpec(decryptIv.toByteArray(Charsets.UTF_8))
+            val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
+            cipher.init(Cipher.DECRYPT_MODE, keySpec, ivSpec)
+            val decodedBytes = android.util.Base64.decode(encrypted, android.util.Base64.DEFAULT)
+            val decryptedBytes = cipher.doFinal(decodedBytes)
+            return String(decryptedBytes, Charsets.UTF_8)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return null
         }
     }
 
@@ -43,15 +66,10 @@ class Hot51 : MainAPI() {
         
         val response = app.post(infoUrl, headers = headers, json = body).parsedSafe<RoomInfoResponse>()
         
+        // Try all possible sources: HLS, FLV, pullAddr, decrypted unlDefPa, or plain raw unlDefPa
         val streamUrl = response?.data?.pullUrl?.hls ?: response?.data?.pullUrl?.flv 
             ?: response?.data?.pullAddr
-            ?: response?.data?.unlDefPa?.let { 
-                 try {
-                     String(android.util.Base64.decode(it, android.util.Base64.DEFAULT))
-                 } catch (e: Exception) {
-                     it
-                 }
-            }
+            ?: response?.data?.unlDefPa?.let { decrypt(it) }
             ?: return false
             
         callback(
@@ -86,7 +104,7 @@ class Hot51 : MainAPI() {
             newMovieSearchResponse(
                 title,
                 "$id;$title;$poster",
-                TvType.Live
+                TvType.NSFW
             ) {
                 this.posterUrl = poster
             }
