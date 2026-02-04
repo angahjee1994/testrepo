@@ -9,20 +9,21 @@ class Hot51 : MainAPI() {
     override var name = "Hot51"
     override val hasMainPage = true
     override var lang = "id"
-    override val supportedTypes = setOf(TvType.NSFW)
+    override val supportedTypes = setOf(TvType.Live)
 
     // API Endpoints
     private val apiUrl = "https://api.fnccdn.com/501/api/plr/h5/v3"
     private val merchantId = "501"
 
     override suspend fun load(url: String): LoadResponse {
-        val id = url.substringAfterLast("/")
+        val (id, title, poster) = url.split(";", limit = 3) + listOf("", "", "")
+        
         return newLiveStreamLoadResponse(
-            name = "Live Stream",
+            name = title.ifEmpty { "Live Stream" },
             url = id,
             dataUrl = id
         ) {
-            this.posterUrl = "$mainUrl/assets/img/logo.png" // Fallback or could fetch
+            this.posterUrl = poster
         }
     }
 
@@ -35,12 +36,16 @@ class Hot51 : MainAPI() {
         val anchorId = data
         val infoUrl = "https://api.fnccdn.com/501/api/plr/zbliv/h5/v3/public/live/room-info?merchantId=$merchantId"
         val body = mapOf("anchorId" to anchorId)
-        val response = app.post(infoUrl, json = body).parsedSafe<RoomInfoResponse>()
+        val headers = mapOf(
+            "Authorization" to "Basic d2ViLXBsYXllcjp3ZWJQbGF5ZXIyMDIyKjk2My4hQCM=",
+            "dev-type" to "H5"
+        )
+        
+        val response = app.post(infoUrl, headers = headers, json = body).parsedSafe<RoomInfoResponse>()
         
         val streamUrl = response?.data?.pullUrl?.hls ?: response?.data?.pullUrl?.flv 
             ?: response?.data?.pullAddr
             ?: response?.data?.unlDefPa?.let { 
-                 // Simple Base64 decode attempt, if fails use original
                  try {
                      String(android.util.Base64.decode(it, android.util.Base64.DEFAULT))
                  } catch (e: Exception) {
@@ -74,12 +79,16 @@ class Hot51 : MainAPI() {
         
         val response = app.get(url).parsedSafe<LiveCenterResponse>()
         val items = response?.records?.map { item ->
+            val title = item.liveName ?: item.anchorNickname ?: "Unknown"
+            val id = item.anchorId ?: item.id ?: ""
+            val poster = item.coverUrl ?: item.avatar ?: ""
+            
             newMovieSearchResponse(
-                item.liveName ?: item.anchorNickname ?: "Unknown",
-                item.anchorId ?: item.id ?: "",
-                TvType.NSFW
+                title,
+                "$id;$title;$poster",
+                TvType.Live
             ) {
-                this.posterUrl = item.coverUrl ?: item.avatar
+                this.posterUrl = poster
             }
         } ?: emptyList()
 
