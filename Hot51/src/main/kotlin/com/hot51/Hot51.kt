@@ -61,7 +61,13 @@ class Hot51 : MainAPI() {
         val body = mapOf("anchorId" to anchorId)
         val headers = mapOf(
             "Authorization" to "Basic d2ViLXBsYXllcjp3ZWJQbGF5ZXIyMDIyKjk2My4hQCM=",
-            "dev-type" to "H5"
+            "dev-type" to "H5",
+            "sign" to "11f569ed792da4e0cff8a393534a5bf2",
+            "device" to "806abd11-fef0-4baa-9c3d-104b4693dc7d",
+            "versionCode" to "101",
+            "system-version" to "1.5.1",
+            "time-zone" to "GMT+08:00",
+            "Content-Type" to "application/json"
         )
         
         val response = app.post(infoUrl, headers = headers, json = body).parsedSafe<RoomInfoResponse>()
