@@ -33,10 +33,22 @@ class Hot51 : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val anchorId = data
-        val infoUrl = "$apiUrl/public/live/room-info?merchantId=$merchantId"
+        val infoUrl = "https://api.fnccdn.com/501/api/plr/zbliv/h5/v3/public/live/room-info?merchantId=$merchantId"
         val body = mapOf("anchorId" to anchorId)
         val response = app.post(infoUrl, json = body).parsedSafe<RoomInfoResponse>()
-        val streamUrl = response?.data?.pullUrl?.hls ?: response?.data?.pullUrl?.flv ?: return false
+        
+        val streamUrl = response?.data?.pullUrl?.hls ?: response?.data?.pullUrl?.flv 
+            ?: response?.data?.pullAddr
+            ?: response?.data?.unlDefPa?.let { 
+                 // Simple Base64 decode attempt, if fails use original
+                 try {
+                     String(android.util.Base64.decode(it, android.util.Base64.DEFAULT))
+                 } catch (e: Exception) {
+                     it
+                 }
+            }
+            ?: return false
+            
         callback(
             newExtractorLink(
                 this.name,
@@ -107,7 +119,9 @@ class Hot51 : MainAPI() {
         @JsonProperty("avatar") val avatar: String?,
         @JsonProperty("roomNotice") val roomNotice: String?,
         @JsonProperty("area") val area: String?,
-        @JsonProperty("pullUrl") val pullUrl: PullUrl?
+        @JsonProperty("pullAddr") val pullAddr: String?,
+        @JsonProperty("unlDefPa") val unlDefPa: String?,
+        @JsonProperty("pullUrl") val pullUrl: PullUrl? 
     )
 
     data class PullUrl(
