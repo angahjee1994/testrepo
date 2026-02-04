@@ -86,12 +86,13 @@ class Hot51 : MainAPI() {
         val infoUrl = "https://api.fnccdn.com/501/api/plr/zbliv/h5/v3/public/live/room-info?merchantId=$merchantId"
         val body = mapOf("anchorId" to anchorId)
         
+        val deviceId = java.util.UUID.randomUUID().toString()
         val headers = mapOf(
             "Authorization" to "Basic d2ViLXBsYXllcjp3ZWJQbGF5ZXIyMDIyKjk2My4hQCM=",
             "dev-type" to "H5",
             "sign" to "11f569ed792da4e0cff8a393534a5bf2",
             "merchantId" to merchantId,
-            "device" to "806abd11-fef0-4baa-9c3d-104b4693dc7d",
+            "device" to deviceId,
             "versionCode" to "101",
             "system-version" to "1.5.1",
             "time-zone" to "GMT+08:00",
@@ -110,7 +111,7 @@ class Hot51 : MainAPI() {
             ?: response?.data?.unlDefPa?.let { decrypt(it) }
             
         if (streamUrl == null) {
-            throw Error("No link. Data: ${response?.data}")
+            throw Error("No link. Body: $body. Data: ${response?.data}")
         }
 
         callback(
