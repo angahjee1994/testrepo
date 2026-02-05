@@ -245,6 +245,32 @@ class Hot51 : MainAPI() {
         return newHomePageResponse(homeLists, hasNext = (response?.current ?: 0) < (response?.pages ?: 0))
     }
 
+    override suspend fun search(query: String): List<SearchResponse> {
+        val timestamp = System.currentTimeMillis() / 1000
+        val url = "https://api.fnccdn.com/501/api/plr/zbliv/public/live/h5/liveCenter?pageNum=1&pageSize=40&searchText=$query&merchantId=$merchantId&lang=ENU&t=$timestamp"
+        
+        val response = app.get(
+            url,
+            headers = mapOf("Authorization" to "Basic d2ViLXBsYXllcjp3ZWJQbGF5ZXIyMDIyKjk2My4hQCM=")
+        ).parsedSafe<LiveCenterResponse>()
+        
+        return response?.records?.map { item ->
+            val title = item.liveName ?: item.anchorNickname ?: "Unknown"
+            val id = item.anchorId ?: item.id ?: ""
+            val poster = item.coverUrl ?: item.avatar ?: ""
+            
+            newAnimeSearchResponse(
+                title,
+                LinkData(id, "MY", title, poster).toJson(),
+                TvType.NSFW
+            ) {
+                this.posterUrl = poster
+            }
+        } ?: emptyList()
+    }
+
+    override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
+
     override val mainPage = mainPageOf(
         "1" to "Popular",
         "ID" to "Indonesia",
