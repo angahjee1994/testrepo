@@ -32,7 +32,12 @@ class WowXXX : MainAPI() {
         "$mainUrl/networks/dogfart-network/" to "DFXtra",
         "$mainUrl/networks/rk-com/" to "Reality Kings",
         "$mainUrl/networks/naughtyamerica-com/" to "Naughty America",
-        "$mainUrl/networks/mom-lover/" to "Mom Lover"
+        "$mainUrl/networks/mom-lover/" to "Mom Lover",
+        "$mainUrl/networks/evil-angel/" to "Evil Angel",
+        "$mainUrl/networks/freeze/" to "freeze",
+        "$mainUrl/networks/mature-nl/" to "Mature.nl",
+        "$mainUrl/networks/it-s-pov/" to "It's POV",
+        "$mainUrl/networks/woodman-casting-x/" to "Woodman Casting X"
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
