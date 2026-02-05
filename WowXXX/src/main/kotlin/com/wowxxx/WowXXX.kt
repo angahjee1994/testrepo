@@ -37,6 +37,10 @@ class WowXXX : MainAPI() {
         "$mainUrl/networks/freeze/" to "freeze",
         "$mainUrl/networks/mature-nl/" to "Mature.nl",
         "$mainUrl/networks/it-s-pov/" to "It's POV",
+        "$mainUrl/networks/ersties/" to "Ersties",
+        "$mainUrl/networks/sinfulxxx/" to "SinfulXXX",
+        "$mainUrl/networks/xempire/" to "XEmpire",
+        "$mainUrl/networks/adultprime/" to "AdultPrime",
         "$mainUrl/networks/woodman-casting-x/" to "Woodman Casting X"
     )
 
