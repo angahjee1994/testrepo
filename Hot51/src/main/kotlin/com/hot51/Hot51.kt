@@ -6,6 +6,7 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.toJson
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
+import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.fasterxml.jackson.annotation.JsonProperty
 
 import javax.crypto.Cipher
@@ -33,7 +34,7 @@ class Hot51 : MainAPI() {
     private val decryptIvNew = "0608040307010502"
 
     override suspend fun load(url: String): LoadResponse {
-        val data = parseJson<LinkData>(url)
+        val data = tryParseJson<LinkData>(url) ?: LinkData(url)
         
         val id = data.anchorId
         val title = data.title ?: "Live Stream"
@@ -207,7 +208,7 @@ class Hot51 : MainAPI() {
                     }
                 } 
                 if (!bannerItems.isNullOrEmpty()) {
-                    homeLists.add(HomePageList("Featured", bannerItems, false))
+                    homeLists.add(HomePageList(name = "Featured", list = bannerItems, isHorizontalImages = false))
                 }
             } catch (e: Exception) {
                 Log.e("Hot51", "Error fetching banners: ${e.message}")
@@ -233,9 +234,15 @@ class Hot51 : MainAPI() {
             }
         } ?: emptyList()
 
-        homeLists.add(HomePageList(request.name, items, (response?.current ?: 0) < (response?.pages ?: 0)))
+        homeLists.add(
+            HomePageList(
+                name = request.name,
+                list = items,
+                isHorizontalImages = false
+            )
+        )
 
-        return newHomePageResponse(homeLists)
+        return newHomePageResponse(homeLists, hasNext = (response?.current ?: 0) < (response?.pages ?: 0))
     }
 
     override val mainPage = mainPageOf(
