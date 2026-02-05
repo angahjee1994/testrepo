@@ -16,7 +16,7 @@ class WowXXX : MainAPI() {
     override val supportedTypes = setOf(TvType.NSFW)
 
     override val mainPage = mainPageOf(
-        "$mainUrl/" to "Latest Videos",
+        "$mainUrl/latest-updates/" to "Latest Videos",
         "$mainUrl/networks/brazzers-com/" to "Brazzers",
         "$mainUrl/networks/mylf-com/" to "MYLF",
         "$mainUrl/networks/tushy-com/" to "TUSHY",
@@ -28,7 +28,11 @@ class WowXXX : MainAPI() {
         "$mainUrl/networks/fakehub/" to "FakeHub",
         "$mainUrl/networks/oldje-com/" to "Oldje",
         "$mainUrl/networks/pornforce/" to "PornForce",
-        "$mainUrl/networks/bangbros/" to "Bangbros"
+        "$mainUrl/networks/bangbros/" to "Bangbros",
+        "$mainUrl/networks/dogfart-network/" to "DFXtra",
+        "$mainUrl/networks/rk-com/" to "Reality Kings",
+        "$mainUrl/networks/naughtyamerica-com/" to "Naughty America",
+        "$mainUrl/networks/mom-lover/" to "Mom Lover"
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
