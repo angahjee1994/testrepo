@@ -97,7 +97,8 @@ class Hot51 : MainAPI() {
             return "11f569ed792da4e0cff8a393534a5bf2"
         }
         val sortedKeys = params.keys.sorted()
-        val payload = sortedKeys.joinToString("&") { key -> "$key=${params[key] ?: ""}" }
+        // The website uses values of sorted keys joined directly with no separator
+        val payload = sortedKeys.joinToString("") { params[it] ?: "" }
         
         val salt = "rsba648b744646lkid9896bb1o7h9776"
         val firstHash = md5(payload)
@@ -119,10 +120,8 @@ class Hot51 : MainAPI() {
         val paramMap = mapOf(
             "merchantId" to merchantId
         )
-        val signParamMap = mapOf(
-            "merchantId" to merchantId
-        )
-        val sign = generateSign(signParamMap)
+        // room-info uses an empty payload for its signature
+        val sign = generateSign(emptyMap())
 
         val infoUrl = "https://api.fnccdn.com/501/api/plr/zbliv/h5/v3/public/live/room-info?merchantId=$merchantId"
         val body = mapOf("anchorId" to anchorId)
@@ -138,12 +137,10 @@ class Hot51 : MainAPI() {
             "system-version" to "1.5.1",
             "time-zone" to "GMT+08:00",
             "Content-Type" to "application/json; charset=utf-8",
-            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
             "Origin" to "https://hotlive11.com",
             "Referer" to "https://hotlive11.com/",
             "area" to (area ?: "MY"),
-            "locale-language" to "ENU",
-            "Accept" to "application/json, text/plain, */*"
+            "locale-language" to "ENU"
         )
         
         val response = app.post(infoUrl, headers = headers, json = body).parsedSafe<RoomInfoResponse>()
@@ -224,17 +221,18 @@ class Hot51 : MainAPI() {
             "pageNum" to page.toString(),
             "pageSize" to "20",
             "merchantId" to merchantId,
-            "area" to area,
             "lang" to "ENU",
             "t" to timestamp
         )
         if (labelId.isNotEmpty()) {
             paramMap["labelId"] = labelId
+        } else {
+            paramMap["labelId"] = "1" // Default to Popular if empty
         }
         
         val sign = generateSign(paramMap)
         val queryParams = paramMap.entries.joinToString("&") { "${it.key}=${it.value}" }
-        val url = "$apiUrl/public/live/lrl?$queryParams"
+        val url = "https://api.fnccdn.com/501/api/plr/zbliv/public/live/h5/liveCenter?$queryParams"
         
         val deviceId = java.util.UUID.randomUUID().toString()
         val response = app.get(
@@ -250,7 +248,8 @@ class Hot51 : MainAPI() {
                 "system-version" to "1.5.1",
                 "time-zone" to "GMT+08:00",
                 "Referer" to "https://hotlive11.com/",
-                "Origin" to "https://hotlive11.com"
+                "Origin" to "https://hotlive11.com",
+                "locale-language" to "ENU"
             )
         ).parsedSafe<LiveCenterResponse>()
         val items = response?.records?.map { item ->
@@ -309,7 +308,8 @@ class Hot51 : MainAPI() {
                 "system-version" to "1.5.1",
                 "time-zone" to "GMT+08:00",
                 "Referer" to "https://hotlive11.com/",
-                "Origin" to "https://hotlive11.com"
+                "Origin" to "https://hotlive11.com",
+                "locale-language" to "ENU"
             )
         ).parsedSafe<LiveCenterResponse>()
         
