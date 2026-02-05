@@ -46,7 +46,7 @@ class WowXXX : MainAPI() {
         "$mainUrl/networks/sexmex/" to "SEXMEX",
         "$mainUrl/sites/parasited/" to "Parasited",
         "$mainUrl/networks/mofos-com/" to "MOFOS",
-        "$mainUrl/sites/parasited/" to "Parasited",
+        "$mainUrl/networks/bangbros/" to "Bangbros",
         "$mainUrl/sites/parasited/" to "Parasited",
         "$mainUrl/networks/metart-com/" to "MetArt",
         "$mainUrl/networks/woodman-casting-x/" to "Woodman Casting X"
