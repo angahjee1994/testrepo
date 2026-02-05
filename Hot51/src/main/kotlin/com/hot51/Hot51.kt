@@ -92,16 +92,14 @@ class Hot51 : MainAPI() {
     }
 
     private fun generateSign(params: Map<String, String>): String {
-        if (params.isEmpty()) {
-            // md5(md5("")) = 11f569ed792da4e0cff8a393534a5bf2
-            return "11f569ed792da4e0cff8a393534a5bf2"
-        }
         val sortedKeys = params.keys.sorted()
-        // The website uses values of sorted keys joined directly with no separator
-        val payload = sortedKeys.joinToString("") { params[it] ?: "" }
+        val sb = StringBuilder()
+        for (key in sortedKeys) {
+            sb.append(key).append("=").append(params[key])
+        }
         
         val salt = "rsba648b744646lkid9896bb1o7h9776"
-        val firstHash = md5(payload)
+        val firstHash = md5(sb.toString())
         return md5(firstHash + salt)
     }
 
@@ -120,8 +118,7 @@ class Hot51 : MainAPI() {
         val paramMap = mapOf(
             "merchantId" to merchantId
         )
-        // room-info uses an empty payload for its signature
-        val sign = generateSign(emptyMap())
+        val sign = generateSign(paramMap)
 
         val infoUrl = "https://api.fnccdn.com/501/api/plr/zbliv/h5/v3/public/live/room-info?merchantId=$merchantId"
         val body = mapOf("anchorId" to anchorId)
@@ -130,17 +127,19 @@ class Hot51 : MainAPI() {
         val headers = mapOf(
             "Authorization" to "Basic d2ViLXBsYXllcjp3ZWJQbGF5ZXIyMDIyKjk2My4hQCM=",
             "dev-type" to "H5",
-            "sign" to sign,
+            "sign" to "11f569ed792da4e0cff8a393534a5bf2",
             "merchantId" to merchantId,
             "device" to deviceId,
             "versionCode" to "101",
             "system-version" to "1.5.1",
             "time-zone" to "GMT+08:00",
             "Content-Type" to "application/json; charset=utf-8",
+            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
             "Origin" to "https://hotlive11.com",
             "Referer" to "https://hotlive11.com/",
             "area" to (area ?: "MY"),
-            "locale-language" to "ENU"
+            "locale-language" to "ENU",
+            "Accept" to "application/json, text/plain, */*"
         )
         
         val response = app.post(infoUrl, headers = headers, json = body).parsedSafe<RoomInfoResponse>()
@@ -183,9 +182,9 @@ class Hot51 : MainAPI() {
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val data = request.data ?: "1"
-        // data can be "1" (Popular), "ID", "VN", etc.
-        val area = if (data == "ID" || data == "VN") data else "MY"
-        val labelId = if (data == "1" || data == "ID" || data == "VN") "1" else data
+        val isCountry = data == "ID" || data == "VN"
+        val area = if (isCountry) data else "MY"
+        val labelId = if (isCountry || data == "1") "" else data
         
         val homeLists = mutableListOf<HomePageList>()
         
@@ -216,118 +215,35 @@ class Hot51 : MainAPI() {
             }
         }
         
-        val timestamp = (System.currentTimeMillis() / 1000).toString()
-        val paramMap = mutableMapOf(
-            "pageNum" to page.toString(),
-            "pageSize" to "20",
-            "labelId" to labelId,
-            "merchantId" to merchantId,
-            "lang" to "ENU",
-            "t" to timestamp
-        )
+        val timestamp = System.currentTimeMillis() / 1000
+        val baseUrl = "$apiUrl/public/live/lrl?pageNum=$page&pageSize=20&merchantId=$merchantId&area=$area&lang=ENU&t=$timestamp"
+        val url = if (labelId.isNotEmpty()) "$baseUrl&labelId=$labelId" else baseUrl
         
-        val sign = generateSign(paramMap)
-        val queryParams = paramMap.entries.joinToString("&") { "${it.key}=${it.value}" }
-        val url = "https://api.fnccdn.com/501/api/plr/zbliv/public/live/h5/liveCenter?$queryParams"
-        
-        val deviceId = java.util.UUID.randomUUID().toString()
-        val response = app.get(
-            url,
-            headers = mapOf(
-                "Authorization" to "Basic d2ViLXBsYXllcjp3ZWJQbGF5ZXIyMDIyKjk2My4hQCM=",
-                "area" to area,
-                "dev-type" to "H5",
-                "sign" to sign,
-                "device" to deviceId,
-                "merchantId" to merchantId,
-                "versionCode" to "101",
-                "system-version" to "1.5.1",
-                "time-zone" to "GMT+08:00",
-                "Referer" to "https://hotlive11.com/",
-                "Origin" to "https://hotlive11.com",
-                "locale-language" to "ENU",
-                "Accept" to "application/json, text/plain, */*",
-                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36"
-            )
-        ).parsedSafe<LiveCenterResponse>()
+        val response = app.get(url).parsedSafe<LiveCenterResponse>()
         val items = response?.records?.map { item ->
             val title = item.liveName ?: item.anchorNickname ?: "Unknown"
             val id = item.anchorId ?: item.id ?: ""
             val poster = item.coverUrl ?: item.avatar ?: ""
-            val itemArea = item.area ?: area
             
             newAnimeSearchResponse(
                 title,
-                LinkData(id, itemArea, title, poster).toJson(),
+                LinkData(id, area, title, poster).toJson(),
                 TvType.NSFW
             ) {
                 this.posterUrl = poster
             }
         } ?: emptyList()
 
-        if (items.isEmpty() && page == 1 && homeLists.isEmpty()) {
-             // If we have nothing, maybe the labelId was wrong or signature failed
-             Log.e("Hot51", "No results for labelId=$labelId. URL: $url")
-        }
-
-        homeLists.add(HomePageList(name = if (data == "1") "Popular" else data, list = items))
-        return newHomePageResponse(homeLists, hasNext = !items.isNullOrEmpty())
-    }
-
-    override suspend fun search(query: String): List<SearchResponse> {
-        val timestamp = (System.currentTimeMillis() / 1000).toString()
-        val deviceId = java.util.UUID.randomUUID().toString()
-        
-        val paramMap = mapOf(
-            "pageNum" to "1",
-            "pageSize" to "40",
-            "searchText" to query,
-            "merchantId" to merchantId,
-            "lang" to "ENU",
-            "t" to timestamp
-        )
-        
-        val sign = generateSign(paramMap)
-        val queryParams = paramMap.entries.joinToString("&") { "${it.key}=${it.value}" }
-        val url = "https://api.fnccdn.com/501/api/plr/zbliv/public/live/h5/liveCenter?$queryParams"
-        
-        val response = app.get(
-            url,
-            headers = mapOf(
-                "Authorization" to "Basic d2ViLXBsYXllcjp3ZWJQbGF5ZXIyMDIyKjk2My4hQCM=",
-                "area" to "MY",
-                "dev-type" to "H5",
-                "sign" to sign,
-                "device" to deviceId,
-                "merchantId" to merchantId,
-                "versionCode" to "101",
-                "system-version" to "1.5.1",
-                "time-zone" to "GMT+08:00",
-                "Referer" to "https://hotlive11.com/",
-                "Origin" to "https://hotlive11.com",
-                "locale-language" to "ENU",
-                "Accept" to "application/json, text/plain, */*",
-                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36"
+        homeLists.add(
+            HomePageList(
+                name = request.name,
+                list = items,
+                isHorizontalImages = false
             )
-        ).parsedSafe<LiveCenterResponse>()
-        
-        return response?.records?.map { item ->
-            val title = item.liveName ?: item.anchorNickname ?: "Unknown"
-            val id = item.anchorId ?: item.id ?: ""
-            val poster = item.coverUrl ?: item.avatar ?: ""
-            val itemArea = item.area ?: "MY"
-            
-            newAnimeSearchResponse(
-                title,
-                LinkData(id, itemArea, title, poster).toJson(),
-                TvType.NSFW
-            ) {
-                this.posterUrl = poster
-            }
-        } ?: emptyList()
-    }
+        )
 
-    override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
+        return newHomePageResponse(homeLists, hasNext = (response?.current ?: 0) < (response?.pages ?: 0))
+    }
 
     override val mainPage = mainPageOf(
         "1" to "Popular",
@@ -349,8 +265,7 @@ data class LiveRecord(
     @JsonProperty("anchorNickname") val anchorNickname: String?,
     @JsonProperty("liveName") val liveName: String?,
     @JsonProperty("coverUrl") val coverUrl: String?,
-    @JsonProperty("avatar") val avatar: String?,
-    @JsonProperty("area") val area: String? = null
+    @JsonProperty("avatar") val avatar: String?
 )
 
 data class RoomInfoResponse(
