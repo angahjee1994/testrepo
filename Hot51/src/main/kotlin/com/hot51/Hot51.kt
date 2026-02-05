@@ -224,10 +224,11 @@ class Hot51 : MainAPI() {
             val title = item.liveName ?: item.anchorNickname ?: "Unknown"
             val id = item.anchorId ?: item.id ?: ""
             val poster = item.coverUrl ?: item.avatar ?: ""
+            val itemArea = item.area ?: area
             
             newAnimeSearchResponse(
                 title,
-                LinkData(id, area, title, poster).toJson(),
+                LinkData(id, itemArea, title, poster).toJson(),
                 TvType.NSFW
             ) {
                 this.posterUrl = poster
@@ -251,17 +252,22 @@ class Hot51 : MainAPI() {
         
         val response = app.get(
             url,
-            headers = mapOf("Authorization" to "Basic d2ViLXBsYXllcjp3ZWJQbGF5ZXIyMDIyKjk2My4hQCM=")
+            headers = mapOf(
+                "Authorization" to "Basic d2ViLXBsYXllcjp3ZWJQbGF5ZXIyMDIyKjk2My4hQCM=",
+                "area" to "MY",
+                "dev-type" to "H5"
+            )
         ).parsedSafe<LiveCenterResponse>()
         
         return response?.records?.map { item ->
             val title = item.liveName ?: item.anchorNickname ?: "Unknown"
             val id = item.anchorId ?: item.id ?: ""
             val poster = item.coverUrl ?: item.avatar ?: ""
+            val itemArea = item.area ?: "MY"
             
             newAnimeSearchResponse(
                 title,
-                LinkData(id, "MY", title, poster).toJson(),
+                LinkData(id, itemArea, title, poster).toJson(),
                 TvType.NSFW
             ) {
                 this.posterUrl = poster
@@ -291,7 +297,8 @@ data class LiveRecord(
     @JsonProperty("anchorNickname") val anchorNickname: String?,
     @JsonProperty("liveName") val liveName: String?,
     @JsonProperty("coverUrl") val coverUrl: String?,
-    @JsonProperty("avatar") val avatar: String?
+    @JsonProperty("avatar") val avatar: String?,
+    @JsonProperty("area") val area: String? = null
 )
 
 data class RoomInfoResponse(
