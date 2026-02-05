@@ -5,6 +5,7 @@ package com.hot51
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.toJson
+import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.fasterxml.jackson.annotation.JsonProperty
 
 import javax.crypto.Cipher
@@ -32,36 +33,17 @@ class Hot51 : MainAPI() {
     private val decryptIvNew = "0608040307010502"
 
     override suspend fun load(url: String): LoadResponse {
-        // Parse parameters from the URL generated in getMainPage
-        val uri = java.net.URI(url)
-        val query = uri.query
-        if (query.isNullOrEmpty()) {
-             // Fallback or throw? If handled upstream, maybe just empty map?
-             // But the stack trace shows it's critical. 
-             // We can return early or use empty params.
-             // But existing code uses 'id' from params.
-             // If query is null, anchorId is missing.
-             // Maybe parse 'data' if passed? 
-             // For now, let's just make it safe and let later checks fail if needed.
-        }
-        val safeQuery = query ?: ""
-        val params = safeQuery.split("&").filter { it.contains("=") }.associate {
-            val (key, value) = it.split("=", limit = 2)
-            key to java.net.URLDecoder.decode(value, "UTF-8")
-        }
+        val data = parseJson<LinkData>(url)
         
-        val id = params["anchorId"] ?: ""
-        val title = params["title"] ?: "Live Stream"
-        val poster = params["poster"] ?: ""
-        val area = params["area"] ?: "MY"
+        val id = data.anchorId
+        val title = data.title ?: "Live Stream"
+        val poster = data.poster ?: ""
+        val area = data.area ?: "MY"
         
-        // Pass JSON data to loadLinks
-        val dataUrl = LinkData(id, area).toJson()
-
         return newLiveStreamLoadResponse(
             name = title,
-            url = id, // explicit anchorId
-            dataUrl = dataUrl 
+            url = id,
+            dataUrl = url 
         ) {
             this.posterUrl = poster
         }
@@ -127,7 +109,7 @@ class Hot51 : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val linkData = AppUtils.parseJson<LinkData>(data)
+        val linkData = parseJson<LinkData>(data)
         val anchorId = linkData.anchorId
         val area = linkData.area
         val merchantId = "501"
@@ -154,7 +136,7 @@ class Hot51 : MainAPI() {
             "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
             "Origin" to "https://hotlive11.com",
             "Referer" to "https://hotlive11.com/",
-            "area" to area,
+            "area" to (area ?: "MY"),
             "locale-language" to "ENU",
             "Accept" to "application/json, text/plain, */*"
         )
@@ -200,12 +182,39 @@ class Hot51 : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val data = request.data ?: "1"
         val isCountry = data == "ID" || data == "VN"
-        
         val area = if (isCountry) data else "MY"
         val labelId = if (isCountry || data == "1") "" else data
         
-        val timestamp = System.currentTimeMillis() / 1000
+        val homeLists = mutableListOf<HomePageList>()
         
+        // Fetch banners only on the first page of "Popular"
+        if (page == 1 && data == "1") {
+            try {
+                val bannerUrl = "$apiUrl/public/banner/list?merchantId=$merchantId&area=$area"
+                val bannerRes = app.get(bannerUrl).parsedSafe<BannerResponse>()
+                val bannerItems = bannerRes?.map { banner ->
+                    val bTitle = banner.title ?: "Hot51"
+                    val bPoster = banner.imgUrl ?: ""
+                    // For banners, businessId is often the anchorId if type is ROOM
+                    val bId = banner.businessId ?: ""
+                    
+                    newAnimeSearchResponse(
+                        bTitle,
+                        LinkData(bId, area, bTitle, bPoster).toJson(),
+                        TvType.NSFW
+                    ) {
+                        this.posterUrl = bPoster
+                    }
+                } 
+                if (!bannerItems.isNullOrEmpty()) {
+                    homeLists.add(HomePageList("Featured", bannerItems, false))
+                }
+            } catch (e: Exception) {
+                Log.e("Hot51", "Error fetching banners: ${e.message}")
+            }
+        }
+        
+        val timestamp = System.currentTimeMillis() / 1000
         val baseUrl = "$apiUrl/public/live/lrl?pageNum=$page&pageSize=20&merchantId=$merchantId&area=$area&lang=ENU&t=$timestamp"
         val url = if (labelId.isNotEmpty()) "$baseUrl&labelId=$labelId" else baseUrl
         
@@ -215,24 +224,18 @@ class Hot51 : MainAPI() {
             val id = item.anchorId ?: item.id ?: ""
             val poster = item.coverUrl ?: item.avatar ?: ""
             
-            // Generate a valid URL with encoded parameters for load() to parse
-            val encodedId = java.net.URLEncoder.encode(id, "UTF-8")
-            val encodedArea = java.net.URLEncoder.encode(area, "UTF-8")
-            val encodedTitle = java.net.URLEncoder.encode(title, "UTF-8")
-            val encodedPoster = java.net.URLEncoder.encode(poster, "UTF-8")
-            
-            val roomUrl = "$apiUrl/room?anchorId=$encodedId&area=$encodedArea&title=$encodedTitle&poster=$encodedPoster"
-
-            newMovieSearchResponse(
+            newAnimeSearchResponse(
                 title,
-                roomUrl,
+                LinkData(id, area, title, poster).toJson(),
                 TvType.NSFW
             ) {
                 this.posterUrl = poster
             }
         } ?: emptyList()
 
-        return newHomePageResponse(HomePageList(request.name, items, (response?.current ?: 0) < (response?.pages ?: 0)))
+        homeLists.add(HomePageList(request.name, items, (response?.current ?: 0) < (response?.pages ?: 0)))
+
+        return newHomePageResponse(homeLists)
     }
 
     override val mainPage = mainPageOf(
@@ -281,5 +284,17 @@ data class PullUrl(
 )
 data class LinkData(
     @JsonProperty("anchorId") val anchorId: String,
-    @JsonProperty("area") val area: String
+    @JsonProperty("area") val area: String? = null,
+    @JsonProperty("title") val title: String? = null,
+    @JsonProperty("poster") val poster: String? = null
+)
+
+typealias BannerResponse = List<BannerRecord>
+
+data class BannerRecord(
+    @JsonProperty("id") val id: String?,
+    @JsonProperty("businessId") val businessId: String?,
+    @JsonProperty("imgUrl") val imgUrl: String?,
+    @JsonProperty("title") val title: String?,
+    @JsonProperty("jumpUrl") val jumpUrl: String?
 )
