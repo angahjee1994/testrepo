@@ -271,7 +271,7 @@ class Hot51 : MainAPI() {
         }
 
         homeLists.add(HomePageList(name = if (data == "1") "Popular" else data, list = items))
-        return HomePageResponse(homeLists, hasNext = !items.isNullOrEmpty())
+        return newHomePageResponse(homeLists, hasNext = !items.isNullOrEmpty())
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
