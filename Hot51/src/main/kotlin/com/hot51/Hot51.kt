@@ -183,9 +183,9 @@ class Hot51 : MainAPI() {
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val data = request.data ?: "1"
-        val isCountry = data == "ID" || data == "VN"
-        val area = if (isCountry) data else "MY"
-        val labelId = if (isCountry || data == "1") "" else data
+        // data can be "1" (Popular), "ID", "VN", etc.
+        val area = if (data == "ID" || data == "VN") data else "MY"
+        val labelId = if (data == "1" || data == "ID" || data == "VN") "1" else data
         
         val homeLists = mutableListOf<HomePageList>()
         
@@ -220,15 +220,11 @@ class Hot51 : MainAPI() {
         val paramMap = mutableMapOf(
             "pageNum" to page.toString(),
             "pageSize" to "20",
+            "labelId" to labelId,
             "merchantId" to merchantId,
             "lang" to "ENU",
             "t" to timestamp
         )
-        if (labelId.isNotEmpty()) {
-            paramMap["labelId"] = labelId
-        } else {
-            paramMap["labelId"] = "1" // Default to Popular if empty
-        }
         
         val sign = generateSign(paramMap)
         val queryParams = paramMap.entries.joinToString("&") { "${it.key}=${it.value}" }
@@ -249,7 +245,9 @@ class Hot51 : MainAPI() {
                 "time-zone" to "GMT+08:00",
                 "Referer" to "https://hotlive11.com/",
                 "Origin" to "https://hotlive11.com",
-                "locale-language" to "ENU"
+                "locale-language" to "ENU",
+                "Accept" to "application/json, text/plain, */*",
+                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36"
             )
         ).parsedSafe<LiveCenterResponse>()
         val items = response?.records?.map { item ->
@@ -267,15 +265,13 @@ class Hot51 : MainAPI() {
             }
         } ?: emptyList()
 
-        homeLists.add(
-            HomePageList(
-                name = request.name,
-                list = items,
-                isHorizontalImages = false
-            )
-        )
+        if (items.isEmpty() && page == 1 && homeLists.isEmpty()) {
+             // If we have nothing, maybe the labelId was wrong or signature failed
+             Log.e("Hot51", "No results for labelId=$labelId. URL: $url")
+        }
 
-        return newHomePageResponse(homeLists, hasNext = (response?.current ?: 0) < (response?.pages ?: 0))
+        homeLists.add(HomePageList(name = if (data == "1") "Popular" else data, list = items))
+        return HomePageResponse(homeLists, hasNext = !items.isNullOrEmpty())
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
@@ -309,7 +305,9 @@ class Hot51 : MainAPI() {
                 "time-zone" to "GMT+08:00",
                 "Referer" to "https://hotlive11.com/",
                 "Origin" to "https://hotlive11.com",
-                "locale-language" to "ENU"
+                "locale-language" to "ENU",
+                "Accept" to "application/json, text/plain, */*",
+                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36"
             )
         ).parsedSafe<LiveCenterResponse>()
         
