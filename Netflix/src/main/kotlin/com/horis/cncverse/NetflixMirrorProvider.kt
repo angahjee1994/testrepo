@@ -17,6 +17,8 @@ import okhttp3.Interceptor
 import okhttp3.Response
 import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.APIHolder.unixTime
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 
 class NetflixMirrorProvider : MainAPI() {
   override val supportedTypes = setOf(
@@ -226,11 +228,11 @@ class NetflixMirrorProvider : MainAPI() {
       "hd" to "on"
     )
 
-    argamap(
-      {
+    coroutineScope {
+      launch {
         NetflixSubtitleHelper.getSubtitles(title, media.season, media.episode, subtitleCallback)
-      },
-      {
+      }
+      launch {
         val token = getVideoToken(mainUrl, newUrl, id, cookies)
         val playlist = app.get(
           "$newUrl/playlist.php?id=$id&t=$title&h=$token&tm=${APIHolder.unixTime}",
@@ -276,7 +278,7 @@ class NetflixMirrorProvider : MainAPI() {
           }
         }
       }
-    )
+    }
 
     return true
   }
