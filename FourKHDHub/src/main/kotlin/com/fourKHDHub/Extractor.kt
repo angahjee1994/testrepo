@@ -217,8 +217,8 @@ class HubCloud : ExtractorApi() {
                 "fsl server" in label -> {
                     callback(
                         newExtractorLink(
-                            "$ref [FSL Server]",
-                            "$ref [FSL Server] $labelExtras",
+                            "[FSL Server]",
+                            "[FSL Server] $labelExtras",
                             link
                         ) { this.quality = quality }
                     )
@@ -227,8 +227,8 @@ class HubCloud : ExtractorApi() {
                 "download file" in label -> {
                     callback(
                         newExtractorLink(
-                            ref,
-                            "$ref $labelExtras",
+                            "[Download File]",
+                            "[Download File] $labelExtras",
                             link
                         ) { this.quality = quality }
                     )
@@ -242,8 +242,8 @@ class HubCloud : ExtractorApi() {
                     if (dlink.isNotBlank()) {
                         callback(
                             newExtractorLink(
-                                "$ref [BuzzServer]",
-                                "$ref [BuzzServer] $labelExtras",
+                                "[BuzzServer]",
+                                "[BuzzServer] $labelExtras",
                                 dlink
                             ) { this.quality = quality }
                         )
@@ -260,8 +260,8 @@ class HubCloud : ExtractorApi() {
 
                     callback(
                         newExtractorLink(
-                            "$ref Pixeldrain",
-                            "$ref Pixeldrain $labelExtras",
+                            "[Pixeldrain]",
+                            "[Pixeldrain] $labelExtras",
                             finalUrl
                         ) { this.quality = quality }
                     )
@@ -270,8 +270,8 @@ class HubCloud : ExtractorApi() {
                 "s3 server" in label -> {
                     callback(
                         newExtractorLink(
-                            "$ref [S3 Server]",
-                            "$ref [S3 Server] $labelExtras",
+                            "[FSL Server 3]",
+                            "[FSL Server 3] $labelExtras",
                             link
                         ) { this.quality = quality }
                     )
@@ -280,8 +280,8 @@ class HubCloud : ExtractorApi() {
                 "fslv2" in label -> {
                     callback(
                         newExtractorLink(
-                            "$ref [FSLv2]",
-                            "$ref [FSLv2] $labelExtras",
+                            "[FSL Server 2]",
+                            "[FSL Server 2] $labelExtras",
                             link
                         ) { this.quality = quality }
                     )
@@ -290,8 +290,8 @@ class HubCloud : ExtractorApi() {
                 "mega server" in label -> {
                     callback(
                         newExtractorLink(
-                            "$ref [Mega Server]",
-                            "$ref [Mega Server] $labelExtras",
+                            "[Mega Server]",
+                            "[Mega Server] $labelExtras",
                             link
                         ) { this.quality = quality }
                     )
