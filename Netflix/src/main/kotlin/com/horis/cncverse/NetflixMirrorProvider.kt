@@ -22,11 +22,13 @@ class NetflixMirrorProvider : MainAPI() {
   override val supportedTypes = setOf(
     TvType.Movie,
     TvType.TvSeries,
+    TvType.Anime,
+    TvType.AsianDrama
   )
   override var lang = "en"
 
-  override var mainUrl = "https://net20.cc"
-  private var newUrl = "https://net51.cc"
+  override var mainUrl = "https://net22.cc"
+  private var newUrl = "https://net52.cc"
   override var name = "Netflix"
 
   override val hasMainPage = true
@@ -34,10 +36,6 @@ class NetflixMirrorProvider : MainAPI() {
   private val headers = mapOf(
     "X-Requested-With" to "XMLHttpRequest"
   )
-  
-  companion object {
-      var context: android.content.Context? = null
-  }
 
   override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
     cookie_value = if (cookie_value.isEmpty()) bypass(mainUrl) else cookie_value
@@ -52,7 +50,6 @@ class NetflixMirrorProvider : MainAPI() {
       cookies = cookies,
       referer = "$mainUrl/",
     ).document
-    // .tray-container, #top10,
     val items = document.select(".lolomoRow").map {
       it.toHomePageList()
     }
@@ -72,10 +69,9 @@ class NetflixMirrorProvider : MainAPI() {
 
   private fun Element.toSearchResult(): SearchResponse? {
     val id = attr("data-src").substringAfterLast("/").substringBefore(".")
-    val posterUrl = "https://imgcdn.kim/poster/v/${id}.jpg"
-    val title = selectFirst("img")?.attr("alt") ?: ""
+    val posterUrl = "https://imgcdn.kim/poster/v/$id.jpg"
 
-    return newAnimeSearchResponse(title, Id(id).toJson()) {
+    return newAnimeSearchResponse("", Id(id).toJson()) {
       this.posterUrl = posterUrl
       posterHeaders = mapOf("Referer" to "$mainUrl/home")
     }
@@ -97,7 +93,7 @@ class NetflixMirrorProvider : MainAPI() {
 
     return data.searchResult.map {
       newAnimeSearchResponse(it.t, Id(it.id).toJson()) {
-        posterUrl = "https://img.nfmirrorcdn.top/poster/v/${it.id}.jpg"
+        posterUrl = "https://imgcdn.kim/poster/v/${it.id}.jpg"
         posterHeaders = mapOf("Referer" to "$mainUrl/home")
       }
     }
@@ -129,30 +125,28 @@ class NetflixMirrorProvider : MainAPI() {
         Actor(it),
       )
     }
-    val genre = listOf(data.ua.toString()) + (data.genre?.split(",")
-      ?.map {
-        it.trim()
-      }
-      ?.filter {
-        it.isNotEmpty()
-      }
-      ?: emptyList())
-
-    // FIXED: Use new score API instead of deprecated toRatingInt()
+    val genre = data.genre?.split(",")
+    ?.map {
+      it.trim()
+    }
+    ?.filter {
+      it.isNotEmpty()
+    }
+    val rating = data.match?.replace("IMDb ", "")
     val runTime = convertRuntimeToMinutes(data.runtime.toString())
-
+    
     if (data.episodes.first() == null) {
       episodes.add(newEpisode(LoadData(title, id)) {
         name = data.title
       })
     } else {
       data.episodes.filterNotNull().mapTo(episodes) {
-        newEpisode(LoadData(title, it.id ?: "")) {
+        newEpisode(LoadData(title, it.id)) {
           this.name = it.t
-          this.episode = it.ep?.replace("E", "")?.toIntOrNull()
-          this.season = it.s?.replace("S", "")?.toIntOrNull()
-          this.posterUrl = "https://img.nfmirrorcdn.top/epimg/150/${it.id}.jpg"
-          this.runTime = it.time?.replace("m", "")?.toIntOrNull()
+          this.episode = it.ep.replace("E", "").toIntOrNull()
+          this.season = it.s.replace("S", "").toIntOrNull()
+          this.posterUrl = "https://imgcdn.kim/epimg/150/${it.id}.jpg"
+          this.runTime = it.time.replace("m", "").toIntOrNull()
         }
       }
 
@@ -168,15 +162,16 @@ class NetflixMirrorProvider : MainAPI() {
     val type = if (data.episodes.first() == null) TvType.Movie else TvType.TvSeries
 
     return newTvSeriesLoadResponse(title, url, type, episodes) {
-      posterUrl = "https://img.nfmirrorcdn.top/poster/v/$id.jpg"
-      backgroundPosterUrl ="https://img.nfmirrorcdn.top/poster/h/$id.jpg"
-      posterHeaders = mapOf("Referer" to "$mainUrl/tv/home")
+      posterUrl = "https://imgcdn.kim/poster/v/$id.jpg"
+      backgroundPosterUrl ="https://imgcdn.kim/poster/h/$id.jpg"
+      posterHeaders = mapOf("Referer" to "$mainUrl/home")
       plot = data.desc
       year = data.year.toIntOrNull()
       tags = genre
       actors = cast
-      // FIXED: Use new score property instead of deprecated rating
+      this.score = Score.from10(rating)
       this.duration = runTime
+      this.contentRating = data.ua
     }
   }
 
@@ -192,18 +187,18 @@ class NetflixMirrorProvider : MainAPI() {
     var pg = page
     while (true) {
       val data = app.get(
-        "https://net51.cc/episodes.php?s=$sid&series=$eid&t=${APIHolder.unixTime}&page=$pg",
+        "$mainUrl/episodes.php?s=$sid&series=$eid&t=${APIHolder.unixTime}&page=$pg",
         headers,
-        referer = "https://net51.cc/tv/home",
+        referer = "$mainUrl/tv/home",
         cookies = cookies
       ).parsed<EpisodesData>()
       data.episodes?.mapTo(episodes) {
-        newEpisode(LoadData(title, it.id ?: "")) {
+        newEpisode(LoadData(title, it.id)) {
           name = it.t
-          episode = it.ep?.replace("E", "")?.toIntOrNull()
-          season = it.s?.replace("S", "")?.toIntOrNull()
-          this.posterUrl = "https://img.nfmirrorcdn.top/epimg/150/${it.id}.jpg"
-          this.runTime = it.time?.replace("m", "")?.toIntOrNull()
+          episode = it.ep.replace("E", "").toIntOrNull()
+          season = it.s.replace("S", "").toIntOrNull()
+          this.posterUrl = "https://imgcdn.kim/epimg/150/${it.id}.jpg"
+          this.runTime = it.time.replace("m", "").toIntOrNull()
         }
       }
       if (data.nextPageShow == 0) break
@@ -224,10 +219,12 @@ class NetflixMirrorProvider : MainAPI() {
       "ott" to "nf",
       "hd" to "on"
     )
+
+    val token = getVideoToken(mainUrl, newUrl, id, cookies)
     val playlist = app.get(
-      "$newUrl/tv/playlist.php?id=$id&t=$title&tm=${APIHolder.unixTime}",
+      "$newUrl/playlist.php?id=$id&t=$title&h=$token&tm=${APIHolder.unixTime}",
       headers,
-      referer = "$mainUrl/home",
+      referer = "$mainUrl/",
       cookies = cookies
     ).parsed<PlayList>()
 
@@ -238,11 +235,10 @@ class NetflixMirrorProvider : MainAPI() {
           newExtractorLink(
             name,
             it.label,
-            """$newUrl${it.file.replace("/tv/", "/")}""",
+            newUrl + it.file,
             type = ExtractorLinkType.M3U8
           ) {
             this.referer = "$newUrl/"
-            this.quality = getQualityFromName(it.file.substringAfter("q=", ""))
             this.headers = mapOf(
               "User-Agent" to "Mozilla/5.0 (Android) ExoPlayer",
               "Accept" to "*/*",
@@ -259,10 +255,14 @@ class NetflixMirrorProvider : MainAPI() {
       }?.map {
         track ->
         subtitleCallback.invoke(
-          SubtitleFile(
+          newSubtitleFile(
             track.label.toString(),
-            httpsify(track.file.toString())
-          )
+            httpsify(track.file.toString().replace("\\", "")),
+          ) {
+            this.headers = mapOf(
+              "Referer" to "$newUrl/"
+            )
+          }
         )
       }
     }
