@@ -70,14 +70,18 @@ class FourKHDHub : MainAPI() {
         val posterUrl = this.select("img").attr("src")
         val tags = select("span.movie-card-format").map { it.text() }
         val quality = getSearchQuality(tags)
+        
+        // Filter tags to only show quality info on poster (excluding resolution numbers)
+        val qualityRegex = Regex("(?i)\\b(bluray|web-?dl|webrip|hdrip|cam|dvd|hdr|sdr|hevc)\\b")
+        val qualityText = tags.filter { it.contains(qualityRegex) }.joinToString(" ")
+
         return newMovieSearchResponse(title, href, TvType.Movie) {
             this.posterUrl = posterUrl
             this.quality = quality
-            if (tags.isNotEmpty()) {
-                this.posterHeaders = mapOf("qualityText" to tags.joinToString(" "))
+            if (qualityText.isNotBlank()) {
+                this.posterHeaders = mapOf("qualityText" to qualityText)
             }
         }
-
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
