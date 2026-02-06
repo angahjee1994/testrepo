@@ -138,17 +138,15 @@ class NetflixMirrorProvider : MainAPI() {
     val runTime = convertRuntimeToMinutes(data.runtime.toString())
     
     if (data.episodes.first() == null) {
-      episodes.add(newEpisode(LoadData(title, id, isMovie = true)) {
+      episodes.add(newEpisode(LoadData(title, id)) {
         name = data.title
       })
     } else {
       data.episodes.filterNotNull().mapTo(episodes) {
-        val s = it.s.replace("S", "").toIntOrNull()
-        val e = it.ep.replace("E", "").toIntOrNull()
-        newEpisode(LoadData(title, it.id, season = s, episode = e, isMovie = false)) {
+        newEpisode(LoadData(title, it.id)) {
           this.name = it.t
-          this.episode = e
-          this.season = s
+          this.episode = it.ep.replace("E", "").toIntOrNull()
+          this.season = it.s.replace("S", "").toIntOrNull()
           this.posterUrl = "https://imgcdn.kim/epimg/150/${it.id}.jpg"
           this.runTime = it.time.replace("m", "").toIntOrNull()
         }
@@ -197,12 +195,10 @@ class NetflixMirrorProvider : MainAPI() {
         cookies = cookies
       ).parsed<EpisodesData>()
       data.episodes?.mapTo(episodes) {
-        val s = it.s.replace("S", "").toIntOrNull()
-        val e = it.ep.replace("E", "").toIntOrNull()
-        newEpisode(LoadData(title, it.id, season = s, episode = e, isMovie = false)) {
+        newEpisode(LoadData(title, it.id)) {
           name = it.t
-          episode = e
-          season = s
+          episode = it.ep.replace("E", "").toIntOrNull()
+          season = it.s.replace("S", "").toIntOrNull()
           this.posterUrl = "https://imgcdn.kim/epimg/150/${it.id}.jpg"
           this.runTime = it.time.replace("m", "").toIntOrNull()
         }
@@ -219,64 +215,57 @@ class NetflixMirrorProvider : MainAPI() {
     subtitleCallback: (SubtitleFile) -> Unit,
     callback: (ExtractorLink) -> Unit
   ): Boolean {
-    val media = parseJson<LoadData>(data)
-    val title = media.title
-    val id = media.id
+    val (title, id) = parseJson<LoadData>(data)
     val cookies = mapOf(
       "t_hash_t" to cookie_value,
       "ott" to "nf",
       "hd" to "on"
     )
 
-    coroutineScope {
-      launch {
-        NetflixSubtitleHelper.getSubtitles(title, media.season, media.episode, subtitleCallback)
+    val token = getVideoToken(mainUrl, newUrl, id, cookies)
+    val playlist = app.get(
+      "$newUrl/playlist.php?id=$id&t=$title&h=$token&tm=${APIHolder.unixTime}",
+      headers,
+      referer = "$mainUrl/",
+      cookies = cookies
+    ).parsed<PlayList>()
+
+    playlist.forEach {
+      item ->
+      item.sources.forEach {
+        callback.invoke(
+          newExtractorLink(
+            name,
+            it.label,
+            newUrl + it.file,
+            type = ExtractorLinkType.M3U8
+          ) {
+            this.referer = "$newUrl/"
+            this.headers = mapOf(
+              "User-Agent" to "Mozilla/5.0 (Android) ExoPlayer",
+              "Accept" to "*/*",
+              "Accept-Encoding" to "identity",
+              "Connection" to "keep-alive",
+              "Cookie" to "hd=on"
+            )
+          }
+        )
       }
-      launch {
-        val token = getVideoToken(mainUrl, newUrl, id, cookies)
-        val playlist = app.get(
-          "$newUrl/playlist.php?id=$id&t=$title&h=$token&tm=${APIHolder.unixTime}",
-          headers,
-          referer = "$mainUrl/",
-          cookies = cookies
-        ).parsed<PlayList>()
 
-        playlist.forEach { item ->
-          item.sources.forEach {
-            callback.invoke(
-              newExtractorLink(
-                name,
-                it.label,
-                newUrl + it.file,
-                type = ExtractorLinkType.M3U8
-              ) {
-                this.referer = "$newUrl/"
-                this.headers = mapOf(
-                  "User-Agent" to "Mozilla/5.0 (Android) ExoPlayer",
-                  "Accept" to "*/*",
-                  "Accept-Encoding" to "identity",
-                  "Connection" to "keep-alive",
-                  "Cookie" to "hd=on"
-                )
-              }
+      item.tracks?.filter {
+        it.kind == "captions"
+      }?.map {
+        track ->
+        subtitleCallback.invoke(
+          newSubtitleFile(
+            track.label.toString(),
+            httpsify(track.file.toString().replace("\\", "")),
+          ) {
+            this.headers = mapOf(
+              "Referer" to "$newUrl/"
             )
           }
-
-          item.tracks?.filter {
-            it.kind == "captions"
-          }?.map { track ->
-            subtitleCallback.invoke(
-              newSubtitleFile(
-                track.label.toString(),
-                httpsify(track.file.toString().replace("\\", "")),
-              ) {
-                this.headers = mapOf(
-                  "Referer" to "$newUrl/"
-                )
-              }
-            )
-          }
-        }
+        )
       }
     }
 
@@ -288,10 +277,6 @@ class NetflixMirrorProvider : MainAPI() {
   )
 
   data class LoadData(
-    val title: String,
-    val id: String,
-    val season: Int? = null,
-    val episode: Int? = null,
-    val isMovie: Boolean? = true,
+    val title: String, val id: String
   )
 }
