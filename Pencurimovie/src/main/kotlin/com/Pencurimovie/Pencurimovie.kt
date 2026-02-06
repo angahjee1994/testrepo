@@ -53,6 +53,7 @@ class Pencurimovie : MainAPI() {
         return newMovieSearchResponse(title, href, TvType.Movie) {
             this.posterUrl = posterUrl
             this.quality = quality
+            this.posterHeaders = mapOf("qualityText" to qualityString)
         }
     }
 
