@@ -70,7 +70,6 @@ class Moviebox : MainAPI() {
         "channelId=1,genre=Sci-Fi,sort=latest" to "Sci-Fi Movies",
         "channelId=1,genre=Thriller,sort=latest" to "Thriller Movies",
         "channelId=1,genre=War,sort=latest" to "War Movies",
-        "channelId=7,genre=All,sort=ForYou" to "Short",
     )
 
     override suspend fun getMainPage(
