@@ -8,7 +8,7 @@ import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.utils.*
 
 class Pencurimovie : MainAPI() {
-    override var mainUrl = "https://ww73.pencurimovie.bond"
+    override var mainUrl = "https://ww99.pencurimovie.bond"
     override var name = "Pencurimovie"
     override val hasMainPage = true
     override var lang = "ms"
@@ -43,10 +43,13 @@ class Pencurimovie : MainAPI() {
     }
 
     private fun Element.toSearchResult(): SearchResponse {
-        val title = this.select("a").attr("oldtitle").substringBefore("(")
+        val title = (this.selectFirst("a")?.attr("oldtitle")?.takeIf { it.isNotEmpty() }
+            ?: this.selectFirst("a")?.attr("title") ?: "").substringBefore("(")
         val href = fixUrl(this.select("a").attr("href"))
-        val posterUrl = fixUrlNull(this.select("a img").attr("data-original"))
-        val quality = getQualityFromString(this.select("span.mli-quality").text())
+        val posterUrl = fixUrlNull(
+            this.select("a img").attr("data-original").ifEmpty { this.select("a img").attr("src") })
+        val qualityString = this.select("span.mli-quality").text()
+        val quality = getQualityFromString(qualityString)
         return newMovieSearchResponse(title, href, TvType.Movie) {
             this.posterUrl = posterUrl
             this.quality = quality
