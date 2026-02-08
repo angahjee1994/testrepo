@@ -267,7 +267,7 @@ class Hot51 : MainAPI() {
             val isFlatName = name.isNotEmpty() && name.matches(Regex("^[\\p{L}\\p{N}\\p{P}\\p{Z}]+$"))
             val isFlatTitle = title.isNotEmpty() && title.matches(Regex("^[\\p{L}\\p{N}\\p{P}\\p{Z}]+$"))
             
-            val isBot = isFlatName && isFlatTitle
+            val isBot = isFlatName && isFlatTitle && (item.bauble == false)
             
             areaMatch && !isBot
         }?.map { item ->
