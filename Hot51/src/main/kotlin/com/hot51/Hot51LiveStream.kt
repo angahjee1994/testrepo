@@ -71,11 +71,9 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
                 sb.append(value.toString())
             }
         }
-        // Double MD5 as per reverse engineering: md5(md5(A) + "") which simplifies to md5(md5(A))
-        // However, the agent mentioned a secret key "rsba648b744646lkid9896bb1o7h9776"
-        // Let's try the simple double MD5 first as the header sign logic seemed to use empty string.
         val a = sb.toString()
-        return md5(md5(a)) 
+        val secret = "rsba648b744646lkid9896bb1o7h9776"
+        return md5(md5(a) + secret)
     }
 
     suspend fun fetchRoomInfo(roomId: String, anchorId: String): RoomInfoData? {
@@ -89,6 +87,8 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
             "device" to "806abd11-fef0-4baa-9c3d-104b4693dc7d",
             "versionCode" to "101",
             "dev-type" to "H5",
+            "system-version" to "1.5.1",
+            "time-zone" to "GMT+08:00",
             "sign" to sign
         )
         return try {
@@ -119,6 +119,8 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
             "device" to "806abd11-fef0-4baa-9c3d-104b4693dc7d", 
             "versionCode" to "101",
             "dev-type" to "H5",
+            "system-version" to "1.5.1",
+            "time-zone" to "GMT+08:00",
             "sign" to sign
         )
         try {
