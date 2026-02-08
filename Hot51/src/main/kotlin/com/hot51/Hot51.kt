@@ -89,9 +89,16 @@ class Hot51 : MainAPI() {
         var recs = emptyList<SearchResponse>()
         try {
             val feedResponse = app.get(feedUrl).parsedSafe<LiveCenterResponse>()
-            recs = feedResponse?.records?.filter { item ->
-                item.anchorId != id && !isBot(item, isAreaBased, area)
-            }?.take(12)?.map { item ->
+            val allRecords = feedResponse?.records ?: emptyList()
+            Log.d("Hot51", "Total records fetched: ${allRecords.size}")
+            
+            recs = allRecords.filter { item ->
+                val isCurrentVideo = item.anchorId == id
+                val isBotResult = isBot(item, isAreaBased, area)
+                if (isCurrentVideo) Log.d("Hot51", "Filtered current video: ${item.anchorNickname}")
+                if (isBotResult) Log.d("Hot51", "Filtered bot: ${item.anchorNickname}")
+                !isCurrentVideo && !isBotResult
+            }.take(12).map { item ->
                 val epName = item.anchorNickname ?: "Live"
                 val epId = item.anchorId ?: item.id ?: ""
                 val epPoster = item.coverUrl ?: item.avatar ?: ""
@@ -99,9 +106,9 @@ class Hot51 : MainAPI() {
                 
                 newAnimeSearchResponse(epName, epData, TvType.NSFW) {
                     this.posterUrl = epPoster
-                    this.apiName = "Hot51"
                 }
-            } ?: emptyList()
+            }
+            Log.d("Hot51", "Final recommendations count: ${recs.size}")
         } catch (e: Exception) {
             Log.e("Hot51", "Error fetching recommendations: ${e.message}")
         }
