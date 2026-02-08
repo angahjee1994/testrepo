@@ -100,11 +100,29 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
         }
     }
 
+
+    // Local definition since extension doesn't see Core's MainAPI update
+    data class LiveComment(
+        val username: String,
+        val message: String,
+        val timestamp: Long,
+        val avatarUrl: String? = null,
+    )
+
+    data class LiveGift(
+        val senderName: String,
+        val giftName: String,
+        val giftIconUrl: String,
+        val count: Int,
+        val timestamp: Long,
+        val animationUrl: String? = null,
+    )
+
     // Shared Flow for WebSocket events to avoid multiple connections
     private val _wsEvents = MutableSharedFlow<WsMessage>(
         replay = 0, 
         extraBufferCapacity = 64, 
-        onBufferOverflow = BufferOverflow.DROP_OLD
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
     
     // Keep track of current connection
