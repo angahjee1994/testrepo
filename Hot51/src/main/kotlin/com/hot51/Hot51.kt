@@ -41,10 +41,13 @@ class Hot51 : MainAPI() {
         val poster = data.poster ?: ""
         val area = data.area ?: "MY"
         
+        // Create clean LinkData to ensure area is included in JSON
+        val details = LinkData(id, area, title, poster)
+        
         return newLiveStreamLoadResponse(
             name = title,
-            url = data.toJson(), 
-            dataUrl = data.anchorId 
+            url = details.toJson(), 
+            dataUrl = id 
         ) {
             this.posterUrl = poster
         }
@@ -110,7 +113,13 @@ class Hot51 : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val linkData = parseJson<LinkData>(data)
+    override suspend fun loadLinks(
+        data: String,
+        isCasting: Boolean,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        val linkData = tryParseJson<LinkData>(data) ?: LinkData(data)
         val anchorId = linkData.anchorId
         val area = linkData.area
         val merchantId = "501"
