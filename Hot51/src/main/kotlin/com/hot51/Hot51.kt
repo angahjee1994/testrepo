@@ -253,8 +253,13 @@ class Hot51 : MainAPI() {
         }
         
         val timestamp = System.currentTimeMillis() / 1000
+        
+        // Only include area parameter for country-specific tabs (ID/VN)
+        // User confirmed GLOBAL tabs (Toys/Show) MUST NOT have area parameter
+        val areaParam = if (isAreaBased) "&area=$area" else ""
+        
         // Verified endpoint from browser inspection (liveCenter) which supports the specific labelIds
-        val baseUrl = "https://api.fnccdn.com/501/api/plr/zbliv/public/live/h5/liveCenter?pageNum=$page&pageSize=20&merchantId=$merchantId&area=$area&lang=ENU&t=$timestamp"
+        val baseUrl = "https://api.fnccdn.com/501/api/plr/zbliv/public/live/h5/liveCenter?pageNum=$page&pageSize=20&merchantId=$merchantId$areaParam&lang=ENU&t=$timestamp"
         val url = if (labelId.isNotEmpty()) "$baseUrl&labelId=$labelId" else baseUrl
         
         val response = app.get(url).parsedSafe<LiveCenterResponse>()
