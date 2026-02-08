@@ -99,6 +99,7 @@ class Hot51 : MainAPI() {
                 
                 newAnimeSearchResponse(epName, epData, TvType.NSFW) {
                     this.posterUrl = epPoster
+                    this.apiName = "Hot51"
                 }
             } ?: emptyList()
         } catch (e: Exception) {
