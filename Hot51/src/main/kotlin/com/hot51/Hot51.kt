@@ -172,7 +172,7 @@ class Hot51 : MainAPI() {
         )
         val sign = generateSign(paramMap)
 
-        val infoUrl = "https://api.fnccdn.com/501/api/plr/zbliv/h5/v3/public/live/room-info?merchantId=$merchantId"
+        val infoUrl = "$apiUrl/public/live/room-info?merchantId=$merchantId"
         val body = mapOf("anchorId" to anchorId)
         
         val deviceId = java.util.UUID.randomUUID().toString()
