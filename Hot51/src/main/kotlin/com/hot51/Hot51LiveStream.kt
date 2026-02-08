@@ -102,12 +102,9 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
     suspend fun fetchGiftList() {
         if (giftMap.isNotEmpty()) return
         // Use the API endpoint found in logs for "toys" as that's likely the one working for web H5
-        // or stick to the one requested. The browser logs showed 'toy/v2/get/list'.
-        // User used 'gift/v2/get/list'.
-        // Let's try the user's url but with proper signing.
-        // GET params: merchantId=501, t=timestamp
+        // User reports this URL works: https://api.fnccdn.com/501/api/plr/financemo/vips/v2/h5/search
         val timestamp = System.currentTimeMillis() / 1000
-        val url = "https://api.fnccdn.com/501/api/plr/live/gift/v2/get/list"
+        val url = "https://api.fnccdn.com/501/api/plr/financemo/vips/v2/h5/search"
         val params = mapOf("merchantId" to 501, "t" to timestamp)
         val sign = generateSign(params)
         
@@ -213,7 +210,16 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
         Log.d("Hot51", "Connecting WS using url: $wsu")
         
         // Connect
-        val request = okhttp3.Request.Builder().url(wsu).build()
+        // Connect
+        val request = okhttp3.Request.Builder()
+            .url(wsu)
+            .addHeader("Origin", "https://hotlive11.com")
+            .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36")
+            .addHeader("Accept-Encoding", "gzip, deflate, br, zstd")
+            .addHeader("Accept-Language", "en-US,en;q=0.9")
+            .addHeader("Cache-Control", "no-cache")
+            .addHeader("Pragma", "no-cache")
+            .build()
         currentWebSocket = app.baseClient.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 startHeartbeat(webSocket)
