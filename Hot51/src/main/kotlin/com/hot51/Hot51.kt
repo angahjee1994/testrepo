@@ -279,20 +279,21 @@ class Hot51 : MainAPI() {
         // 2. Keep if cover is a user photo ("anchor-photo"), excluding potential bots (names ending in multiple digits)
         val items = response?.records?.filter { item ->
             val hasBauble = item.bauble == true
-            val hasAnchorPhoto = item.coverUrl?.contains("anchor-photo") == true
+            // Relaxed filter: Allow any custom cover, not just "anchor-photo", as long as name isn't bot-like
+            val hasCover = !item.coverUrl.isNullOrEmpty()
             
-            // Filter out names ending in 2+ digits if not confirmed by bauble
-            // This targets "Bot88", "User999" patterns common in game streams which use fake photos
+            // Filter out names ending in multiple digits if not confirmed by toy/bauble
+            // Still necessary to avoid "Bot01", "GameRoom99" but allows real users like "Sinta"
             val name = item.liveName ?: item.anchorNickname ?: ""
-            val isSpamName = name.matches(Regex(".*\\d{2,}$"))
-            
+            val isSpamName = name.matches(Regex(".*\\d{3,}$")) // Loosened to 3 digits to avoid banning "Girl22"
+
             val isRegionMatch = if (isCountry) {
                 item.area == area
             } else {
                 true // Show all for "Popular"
             }
             
-            (hasBauble || (hasAnchorPhoto && !isSpamName)) && isRegionMatch
+            (hasBauble || (hasCover && !isSpamName)) && isRegionMatch
         }?.map { item ->
             val title = item.liveName ?: item.anchorNickname ?: "Unknown"
             val id = item.anchorId ?: item.id ?: ""
