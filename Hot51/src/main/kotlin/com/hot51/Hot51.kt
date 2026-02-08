@@ -347,11 +347,11 @@ data class RoomInfoResponse(
 )
 
 data class RoomData(
-    @JsonProperty("anchorNickname") val anchorNickname: String?,
-    @JsonProperty("roomCover") val roomCover: String?,
-    @JsonProperty("avatar") val avatar: String?,
-    @JsonProperty("roomNotice") val roomNotice: String?,
-    @JsonProperty("area") val area: String?,
+    @JsonProperty("ann") val anchorNickname: String?,
+    @JsonProperty("cu") val roomCover: String?,
+    @JsonProperty("ahp") val avatar: String?,
+    @JsonProperty("cyNts") val roomNotice: String?,
+    @JsonProperty("la") val area: String?,
     @JsonProperty("pullAddr") val pullAddr: String?,
     @JsonProperty("unlDefPa") val unlDefPa: String?,
     @JsonProperty("unlLowPa") val unlLowPa: String?,
