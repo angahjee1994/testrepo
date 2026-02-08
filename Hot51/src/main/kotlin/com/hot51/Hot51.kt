@@ -13,6 +13,7 @@ import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 import android.util.Log
+import androidx.annotation.Keep
 
 class Hot51 : MainAPI() {
     override var mainUrl = "https://hotlive11.com"
@@ -375,12 +376,16 @@ class Hot51 : MainAPI() {
         "VN" to "Vietnam"
     )
 
+    @Keep
     fun getLiveComments(dataUrl: String): kotlinx.coroutines.flow.Flow<Hot51LiveStream.LiveComment>? {
+        Log.d("Hot51", "getLiveComments called")
         val id = extractId(dataUrl)
         return liveStream.getComments(id, id)
     }
 
+    @Keep
     fun getLiveGifts(dataUrl: String): kotlinx.coroutines.flow.Flow<Hot51LiveStream.LiveGift>? {
+        Log.d("Hot51", "getLiveGifts called")
         val id = extractId(dataUrl)
         return liveStream.getGifts(id, id)
     }
