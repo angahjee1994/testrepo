@@ -82,7 +82,7 @@ class Hot51 : MainAPI() {
         val isAreaBased = area == "ID" || area == "VN"
         val areaParam = if (isAreaBased) "&area=$area" else ""
         // If viewing specific area, load that area. If global, load Popular (1)
-        val labelId = if (isAreaBased) "" else "1" 
+        val labelId = data.labelId ?: (if (isAreaBased) "" else "1")
         val labelIdParam = if (labelId.isNotEmpty()) "&labelId=$labelId" else ""
 
         val feedUrl = "$apiUrl/public/live/h5/liveCenter?pageNum=1&pageSize=50${labelIdParam}&merchantId=$merchantId${areaParam}&lang=ENU&t=$timestamp"
@@ -265,7 +265,7 @@ class Hot51 : MainAPI() {
             
             newAnimeSearchResponse(
                 title,
-                LinkData(id, item.area, title, poster).toJson(),
+                LinkData(id, item.area, title, poster, "").toJson(),
                 TvType.NSFW
             ) {
                 this.posterUrl = poster
@@ -296,7 +296,7 @@ class Hot51 : MainAPI() {
                     
                     newAnimeSearchResponse(
                         bTitle,
-                        LinkData(bId, area, bTitle, bPoster).toJson(),
+                        LinkData(bId, area, bTitle, bPoster, labelId).toJson(),
                         TvType.NSFW
                     ) {
                         this.posterUrl = bPoster
@@ -328,7 +328,7 @@ class Hot51 : MainAPI() {
             
             newAnimeSearchResponse(
                 title,
-                LinkData(id, area, title, poster).toJson(),
+                LinkData(id, area, title, poster, labelId).toJson(),
                 TvType.NSFW
             ) {
                 this.posterUrl = poster
@@ -402,7 +402,8 @@ data class LinkData(
     @JsonProperty("anchorId") val anchorId: String,
     @JsonProperty("area") val area: String? = null,
     @JsonProperty("title") val title: String? = null,
-    @JsonProperty("poster") val poster: String? = null
+    @JsonProperty("poster") val poster: String? = null,
+    @JsonProperty("labelId") val labelId: String? = null
 )
 
 typealias BannerResponse = List<BannerRecord>
