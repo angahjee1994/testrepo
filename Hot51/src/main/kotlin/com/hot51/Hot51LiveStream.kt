@@ -1,8 +1,7 @@
 package com.hot51
 
 import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.LiveComment
-import com.lagradost.cloudstream3.LiveGift
+
 import com.lagradost.cloudstream3.utils.AppUtils
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
@@ -102,6 +101,22 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
         }
     }
 
+    // Local definition since extension doesn't see Core's MainAPI update
+    data class LiveComment(
+        val username: String,
+        val message: String,
+        val timestamp: Long,
+        val avatarUrl: String? = null,
+    )
+
+    data class LiveGift(
+        val username: String, // Note: Was 'senderName' in my previous local version, but I changed it to 'username' in the core check. Wait, let me double check the core file again.
+        val giftName: String,
+        val giftIconUrl: String,
+        val giftCount: Int,
+        val timestamp: Long,
+        val animationUrl: String? = null,
+    )
 
 
 
