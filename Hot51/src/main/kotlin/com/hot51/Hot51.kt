@@ -24,8 +24,7 @@ class Hot51 : MainAPI() {
     private val apiUrl = "https://api.fnccdn.com/501/api/plr/zbliv/h5/v3"
     private val merchantId = "501"
     
-    private val decryptKeyOld = "1558668820991598"
-    private val decryptIvOld = "0102030405060708"
+
     
     private val decryptKeyNew = "star@livega*963."
     private val decryptIvNew = "0608040307010502"
@@ -38,7 +37,7 @@ class Hot51 : MainAPI() {
         val poster = data.poster ?: ""
         val area = data.area ?: "MY"
         
-        val infoUrl = "https://api.fnccdn.com/501/api/plr/zbliv/h5/v3/public/live/room-info?merchantId=$merchantId"
+        val infoUrl = "$apiUrl/public/live/room-info?merchantId=$merchantId"
         val body = mapOf("anchorId" to id)
 
         val paramMap = mapOf("merchantId" to merchantId)
@@ -95,9 +94,7 @@ class Hot51 : MainAPI() {
         if (encrypted.isNullOrEmpty()) return null
         
         val combinations = listOf(
-            decryptKeyNew to decryptIvNew,
-            decryptKeyOld to decryptIvOld,
-            decryptKeyOld to decryptKeyOld // IV = Key fallback
+            decryptKeyNew to decryptIvNew
         )
         
         for ((idx, combo) in combinations.withIndex()) {
@@ -161,7 +158,7 @@ class Hot51 : MainAPI() {
         )
         val sign = generateSign(paramMap)
 
-        val infoUrl = "https://api.fnccdn.com/501/api/plr/zbliv/h5/v3/public/live/room-info?merchantId=$merchantId"
+        val infoUrl = "$apiUrl/public/live/room-info?merchantId=$merchantId"
         val body = mapOf("anchorId" to anchorId)
         
         val deviceId = java.util.UUID.randomUUID().toString()
@@ -204,7 +201,7 @@ class Hot51 : MainAPI() {
         callback(
             newExtractorLink(
                 "Hot51",
-                "Hot51 Live",
+                "LiveStream",
                 streamUrl,
                 ExtractorLinkType.M3U8
             ) {
