@@ -220,8 +220,19 @@ class Hot51 : MainAPI() {
         val url = if (labelId.isNotEmpty()) "$baseUrl&labelId=$labelId" else baseUrl
         
         val response = app.get(url).parsedSafe<LiveCenterResponse>()
-        val items = response?.records?.filter { 
-            it.bauble == true || it.coverUrl?.contains("anchor-photo") == true 
+        // Heuristic Filter: 
+        // 1. Keep if bauble is active (Confirmed Girl/Toy)
+        // 2. Keep if cover is a user photo ("anchor-photo"), excluding potential bots (names ending in multiple digits)
+        val items = response?.records?.filter { item ->
+            val hasBauble = item.bauble == true
+            val hasAnchorPhoto = item.coverUrl?.contains("anchor-photo") == true
+            
+            // Filter out names ending in 2+ digits if not confirmed by bauble
+            // This targets "Bot88", "User999" patterns common in game streams which use fake photos
+            val name = item.liveName ?: item.anchorNickname ?: ""
+            val isSpamName = name.matches(Regex(".*\\d{2,}$"))
+            
+            hasBauble || (hasAnchorPhoto && !isSpamName)
         }?.map { item ->
             val title = item.liveName ?: item.anchorNickname ?: "Unknown"
             val id = item.anchorId ?: item.id ?: ""
