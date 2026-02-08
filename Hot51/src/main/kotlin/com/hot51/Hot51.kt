@@ -28,8 +28,8 @@ class Hot51 : MainAPI() {
     
 
     
-    private val decryptKeyNew = "star@livega*963."
-    private val decryptIvNew = "0608040307010502"
+    private val decryptKeyNew = "9216345272696329"
+    private val decryptIvNew = "0507060302080104"
 
     override suspend fun load(url: String): LoadResponse {
         val data = tryParseJson<LinkData>(url) ?: LinkData(url)

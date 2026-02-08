@@ -79,9 +79,9 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
     }
     
 
-    // Encryption keys extracted from Hot51.kt
-    private val decryptKey = "star@livega*963."
-    private val decryptIv = "0608040307010502"
+    // Encryption keys extracted from Hot51.kt (Updated from website inspection)
+    private val decryptKey = "9216345272696329"
+    private val decryptIv = "0507060302080104"
 
     private fun decryptWsu(encrypted: String?): String? {
         if (encrypted.isNullOrEmpty()) return null
@@ -221,14 +221,10 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
         
         val job = launch {
             _wsEvents.collect { msg ->
-                // Map message to Comment
-                // Need to identify CMD IDs. 
-                // Usually: 10-Chat, 14-GiftEx, etc. 
-                // Let's dump all messages first or assume standard.
-                // cmd=14 is "Chat" in some versions, cmd=12 in others.
-                // We'll look for "content" in data.
-                
                 try {
+                    // Log the raw data for debugging
+                    // Log.d("Hot51", "WS RAW: ${msg.data}")
+                    
                     val dataMap = msg.data as? Map<String, Any> ?: emptyMap()
                     val cmd = msg.cmd
                     
