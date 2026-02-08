@@ -375,11 +375,11 @@ class Hot51 : MainAPI() {
         "VN" to "Vietnam"
     )
 
-    suspend fun getLiveComments(dataUrl: String): kotlinx.coroutines.flow.Flow<Hot51LiveStream.LiveComment>? {
+    fun getLiveComments(dataUrl: String): kotlinx.coroutines.flow.Flow<Hot51LiveStream.LiveComment>? {
         return liveStream.getComments(dataUrl, dataUrl)
     }
 
-    suspend fun getLiveGifts(dataUrl: String): kotlinx.coroutines.flow.Flow<Hot51LiveStream.LiveGift>? {
+    fun getLiveGifts(dataUrl: String): kotlinx.coroutines.flow.Flow<Hot51LiveStream.LiveGift>? {
         return liveStream.getGifts(dataUrl, dataUrl)
     }
 }
