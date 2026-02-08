@@ -21,15 +21,12 @@ class Hot51 : MainAPI() {
     override var lang = "id"
     override val supportedTypes = setOf(TvType.NSFW)
 
-    // API Endpoints
     private val apiUrl = "https://api.fnccdn.com/501/api/plr/h5/v3"
     private val merchantId = "501"
     
-    // Decryption Constants (Old/Common)
     private val decryptKeyOld = "1558668820991598"
     private val decryptIvOld = "0102030405060708"
     
-    // Decryption Constants (New/Room Specific)
     private val decryptKeyNew = "star@livega*963."
     private val decryptIvNew = "0608040307010502"
 
@@ -41,8 +38,6 @@ class Hot51 : MainAPI() {
         val poster = data.poster ?: ""
         val area = data.area ?: "MY"
         
-        // Fetch real room info to populate details page properly
-        // Use ZBLIV endpoint which works with our signature logic
         val infoUrl = "https://api.fnccdn.com/501/api/plr/zbliv/h5/v3/public/live/room-info?merchantId=$merchantId"
         val body = mapOf("anchorId" to id)
 
@@ -75,22 +70,14 @@ class Hot51 : MainAPI() {
         try {
             val response = app.post(infoUrl, headers = headers, json = body).parsedSafe<RoomInfoResponse>()
             response?.data?.let { room ->
-                // Title should stay as main page title (or fallback to nickname if empty)
-                // Cast/Actor should be the anchor nickname
                 val nickname = room.anchorNickname ?: "Unknown"
                 castList = listOf(ActorData(Actor(nickname, room.avatar ?: "")))
-                
-                // User Request: Keep original main page thumbnail for details page poster
-                // finalPoster = room.avatar ?: room.roomCover ?: poster 
-                // We do NOT update finalPoster here, so it stays as 'poster'
                 plot = room.roomNotice ?: "No Notice"
             }
         } catch (e: Exception) {
             Log.e("Hot51", "Error fetching room info in load: ${e.message}")
         }
         
-        // Create clean LinkData to ensure area is included in JSON
-        // Use the Original TITLE passed in 'title' variable (from load arg), NOT finalTitle
         val details = LinkData(id, area, title, finalPoster)
         
         return newLiveStreamLoadResponse(
@@ -134,7 +121,6 @@ class Hot51 : MainAPI() {
         return null
     }
 
-    // Diagnostic version of decrypt
     private fun decryptDebug(encrypted: String): String {
          return decrypt(encrypted) ?: "Decryption Failed"
     }
@@ -175,7 +161,6 @@ class Hot51 : MainAPI() {
         )
         val sign = generateSign(paramMap)
 
-        // Use ZBLIV in loadLinks since our signature logic is known to work for it
         val infoUrl = "https://api.fnccdn.com/501/api/plr/zbliv/h5/v3/public/live/room-info?merchantId=$merchantId"
         val body = mapOf("anchorId" to anchorId)
         
@@ -200,23 +185,17 @@ class Hot51 : MainAPI() {
         
         val response = app.post(infoUrl, headers = headers, json = body).parsedSafe<RoomInfoResponse>()
         
-        // Try all possible sources: HLS, FLV, pullAddr, decrypted unlDefPa, or unlLowPa
         var streamUrl = response?.data?.pullUrl?.hls ?: response?.data?.pullUrl?.flv 
             ?: response?.data?.pullAddr
             ?: response?.data?.unlDefPa?.let { decrypt(it) }
             ?: response?.data?.unlLowPa?.let { decrypt(it) }
 
-        // Sanitize: If streamUrl is just a path, it might need a domain? 
-        // Usually these are full URLs. If it starts with error, clear it.
-        
         if (streamUrl == null) {
-            // Debugging: Try to see WHY decryption failed
             val debugDef = response?.data?.unlDefPa?.let { decryptDebug(it) } ?: "N/A"
             val debugLow = response?.data?.unlLowPa?.let { decryptDebug(it) } ?: "N/A"
             throw Error("No link. Decrypt errors: Def=$debugDef, Low=$debugLow. Body: $body. Data: ${response?.data}")
         }
         
-        // If it was a debug error message (shouldn't happen with decrypt(), but checking)
         if (streamUrl.startsWith("Error:")) {
              throw Error("Decryption failed: $streamUrl")
         }
@@ -244,7 +223,6 @@ class Hot51 : MainAPI() {
         
         val homeLists = mutableListOf<HomePageList>()
         
-        // Fetch banners only on the first page of "Popular"
         if (page == 1 && data == "1") {
             try {
                 val bannerUrl = "$apiUrl/public/banner/list?merchantId=$merchantId&area=$area"
@@ -252,7 +230,6 @@ class Hot51 : MainAPI() {
                 val bannerItems = bannerRes?.map { banner ->
                     val bTitle = banner.title ?: "Hot51"
                     val bPoster = banner.imgUrl ?: ""
-                    // For banners, businessId is often the anchorId if type is ROOM
                     val bId = banner.businessId ?: ""
                     
                     newAnimeSearchResponse(
@@ -276,15 +253,10 @@ class Hot51 : MainAPI() {
         val url = if (labelId.isNotEmpty()) "$baseUrl&labelId=$labelId" else baseUrl
         
         val response = app.get(url).parsedSafe<LiveCenterResponse>()
-        // Heuristic Filter: 
-        // 1. Keep if bauble is active (Confirmed Girl/Toy)
-        // 2. Keep if cover is a user photo ("anchor-photo"), excluding potential bots (names ending in multiple digits)
+        
         val items = response?.records?.filter { item ->
             val hasBauble = item.bauble == true
             val gameType = item.gameType ?: 0
-            
-            // User confirmed: "gameType: 8, bauble: false" IS A GAME. Target this specifically.
-            // We also filter other non-zero gameTypes (like 1) if bauble is false.
             val isGame = gameType != 0
             
             val isRegionMatch = if (isCountry) {
@@ -293,13 +265,7 @@ class Hot51 : MainAPI() {
                 true 
             }
             
-            // Logic:
-            // 1. If it has Bauble (Toy) -> SHOW (Confirmed Girl)
-            // 2. If it is NOT a Game -> SHOW 
-            // 3. If it IS a Game (Type != 0) -> HIDE, UNLESS it has Bauble
-            val show = hasBauble || !isGame
-            
-            show && isRegionMatch
+            (hasBauble || !isGame) && isRegionMatch
         }?.map { item ->
             val title = item.liveName ?: item.anchorNickname ?: "Unknown"
             val id = item.anchorId ?: item.id ?: ""
@@ -332,7 +298,6 @@ class Hot51 : MainAPI() {
     )
 }
 
-// Data Classes
 data class LiveCenterResponse(
     @JsonProperty("records") val records: List<LiveRecord>?,
     @JsonProperty("current") val current: Int?,
