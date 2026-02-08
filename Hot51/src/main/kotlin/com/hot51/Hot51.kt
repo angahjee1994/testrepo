@@ -21,7 +21,7 @@ class Hot51 : MainAPI() {
     override var lang = "id"
     override val supportedTypes = setOf(TvType.NSFW)
 
-    private val apiUrl = "https://api.fnccdn.com/501/api/plr/zbliv/h5/v3"
+    private val apiUrl = "https://api.fnccdn.com/501/api/plr/zbliv"
     private val merchantId = "501"
     
 
@@ -37,7 +37,7 @@ class Hot51 : MainAPI() {
         val poster = data.poster ?: ""
         val area = data.area ?: "MY"
         
-        val infoUrl = "$apiUrl/public/live/room-info?merchantId=$merchantId"
+        val infoUrl = "$apiUrl/h5/v3/public/live/room-info?merchantId=$merchantId"
         val body = mapOf("anchorId" to id)
 
         val paramMap = mapOf("merchantId" to merchantId)
@@ -158,7 +158,7 @@ class Hot51 : MainAPI() {
         )
         val sign = generateSign(paramMap)
 
-        val infoUrl = "$apiUrl/public/live/room-info?merchantId=$merchantId"
+        val infoUrl = "$apiUrl/h5/v3/public/live/room-info?merchantId=$merchantId"
         val body = mapOf("anchorId" to anchorId)
         
         val deviceId = java.util.UUID.randomUUID().toString()
@@ -212,6 +212,26 @@ class Hot51 : MainAPI() {
         return true
     }
 
+    override suspend fun search(query: String): List<SearchResponse> {
+        val url = "$apiUrl/public/live/h5/liveCenter?pageNum=1&pageSize=20&searchText=$query&merchantId=$merchantId&lang=ENU"
+        
+        val response = app.get(url).parsedSafe<LiveCenterResponse>()
+        
+        return response?.records?.map { item ->
+            val title = item.liveName ?: item.anchorNickname ?: "Unknown"
+            val id = item.anchorId ?: item.id ?: ""
+            val poster = item.coverUrl ?: item.avatar ?: ""
+            
+            newAnimeSearchResponse(
+                title,
+                LinkData(id, item.area, title, poster).toJson(),
+                TvType.NSFW
+            ) {
+                this.posterUrl = poster
+            }
+        } ?: emptyList()
+    }
+
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val data = request.data ?: "1"
         
@@ -226,7 +246,7 @@ class Hot51 : MainAPI() {
         // Banners only on "Popular" (ID 1)
         if (page == 1 && data == "1") {
             try {
-                val bannerUrl = "$apiUrl/public/banner/list?merchantId=$merchantId&area=$area"
+                val bannerUrl = "$apiUrl/h5/v3/public/banner/list?merchantId=$merchantId&area=$area"
                 val bannerRes = app.get(bannerUrl).parsedSafe<BannerResponse>()
                 val bannerItems = bannerRes?.map { banner ->
                     val bTitle = banner.title ?: "Hot51"
@@ -254,7 +274,7 @@ class Hot51 : MainAPI() {
         val areaParam = if (isAreaBased) "&area=$area" else ""
         val labelIdParam = if (labelId.isNotEmpty()) "&labelId=$labelId" else ""
         
-        val url = "https://api.fnccdn.com/501/api/plr/zbliv/public/live/h5/liveCenter?pageNum=$page&pageSize=20${labelIdParam}&merchantId=$merchantId${areaParam}&lang=ENU&t=$timestamp"
+        val url = "$apiUrl/public/live/h5/liveCenter?pageNum=$page&pageSize=20${labelIdParam}&merchantId=$merchantId${areaParam}&lang=ENU&t=$timestamp"
         
         val response = app.get(url).parsedSafe<LiveCenterResponse>()
         
