@@ -60,8 +60,15 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
     suspend fun fetchRoomInfo(roomId: String, anchorId: String): RoomInfoData? {
         val url = "https://api.fnccdn.com/501/api/plr/zbliv/h5/v3/public/live/room-info"
         val payload = mapOf("roomId" to roomId, "anchorId" to anchorId, "merchantId" to 501)
+        val headers = mapOf(
+            "Authorization" to "Basic d2ViLXBsYXllcjp3ZWJQbGF5ZXIyMDIyKjk2My4hQCM=",
+            "merchantId" to "501",
+            "device" to "806abd11-fef0-4baa-9c3d-104b4693dc7d",
+            "versionCode" to "101",
+            "dev-type" to "H5"
+        )
         return try {
-            app.post(url, json = payload).parsedSafe<RoomInfoResponse>()?.data
+            app.post(url, json = payload, headers = headers).parsedSafe<RoomInfoResponse>()?.data
         } catch (e: Exception) {
             Log.e("Hot51LiveStream", "Error fetching room info: ${e.message}")
             null
@@ -71,8 +78,15 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
     suspend fun fetchGiftList() {
         if (giftMap.isNotEmpty()) return
         val url = "https://api.fnccdn.com/501/api/plr/live/gift/v2/get/list?merchantId=501"
+        val headers = mapOf(
+            "Authorization" to "Basic d2ViLXBsYXllcjp3ZWJQbGF5ZXIyMDIyKjk2My4hQCM=",
+            "merchantId" to "501",
+            "device" to "806abd11-fef0-4baa-9c3d-104b4693dc7d", 
+            "versionCode" to "101",
+            "dev-type" to "H5"
+        )
         try {
-            val response = app.get(url).parsedSafe<GiftListResponse>()
+            val response = app.get(url, headers = headers).parsedSafe<GiftListResponse>()
             giftMap = response?.data?.associateBy { it.id } ?: emptyMap()
         } catch (e: Exception) {
             Log.e("Hot51LiveStream", "Error fetching gift list: ${e.message}")
