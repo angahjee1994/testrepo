@@ -80,7 +80,9 @@ class Hot51 : MainAPI() {
                 val nickname = room.anchorNickname ?: "Unknown"
                 castList = listOf(ActorData(Actor(nickname, room.avatar ?: "")))
                 
-                finalPoster = room.avatar ?: room.roomCover ?: poster
+                // User Request: Keep original main page thumbnail for details page poster
+                // finalPoster = room.avatar ?: room.roomCover ?: poster 
+                // We do NOT update finalPoster here, so it stays as 'poster'
                 plot = room.roomNotice ?: "No Notice"
             }
         } catch (e: Exception) {
@@ -279,26 +281,25 @@ class Hot51 : MainAPI() {
         // 2. Keep if cover is a user photo ("anchor-photo"), excluding potential bots (names ending in multiple digits)
         val items = response?.records?.filter { item ->
             val hasBauble = item.bauble == true
-            // Major change: Rely on gameType/gameName to filter out games
-            // If it's a game (type != 0 or has name), ONLY keep if confirmed girl (bauble=true)
-            val isGame = (item.gameType ?: 0) != 0 || !item.gameName.isNullOrEmpty()
+            val gameType = item.gameType ?: 0
             
-            val hasCover = !item.coverUrl.isNullOrEmpty()
+            // User confirmed: "gameType: 8, bauble: false" IS A GAME. Target this specifically.
+            // We also filter other non-zero gameTypes (like 1) if bauble is false.
+            val isGame = gameType != 0
             
-            // Filter out names ending in multiple digits if not confirmed by toy/bauble
-            val name = item.liveName ?: item.anchorNickname ?: ""
-            val isSpamName = name.matches(Regex(".*\\d{3,}$"))
-
             val isRegionMatch = if (isCountry) {
                 item.area == area
             } else {
-                true // Show all for "Popular"
+                true 
             }
             
             // Logic:
-            // 1. Always keep confirmed girls (bauble=true), even if playing games
-            // 2. If NOT confirmed girl, MUST NOT be a game AND must have valid cover/name
-            (hasBauble || (!isGame && hasCover && !isSpamName)) && isRegionMatch
+            // 1. If it has Bauble (Toy) -> SHOW (Confirmed Girl)
+            // 2. If it is NOT a Game -> SHOW 
+            // 3. If it IS a Game (Type != 0) -> HIDE, UNLESS it has Bauble
+            val show = hasBauble || !isGame
+            
+            show && isRegionMatch
         }?.map { item ->
             val title = item.liveName ?: item.anchorNickname ?: "Unknown"
             val id = item.anchorId ?: item.id ?: ""
