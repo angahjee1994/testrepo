@@ -262,12 +262,9 @@ class Hot51 : MainAPI() {
             // 1. Strict Area Filter for Country Tabs
             val areaMatch = if (isAreaBased) item.area == area else true
             
-            // 2. Strict Content Filter for "Toy" and "Show"
-            val contentMatch = when (data) {
-                "2" -> item.bauble == true
-                "1583463376967712769" -> item.bauble == false
-                else -> true
-            }
+            // 2. Strict Content Filter for "Toy" (2) only. 
+            // "Show" and others rely on server-side labelId filtering.
+            val contentMatch = if (data == "2") item.bauble == true else true
             
             areaMatch && contentMatch
         }?.map { item ->
