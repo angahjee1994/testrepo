@@ -20,6 +20,8 @@ class Hot51 : MainAPI() {
     override val hasMainPage = true
     override var lang = "id"
     override val supportedTypes = setOf(TvType.NSFW)
+    
+    private val liveStream by lazy { Hot51LiveStream(app) }
 
     private val apiUrl = "https://api.fnccdn.com/501/api/plr/zbliv"
     private val merchantId = "501"
@@ -372,6 +374,14 @@ class Hot51 : MainAPI() {
         "ID" to "Indonesia",
         "VN" to "Vietnam"
     )
+
+    override suspend fun getLiveComments(dataUrl: String): kotlinx.coroutines.flow.Flow<LiveComment>? {
+        return liveStream.getComments(dataUrl, dataUrl)
+    }
+
+    override suspend fun getLiveGifts(dataUrl: String): kotlinx.coroutines.flow.Flow<LiveGift>? {
+        return liveStream.getGifts(dataUrl, dataUrl)
+    }
 }
 
 data class LiveCenterResponse(
