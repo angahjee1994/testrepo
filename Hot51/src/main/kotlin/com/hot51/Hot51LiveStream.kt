@@ -57,15 +57,39 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
     // Cache explicitly fetched gift list
     private var giftMap: Map<String, GiftItem> = emptyMap()
 
+    private fun md5(input: String): String {
+        val md = java.security.MessageDigest.getInstance("MD5")
+        return java.math.BigInteger(1, md.digest(input.toByteArray())).toString(16).padStart(32, '0')
+    }
+
+    private fun generateSign(params: Map<String, Any>): String {
+        val sortedKeys = params.keys.sorted()
+        val sb = StringBuilder()
+        for (key in sortedKeys) {
+            val value = params[key]
+            if (value != null) {
+                sb.append(value.toString())
+            }
+        }
+        // Double MD5 as per reverse engineering: md5(md5(A) + "") which simplifies to md5(md5(A))
+        // However, the agent mentioned a secret key "rsba648b744646lkid9896bb1o7h9776"
+        // Let's try the simple double MD5 first as the header sign logic seemed to use empty string.
+        val a = sb.toString()
+        return md5(md5(a)) 
+    }
+
     suspend fun fetchRoomInfo(roomId: String, anchorId: String): RoomInfoData? {
         val url = "https://api.fnccdn.com/501/api/plr/zbliv/h5/v3/public/live/room-info"
         val payload = mapOf("roomId" to roomId, "anchorId" to anchorId, "merchantId" to 501)
+        val sign = generateSign(payload)
+        
         val headers = mapOf(
             "Authorization" to "Basic d2ViLXBsYXllcjp3ZWJQbGF5ZXIyMDIyKjk2My4hQCM=",
             "merchantId" to "501",
             "device" to "806abd11-fef0-4baa-9c3d-104b4693dc7d",
             "versionCode" to "101",
-            "dev-type" to "H5"
+            "dev-type" to "H5",
+            "sign" to sign
         )
         return try {
             app.post(url, json = payload, headers = headers).parsedSafe<RoomInfoResponse>()?.data
@@ -77,16 +101,28 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
 
     suspend fun fetchGiftList() {
         if (giftMap.isNotEmpty()) return
-        val url = "https://api.fnccdn.com/501/api/plr/live/gift/v2/get/list?merchantId=501"
+        // Use the API endpoint found in logs for "toys" as that's likely the one working for web H5
+        // or stick to the one requested. The browser logs showed 'toy/v2/get/list'.
+        // User used 'gift/v2/get/list'.
+        // Let's try the user's url but with proper signing.
+        // GET params: merchantId=501, t=timestamp
+        val timestamp = System.currentTimeMillis() / 1000
+        val url = "https://api.fnccdn.com/501/api/plr/live/gift/v2/get/list"
+        val params = mapOf("merchantId" to 501, "t" to timestamp)
+        val sign = generateSign(params)
+        
+        val fullUrl = "$url?merchantId=501&t=$timestamp"
+        
         val headers = mapOf(
             "Authorization" to "Basic d2ViLXBsYXllcjp3ZWJQbGF5ZXIyMDIyKjk2My4hQCM=",
             "merchantId" to "501",
             "device" to "806abd11-fef0-4baa-9c3d-104b4693dc7d", 
             "versionCode" to "101",
-            "dev-type" to "H5"
+            "dev-type" to "H5",
+            "sign" to sign
         )
         try {
-            val response = app.get(url, headers = headers).parsedSafe<GiftListResponse>()
+            val response = app.get(fullUrl, headers = headers).parsedSafe<GiftListResponse>()
             giftMap = response?.data?.associateBy { it.id } ?: emptyMap()
         } catch (e: Exception) {
             Log.e("Hot51LiveStream", "Error fetching gift list: ${e.message}")
