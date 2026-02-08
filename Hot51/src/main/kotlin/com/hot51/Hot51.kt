@@ -43,8 +43,8 @@ class Hot51 : MainAPI() {
         
         return newLiveStreamLoadResponse(
             name = title,
-            url = id,
-            dataUrl = url 
+            url = data.toJson(), 
+            dataUrl = data.anchorId 
         ) {
             this.posterUrl = poster
         }
