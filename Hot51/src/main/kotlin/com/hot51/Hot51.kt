@@ -259,7 +259,17 @@ class Hot51 : MainAPI() {
         val response = app.get(url).parsedSafe<LiveCenterResponse>()
         
         val items = response?.records?.filter { item ->
-            if (isAreaBased) item.area == area else true 
+            val areaMatch = if (isAreaBased) item.area == area else true
+            
+            val name = item.anchorNickname ?: ""
+            val title = item.liveName ?: ""
+            
+            val isFlatName = name.isNotEmpty() && name.matches(Regex("^[\\p{L}\\p{N}\\p{P}\\p{Z}]+$"))
+            val isFlatTitle = title.isNotEmpty() && title.matches(Regex("^[\\p{L}\\p{N}\\p{P}\\p{Z}]+$"))
+            
+            val isBot = isFlatName && isFlatTitle
+            
+            areaMatch && !isBot
         }?.map { item ->
             val title = item.liveName ?: item.anchorNickname ?: "Unknown"
             val id = item.anchorId ?: item.id ?: ""
