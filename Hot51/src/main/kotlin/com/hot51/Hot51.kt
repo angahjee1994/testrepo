@@ -377,14 +377,14 @@ class Hot51 : MainAPI() {
     )
 
     @Keep
-    fun getLiveComments(dataUrl: String): kotlinx.coroutines.flow.Flow<Hot51LiveStream.LiveComment>? {
+    fun getLiveComments(dataUrl: String): kotlinx.coroutines.flow.Flow<com.lagradost.cloudstream3.LiveComment>? {
         Log.d("Hot51", "getLiveComments called")
         val id = extractId(dataUrl)
         return liveStream.getComments(id, id)
     }
 
     @Keep
-    fun getLiveGifts(dataUrl: String): kotlinx.coroutines.flow.Flow<Hot51LiveStream.LiveGift>? {
+    fun getLiveGifts(dataUrl: String): kotlinx.coroutines.flow.Flow<com.lagradost.cloudstream3.LiveGift>? {
         Log.d("Hot51", "getLiveGifts called")
         val id = extractId(dataUrl)
         return liveStream.getGifts(id, id)

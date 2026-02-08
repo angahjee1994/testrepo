@@ -1,6 +1,8 @@
 package com.hot51
 
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.LiveComment
+import com.lagradost.cloudstream3.LiveGift
 import com.lagradost.cloudstream3.utils.AppUtils
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
