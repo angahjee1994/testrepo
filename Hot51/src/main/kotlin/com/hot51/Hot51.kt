@@ -42,7 +42,8 @@ class Hot51 : MainAPI() {
         val area = data.area ?: "MY"
         
         // Fetch real room info to populate details page properly
-        val infoUrl = "$apiUrl/public/live/room-info?merchantId=$merchantId"
+        // Use ZBLIV endpoint which works with our signature logic
+        val infoUrl = "https://api.fnccdn.com/501/api/plr/zbliv/h5/v3/public/live/room-info?merchantId=$merchantId"
         val body = mapOf("anchorId" to id)
 
         val paramMap = mapOf("merchantId" to merchantId)
@@ -172,7 +173,8 @@ class Hot51 : MainAPI() {
         )
         val sign = generateSign(paramMap)
 
-        val infoUrl = "$apiUrl/public/live/room-info?merchantId=$merchantId"
+        // Use ZBLIV in loadLinks since our signature logic is known to work for it
+        val infoUrl = "https://api.fnccdn.com/501/api/plr/zbliv/h5/v3/public/live/room-info?merchantId=$merchantId"
         val body = mapOf("anchorId" to anchorId)
         
         val deviceId = java.util.UUID.randomUUID().toString()
