@@ -84,12 +84,22 @@ class Hot51 : MainAPI() {
         val labelId = if (isAreaBased) "" else "1" 
         val labelIdParam = if (labelId.isNotEmpty()) "&labelId=$labelId" else ""
 
-        val feedUrl = "$apiUrl/public/live/h5/liveCenter?pageNum=1&pageSize=20${labelIdParam}&merchantId=$merchantId${areaParam}&lang=ENU&t=$timestamp"
-        
         var recs = emptyList<SearchResponse>()
         try {
-            val feedResponse = app.get(feedUrl).parsedSafe<LiveCenterResponse>()
-            val allRecords = feedResponse?.records ?: emptyList()
+            val allRecords = mutableListOf<LiveRecord>()
+            
+            for (pageNum in 1..5) {
+                val feedUrl = "$apiUrl/public/live/h5/liveCenter?pageNum=$pageNum&pageSize=20${labelIdParam}&merchantId=$merchantId${areaParam}&lang=ENU&t=$timestamp"
+                val feedResponse = app.get(feedUrl).parsedSafe<LiveCenterResponse>()
+                val pageRecords = feedResponse?.records ?: emptyList()
+                
+                if (pageRecords.isEmpty()) break
+                
+                allRecords.addAll(pageRecords)
+                
+                if ((feedResponse?.current ?: 0) >= (feedResponse?.pages ?: 0)) break
+            }
+            
             Log.d("Hot51", "Total records fetched: ${allRecords.size}")
             
             recs = allRecords.filter { item ->
@@ -98,7 +108,7 @@ class Hot51 : MainAPI() {
                 if (isCurrentVideo) Log.d("Hot51", "Filtered current video: ${item.anchorNickname}")
                 if (isBotResult) Log.d("Hot51", "Filtered bot: ${item.anchorNickname}")
                 !isCurrentVideo && !isBotResult
-            }.take(12).map { item ->
+            }.map { item ->
                 val epName = item.anchorNickname ?: "Live"
                 val epId = item.anchorId ?: item.id ?: ""
                 val epPoster = item.coverUrl ?: item.avatar ?: ""
