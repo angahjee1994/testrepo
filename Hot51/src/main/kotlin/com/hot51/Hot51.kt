@@ -113,12 +113,7 @@ class Hot51 : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-    override suspend fun loadLinks(
-        data: String,
-        isCasting: Boolean,
-        subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
-    ): Boolean {
+
         val linkData = tryParseJson<LinkData>(data) ?: LinkData(data)
         val anchorId = linkData.anchorId
         val area = linkData.area
