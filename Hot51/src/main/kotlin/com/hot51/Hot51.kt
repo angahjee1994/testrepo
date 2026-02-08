@@ -41,15 +41,54 @@ class Hot51 : MainAPI() {
         val poster = data.poster ?: ""
         val area = data.area ?: "MY"
         
+        // Fetch real room info to populate details page properly
+        val infoUrl = "$apiUrl/public/live/room-info?merchantId=$merchantId"
+        val body = mapOf("anchorId" to id)
+        
+        val deviceId = java.util.UUID.randomUUID().toString()
+        val headers = mapOf(
+            "Authorization" to "Basic d2ViLXBsYXllcjp3ZWJQbGF5ZXIyMDIyKjk2My4hQCM=",
+            "dev-type" to "H5",
+            "sign" to "11f569ed792da4e0cff8a393534a5bf2",
+            "merchantId" to merchantId,
+            "device" to deviceId,
+            "versionCode" to "101",
+            "system-version" to "1.5.1",
+            "time-zone" to "GMT+08:00",
+            "Content-Type" to "application/json; charset=utf-8",
+            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
+            "Origin" to "https://hotlive11.com",
+            "Referer" to "https://hotlive11.com/",
+            "area" to area,
+            "locale-language" to "ENU",
+            "Accept" to "application/json, text/plain, */*"
+        )
+        
+        var finalTitle = title
+        var finalPoster = poster
+        var plot = "Live Stream"
+        
+        try {
+            val response = app.post(infoUrl, headers = headers, json = body).parsedSafe<RoomInfoResponse>()
+            response?.data?.let { room ->
+                finalTitle = room.anchorNickname ?: title
+                finalPoster = room.avatar ?: room.roomCover ?: poster
+                plot = room.roomNotice ?: "No Notice"
+            }
+        } catch (e: Exception) {
+            Log.e("Hot51", "Error fetching room info in load: ${e.message}")
+        }
+        
         // Create clean LinkData to ensure area is included in JSON
-        val details = LinkData(id, area, title, poster)
+        val details = LinkData(id, area, finalTitle, finalPoster)
         
         return newLiveStreamLoadResponse(
-            name = title,
+            name = finalTitle,
             url = details.toJson(), 
             dataUrl = id 
         ) {
-            this.posterUrl = poster
+            this.posterUrl = finalPoster
+            this.plot = plot
         }
     }
 
