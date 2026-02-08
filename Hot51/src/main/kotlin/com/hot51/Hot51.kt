@@ -218,10 +218,10 @@ class Hot51 : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val data = request.data ?: "1"
         
-        // Special handling for Indonesia (Legacy Area-based) until we find its labelId
-        val isAreaBased = data == "ID"
-        val area = if (isAreaBased) "ID" else "MY"
-        // For standard tabs, use the data as labelId directly. For ID, use empty labelId
+        // Special handling for Country tabs (ID, VN)
+        val isAreaBased = data == "ID" || data == "VN"
+        val area = if (isAreaBased) data else "MY"
+        // For standard tabs, use the data as labelId directly. For ID/VN, use empty labelId
         val labelId = if (isAreaBased) "" else data
         
         val homeLists = mutableListOf<HomePageList>()
@@ -258,7 +258,19 @@ class Hot51 : MainAPI() {
         
         val response = app.get(url).parsedSafe<LiveCenterResponse>()
         
-        val items = response?.records?.map { item ->
+        val items = response?.records?.filter { item ->
+            // 1. Strict Area Filter for Country Tabs
+            val areaMatch = if (isAreaBased) item.area == area else true
+            
+            // 2. Strict Content Filter for "Toy" and "Show"
+            val contentMatch = when (data) {
+                "2" -> item.bauble == true
+                "1583463376967712769" -> item.bauble == false
+                else -> true
+            }
+            
+            areaMatch && contentMatch
+        }?.map { item ->
             val title = item.liveName ?: item.anchorNickname ?: "Unknown"
             val id = item.anchorId ?: item.id ?: ""
             val poster = item.coverUrl ?: item.avatar ?: ""
@@ -290,7 +302,7 @@ class Hot51 : MainAPI() {
         "2" to "Toy",
         "1583463376967712769" to "Show",
         "ID" to "Indonesia",
-        "1583463211715371010" to "Vietnam"
+        "VN" to "Vietnam"
     )
 }
 
