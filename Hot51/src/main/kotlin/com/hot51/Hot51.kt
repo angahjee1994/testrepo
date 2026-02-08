@@ -279,13 +279,15 @@ class Hot51 : MainAPI() {
         // 2. Keep if cover is a user photo ("anchor-photo"), excluding potential bots (names ending in multiple digits)
         val items = response?.records?.filter { item ->
             val hasBauble = item.bauble == true
-            // Relaxed filter: Allow any custom cover, not just "anchor-photo", as long as name isn't bot-like
+            // Major change: Rely on gameType/gameName to filter out games
+            // If it's a game (type != 0 or has name), ONLY keep if confirmed girl (bauble=true)
+            val isGame = (item.gameType ?: 0) != 0 || !item.gameName.isNullOrEmpty()
+            
             val hasCover = !item.coverUrl.isNullOrEmpty()
             
             // Filter out names ending in multiple digits if not confirmed by toy/bauble
-            // Still necessary to avoid "Bot01", "GameRoom99" but allows real users like "Sinta"
             val name = item.liveName ?: item.anchorNickname ?: ""
-            val isSpamName = name.matches(Regex(".*\\d{3,}$")) // Loosened to 3 digits to avoid banning "Girl22"
+            val isSpamName = name.matches(Regex(".*\\d{3,}$"))
 
             val isRegionMatch = if (isCountry) {
                 item.area == area
@@ -293,7 +295,10 @@ class Hot51 : MainAPI() {
                 true // Show all for "Popular"
             }
             
-            (hasBauble || (hasCover && !isSpamName)) && isRegionMatch
+            // Logic:
+            // 1. Always keep confirmed girls (bauble=true), even if playing games
+            // 2. If NOT confirmed girl, MUST NOT be a game AND must have valid cover/name
+            (hasBauble || (!isGame && hasCover && !isSpamName)) && isRegionMatch
         }?.map { item ->
             val title = item.liveName ?: item.anchorNickname ?: "Unknown"
             val id = item.anchorId ?: item.id ?: ""
@@ -341,7 +346,10 @@ data class LiveRecord(
     @JsonProperty("coverUrl") val coverUrl: String?,
     @JsonProperty("avatar") val avatar: String?,
     @JsonProperty("bauble") val bauble: Boolean? = false,
-    @JsonProperty("area") val area: String?
+    @JsonProperty("area") val area: String?,
+    @JsonProperty("gameName") val gameName: String?,
+    @JsonProperty("gameIconUrl") val gameIconUrl: String?,
+    @JsonProperty("gameType") val gameType: Int? = 0
 )
 
 data class RoomInfoResponse(
