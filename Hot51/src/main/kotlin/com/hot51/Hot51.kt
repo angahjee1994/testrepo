@@ -249,7 +249,7 @@ class Hot51 : MainAPI() {
         }
         
         val timestamp = System.currentTimeMillis() / 1000
-        val baseUrl = "$apiUrl/public/live/lrl?pageNum=$page&pageSize=100&merchantId=$merchantId&area=$area&lang=ENU&t=$timestamp"
+        val baseUrl = "$apiUrl/public/live/lrl?pageNum=$page&pageSize=20&merchantId=$merchantId&area=$area&lang=ENU&t=$timestamp"
         val url = if (labelId.isNotEmpty()) "$baseUrl&labelId=$labelId" else baseUrl
         
         val response = app.get(url).parsedSafe<LiveCenterResponse>()
