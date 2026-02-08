@@ -220,7 +220,9 @@ class Hot51 : MainAPI() {
         val url = if (labelId.isNotEmpty()) "$baseUrl&labelId=$labelId" else baseUrl
         
         val response = app.get(url).parsedSafe<LiveCenterResponse>()
-        val items = response?.records?.map { item ->
+        val items = response?.records?.filter { 
+            it.bauble == true || it.coverUrl?.contains("anchor-photo") == true 
+        }?.map { item ->
             val title = item.liveName ?: item.anchorNickname ?: "Unknown"
             val id = item.anchorId ?: item.id ?: ""
             val poster = item.coverUrl ?: item.avatar ?: ""
@@ -265,7 +267,8 @@ data class LiveRecord(
     @JsonProperty("anchorNickname") val anchorNickname: String?,
     @JsonProperty("liveName") val liveName: String?,
     @JsonProperty("coverUrl") val coverUrl: String?,
-    @JsonProperty("avatar") val avatar: String?
+    @JsonProperty("avatar") val avatar: String?,
+    @JsonProperty("bauble") val bauble: Boolean? = false
 )
 
 data class RoomInfoResponse(
