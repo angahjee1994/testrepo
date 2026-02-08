@@ -77,6 +77,36 @@ class Hot51 : MainAPI() {
             Log.e("Hot51", "Error fetching room info in load: ${e.message}")
         }
         
+        // Fetch Recommendations Logic
+        val timestamp = System.currentTimeMillis() / 1000
+        val isAreaBased = area == "ID" || area == "VN"
+        val areaParam = if (isAreaBased) "&area=$area" else ""
+        // If viewing specific area, load that area. If global, load Popular (1)
+        val labelId = if (isAreaBased) "" else "1" 
+        val labelIdParam = if (labelId.isNotEmpty()) "&labelId=$labelId" else ""
+
+        val feedUrl = "$apiUrl/public/live/h5/liveCenter?pageNum=1&pageSize=50${labelIdParam}&merchantId=$merchantId${areaParam}&lang=ENU&t=$timestamp"
+        
+        var recs = emptyList<SearchResponse>()
+        try {
+            val feedResponse = app.get(feedUrl).parsedSafe<LiveCenterResponse>()
+            recs = feedResponse?.records?.filter { item ->
+                !isBot(item, isAreaBased, area)
+            }?.map { item ->
+                val epName = item.anchorNickname ?: "Live"
+                val epId = item.anchorId ?: item.id ?: ""
+                val epPoster = item.coverUrl ?: item.avatar ?: ""
+                // Crucial: Use valid JSON for load() to parse later
+                val epData = LinkData(epId, item.area, epName, epPoster).toJson()
+                
+                newAnimeSearchResponse(epName, epData, TvType.NSFW) {
+                    this.posterUrl = epPoster
+                }
+            } ?: emptyList()
+        } catch (e: Exception) {
+            Log.e("Hot51", "Error fetching recommendations: ${e.message}")
+        }
+
         val details = LinkData(id, area, title, finalPoster)
         
         return newLiveStreamLoadResponse(
@@ -87,7 +117,18 @@ class Hot51 : MainAPI() {
             this.posterUrl = finalPoster
             this.plot = plot
             this.actors = castList
+            this.recommendations = recs
         }
+    }
+
+    private fun isBot(item: LiveRecord, isAreaBased: Boolean, area: String): Boolean {
+        val areaMatch = if (isAreaBased) item.area == area else true
+        val name = item.anchorNickname ?: ""
+        val title = item.liveName ?: ""
+        val isFlatName = name.isNotEmpty() && name.matches(Regex("^[\\p{L}\\p{N}\\p{P}\\p{Z}]+$"))
+        val isFlatTitle = title.isNotEmpty() && title.matches(Regex("^[\\p{L}\\p{N}\\p{P}\\p{Z}]+$"))
+        val isExplicitBot = isFlatName && isFlatTitle && (item.bauble == false)
+        return !areaMatch || isExplicitBot
     }
 
     private fun decrypt(encrypted: String?): String? {
@@ -279,17 +320,7 @@ class Hot51 : MainAPI() {
         val response = app.get(url).parsedSafe<LiveCenterResponse>()
         
         val items = response?.records?.filter { item ->
-            val areaMatch = if (isAreaBased) item.area == area else true
-            
-            val name = item.anchorNickname ?: ""
-            val title = item.liveName ?: ""
-            
-            val isFlatName = name.isNotEmpty() && name.matches(Regex("^[\\p{L}\\p{N}\\p{P}\\p{Z}]+$"))
-            val isFlatTitle = title.isNotEmpty() && title.matches(Regex("^[\\p{L}\\p{N}\\p{P}\\p{Z}]+$"))
-            
-            val isBot = isFlatName && isFlatTitle && (item.bauble == false)
-            
-            areaMatch && !isBot
+            !isBot(item, isAreaBased, area)
         }?.map { item ->
             val title = item.liveName ?: item.anchorNickname ?: "Unknown"
             val id = item.anchorId ?: item.id ?: ""
