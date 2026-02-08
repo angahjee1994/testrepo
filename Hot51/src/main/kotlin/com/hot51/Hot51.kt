@@ -44,12 +44,15 @@ class Hot51 : MainAPI() {
         // Fetch real room info to populate details page properly
         val infoUrl = "$apiUrl/public/live/room-info?merchantId=$merchantId"
         val body = mapOf("anchorId" to id)
+
+        val paramMap = mapOf("merchantId" to merchantId)
+        val sign = generateSign(paramMap)
         
         val deviceId = java.util.UUID.randomUUID().toString()
         val headers = mapOf(
             "Authorization" to "Basic d2ViLXBsYXllcjp3ZWJQbGF5ZXIyMDIyKjk2My4hQCM=",
             "dev-type" to "H5",
-            "sign" to "11f569ed792da4e0cff8a393534a5bf2",
+            "sign" to sign,
             "merchantId" to merchantId,
             "device" to deviceId,
             "versionCode" to "101",
@@ -64,14 +67,18 @@ class Hot51 : MainAPI() {
             "Accept" to "application/json, text/plain, */*"
         )
         
-        var finalTitle = title
         var finalPoster = poster
         var plot = "Live Stream"
+        var castList = emptyList<ActorData>()
         
         try {
             val response = app.post(infoUrl, headers = headers, json = body).parsedSafe<RoomInfoResponse>()
             response?.data?.let { room ->
-                finalTitle = room.anchorNickname ?: title
+                // Title should stay as main page title (or fallback to nickname if empty)
+                // Cast/Actor should be the anchor nickname
+                val nickname = room.anchorNickname ?: "Unknown"
+                castList = listOf(ActorData(Actor(nickname, room.avatar ?: "")))
+                
                 finalPoster = room.avatar ?: room.roomCover ?: poster
                 plot = room.roomNotice ?: "No Notice"
             }
@@ -80,15 +87,17 @@ class Hot51 : MainAPI() {
         }
         
         // Create clean LinkData to ensure area is included in JSON
-        val details = LinkData(id, area, finalTitle, finalPoster)
+        // Use the Original TITLE passed in 'title' variable (from load arg), NOT finalTitle
+        val details = LinkData(id, area, title, finalPoster)
         
         return newLiveStreamLoadResponse(
-            name = finalTitle,
+            name = title,
             url = details.toJson(), 
             dataUrl = id 
         ) {
             this.posterUrl = finalPoster
             this.plot = plot
+            this.actors = castList
         }
     }
 
