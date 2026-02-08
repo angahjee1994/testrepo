@@ -232,7 +232,13 @@ class Hot51 : MainAPI() {
             val name = item.liveName ?: item.anchorNickname ?: ""
             val isSpamName = name.matches(Regex(".*\\d{2,}$"))
             
-            hasBauble || (hasAnchorPhoto && !isSpamName)
+            val isRegionMatch = if (isCountry) {
+                item.area == area
+            } else {
+                true // Show all for "Popular"
+            }
+            
+            (hasBauble || (hasAnchorPhoto && !isSpamName)) && isRegionMatch
         }?.map { item ->
             val title = item.liveName ?: item.anchorNickname ?: "Unknown"
             val id = item.anchorId ?: item.id ?: ""
@@ -279,7 +285,8 @@ data class LiveRecord(
     @JsonProperty("liveName") val liveName: String?,
     @JsonProperty("coverUrl") val coverUrl: String?,
     @JsonProperty("avatar") val avatar: String?,
-    @JsonProperty("bauble") val bauble: Boolean? = false
+    @JsonProperty("bauble") val bauble: Boolean? = false,
+    @JsonProperty("area") val area: String?
 )
 
 data class RoomInfoResponse(
