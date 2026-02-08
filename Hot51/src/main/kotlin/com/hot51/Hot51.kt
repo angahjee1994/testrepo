@@ -376,11 +376,25 @@ class Hot51 : MainAPI() {
     )
 
     fun getLiveComments(dataUrl: String): kotlinx.coroutines.flow.Flow<Hot51LiveStream.LiveComment>? {
-        return liveStream.getComments(dataUrl, dataUrl)
+        val id = extractId(dataUrl)
+        return liveStream.getComments(id, id)
     }
 
     fun getLiveGifts(dataUrl: String): kotlinx.coroutines.flow.Flow<Hot51LiveStream.LiveGift>? {
-        return liveStream.getGifts(dataUrl, dataUrl)
+        val id = extractId(dataUrl)
+        return liveStream.getGifts(id, id)
+    }
+
+    private fun extractId(dataUrl: String): String {
+        val data = tryParseJson<LinkData>(dataUrl)
+        if (data?.anchorId != null) return data.anchorId
+        
+        // Check if URL
+        if (dataUrl.contains("hotlive11.com/room/")) {
+            val match = Regex("room/(\\d+)").find(dataUrl)
+            if (match != null) return match.groupValues[1]
+        }
+        return dataUrl
     }
 }
 

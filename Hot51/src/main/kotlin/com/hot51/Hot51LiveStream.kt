@@ -147,6 +147,7 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
         
         if (currentWebSocket != null) return
         
+        Log.d("Hot51", "Fetching room info for room=$roomId anchor=$anchorId")
         val roomInfo = fetchRoomInfo(roomId, anchorId) ?: return
         val wsu = decryptWsu(roomInfo.wsu) ?: roomInfo.wsu
         
@@ -154,6 +155,8 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
             Log.e("Hot51", "Failed to get WSU for room $roomId")
             return
         }
+        
+        Log.d("Hot51", "Connecting WS using url: $wsu")
         
         // Connect
         val request = okhttp3.Request.Builder().url(wsu).build()
@@ -223,7 +226,7 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
             _wsEvents.collect { msg ->
                 try {
                     // Log the raw data for debugging
-                    // Log.d("Hot51", "WS RAW: ${msg.data}")
+                    Log.d("Hot51", "WS RAW: ${msg.data}")
                     
                     val dataMap = msg.data as? Map<String, Any> ?: emptyMap()
                     val cmd = msg.cmd
