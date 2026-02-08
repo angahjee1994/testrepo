@@ -77,26 +77,24 @@ class Hot51 : MainAPI() {
             Log.e("Hot51", "Error fetching room info in load: ${e.message}")
         }
         
-        // Fetch Recommendations Logic
+        
         val timestamp = System.currentTimeMillis() / 1000
         val isAreaBased = area == "ID" || area == "VN"
         val areaParam = if (isAreaBased) "&area=$area" else ""
-        // If viewing specific area, load that area. If global, load Popular (1)
         val labelId = if (isAreaBased) "" else "1" 
         val labelIdParam = if (labelId.isNotEmpty()) "&labelId=$labelId" else ""
 
-        val feedUrl = "$apiUrl/public/live/h5/liveCenter?pageNum=1&pageSize=50${labelIdParam}&merchantId=$merchantId${areaParam}&lang=ENU&t=$timestamp"
+        val feedUrl = "$apiUrl/public/live/h5/liveCenter?pageNum=1&pageSize=20${labelIdParam}&merchantId=$merchantId${areaParam}&lang=ENU&t=$timestamp"
         
         var recs = emptyList<SearchResponse>()
         try {
             val feedResponse = app.get(feedUrl).parsedSafe<LiveCenterResponse>()
             recs = feedResponse?.records?.filter { item ->
-                !isBot(item, isAreaBased, area)
-            }?.map { item ->
+                item.anchorId != id && !isBot(item, isAreaBased, area)
+            }?.take(12)?.map { item ->
                 val epName = item.anchorNickname ?: "Live"
                 val epId = item.anchorId ?: item.id ?: ""
                 val epPoster = item.coverUrl ?: item.avatar ?: ""
-                // Crucial: Use valid JSON for load() to parse later
                 val epData = LinkData(epId, item.area, epName, epPoster).toJson()
                 
                 newAnimeSearchResponse(epName, epData, TvType.NSFW) {
