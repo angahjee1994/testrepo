@@ -101,22 +101,7 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
     }
 
 
-    // Local definition since extension doesn't see Core's MainAPI update
-    data class LiveComment(
-        val username: String,
-        val message: String,
-        val timestamp: Long,
-        val avatarUrl: String? = null,
-    )
 
-    data class LiveGift(
-        val senderName: String,
-        val giftName: String,
-        val giftIconUrl: String,
-        val count: Int,
-        val timestamp: Long,
-        val animationUrl: String? = null,
-    )
 
     // Shared Flow for WebSocket events to avoid multiple connections
     private val _wsEvents = MutableSharedFlow<WsMessage>(
@@ -237,8 +222,8 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
                         val comment = LiveComment(
                             username = dataMap["nickname"] as? String ?: "User",
                             message = dataMap["content"] as? String ?: "",
-                            avatarUrl = dataMap["avatar"] as? String,
-                            timestamp = System.currentTimeMillis()
+                            timestamp = System.currentTimeMillis(),
+                            avatarUrl = dataMap["avatar"] as? String
                         )
                         trySend(comment)
                     }
@@ -272,10 +257,10 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
                         val giftItem = giftMap[giftId]
                         if (giftItem != null) {
                             val gift = LiveGift(
-                                senderName = sender,
+                                username = sender,
                                 giftName = giftItem.giftName,
                                 giftIconUrl = giftItem.giftIcon,
-                                count = count,
+                                giftCount = count,
                                 timestamp = System.currentTimeMillis()
                             )
                             trySend(gift)
