@@ -218,8 +218,12 @@ class Hot51 : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val data = request.data ?: "1"
         val isCountry = data == "ID" || data == "VN"
+        val isToys = data == "toys"
+        val isShows = data == "shows"
+        
         val area = if (isCountry) data else "MY"
-        val labelId = if (isCountry || data == "1") "" else data
+        // For custom tabs "toys" and "shows", we load the default list (labelId="") and filter client-side
+        val labelId = if (isCountry || data == "1" || isToys || isShows) "" else data
         
         val homeLists = mutableListOf<HomePageList>()
         
@@ -254,45 +258,57 @@ class Hot51 : MainAPI() {
         
         val response = app.get(url).parsedSafe<LiveCenterResponse>()
         
-        val items = response?.records?.filter { item ->
-            val hasBauble = item.bauble == true
-            val gameType = item.gameType ?: 0
-            val isGame = gameType == 8
-            
-            val isRegionMatch = if (isCountry) {
-                item.area == area
-            } else {
-                true 
-            }
-            
-            (hasBauble || !isGame) && isRegionMatch
-        }?.map { item ->
+        val validItems = response?.records?.filter { 
+            if (isCountry) it.area == area else true 
+        } ?: emptyList()
+
+        val toysList = ArrayList<SearchResponse>()
+        val showsList = ArrayList<SearchResponse>()
+
+        validItems.forEach { item ->
             val title = item.liveName ?: item.anchorNickname ?: "Unknown"
             val id = item.anchorId ?: item.id ?: ""
             val poster = item.coverUrl ?: item.avatar ?: ""
             
-            newAnimeSearchResponse(
+            val searchResponse = newAnimeSearchResponse(
                 title,
                 LinkData(id, area, title, poster).toJson(),
                 TvType.NSFW
             ) {
                 this.posterUrl = poster
             }
-        } ?: emptyList()
+            
+            if (item.bauble == true) {
+                toysList.add(searchResponse)
+            } else {
+                showsList.add(searchResponse)
+            }
+        }
 
-        homeLists.add(
-            HomePageList(
-                name = request.name,
-                list = items,
-                isHorizontalImages = false
-            )
-        )
+        if (isToys) {
+            if (toysList.isNotEmpty()) {
+                homeLists.add(HomePageList(name = "Toys", list = toysList, isHorizontalImages = false))
+            }
+        } else if (isShows) {
+            if (showsList.isNotEmpty()) {
+                homeLists.add(HomePageList(name = "Shows", list = showsList, isHorizontalImages = false))
+            }
+        } else {
+            if (toysList.isNotEmpty()) {
+                homeLists.add(HomePageList(name = "Toys", list = toysList, isHorizontalImages = false))
+            }
+            if (showsList.isNotEmpty()) {
+                homeLists.add(HomePageList(name = "Shows", list = showsList, isHorizontalImages = false))
+            }
+        }
 
         return newHomePageResponse(homeLists, hasNext = (response?.current ?: 0) < (response?.pages ?: 0))
     }
 
     override val mainPage = mainPageOf(
         "1" to "Popular",
+        "toys" to "Toys",
+        "shows" to "Shows",
         "ID" to "Indonesia",
         "VN" to "Vietnam"
     )
