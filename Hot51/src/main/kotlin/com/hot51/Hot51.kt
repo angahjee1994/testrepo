@@ -249,7 +249,7 @@ class Hot51 : MainAPI() {
         }
         
         val timestamp = System.currentTimeMillis() / 1000
-        val baseUrl = "$apiUrl/public/live/lrl?pageNum=$page&pageSize=20&merchantId=$merchantId&area=$area&lang=ENU&t=$timestamp"
+        val baseUrl = "$apiUrl/public/live/lrl?pageNum=$page&pageSize=100&merchantId=$merchantId&area=$area&lang=ENU&t=$timestamp"
         val url = if (labelId.isNotEmpty()) "$baseUrl&labelId=$labelId" else baseUrl
         
         val response = app.get(url).parsedSafe<LiveCenterResponse>()
@@ -257,7 +257,7 @@ class Hot51 : MainAPI() {
         val items = response?.records?.filter { item ->
             val hasBauble = item.bauble == true
             val gameType = item.gameType ?: 0
-            val isGame = gameType != 0
+            val isGame = gameType == 8
             
             val isRegionMatch = if (isCountry) {
                 item.area == area
