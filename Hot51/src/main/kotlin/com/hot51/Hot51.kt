@@ -111,7 +111,8 @@ class Hot51 : MainAPI() {
         
         return newMovieLoadResponse(
             name = title,
-            url = details.toJson(), 
+            url = details.toJson(),
+            type = TvType.NSFW,
             dataUrl = id 
         ) {
             this.posterUrl = finalPoster
