@@ -21,7 +21,7 @@ class Hot51 : MainAPI() {
     override var lang = "id"
     override val supportedTypes = setOf(TvType.NSFW)
 
-    private val apiUrl = "https://api.fnccdn.com/501/api/plr/h5/v3"
+    private val apiUrl = "https://api.fnccdn.com/501/api/plr/zbliv/h5/v3"
     private val merchantId = "501"
     
     private val decryptKeyOld = "1558668820991598"
@@ -253,20 +253,15 @@ class Hot51 : MainAPI() {
         }
         
         val timestamp = System.currentTimeMillis() / 1000
-        val baseUrl = "$apiUrl/public/live/lrl?pageNum=$page&pageSize=20&merchantId=$merchantId&area=$area&lang=ENU&t=$timestamp"
+        // Verified endpoint from browser inspection (liveCenter) which supports the specific labelIds
+        val baseUrl = "https://api.fnccdn.com/501/api/plr/zbliv/public/live/h5/liveCenter?pageNum=$page&pageSize=20&merchantId=$merchantId&area=$area&lang=ENU&t=$timestamp"
         val url = if (labelId.isNotEmpty()) "$baseUrl&labelId=$labelId" else baseUrl
         
         val response = app.get(url).parsedSafe<LiveCenterResponse>()
         
         val items = response?.records?.filter { item ->
-            // 1. Strict Area Filter for Country Tabs
-            val areaMatch = if (isAreaBased) item.area == area else true
-            
-            // 2. Strict Content Filter for "Toy" (2) only. 
-            // "Show" and others rely on server-side labelId filtering.
-            val contentMatch = if (data == "2") item.bauble == true else true
-            
-            areaMatch && contentMatch
+            // Strictly filter by area if looking at a specific country tab to prevent loop/bleed
+            if (isAreaBased) item.area == area else true 
         }?.map { item ->
             val title = item.liveName ?: item.anchorNickname ?: "Unknown"
             val id = item.anchorId ?: item.id ?: ""
