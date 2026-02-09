@@ -208,6 +208,7 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
         
         Log.d("Hot51", "Fetching room info for room=$roomId anchor=$anchorId")
         val roomInfo = fetchRoomInfo(roomId, anchorId) ?: return
+        Log.d("Hot51", "Encrypted wsu: ${roomInfo.wsu}")
         val wsu = decryptWsu(roomInfo.wsu) ?: roomInfo.wsu
         
         if (wsu == null) {
@@ -215,7 +216,7 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
             return
         }
         
-        Log.d("Hot51", "Connecting WS using url: $wsu")
+        Log.d("Hot51", "Decrypted wsu: $wsu")
         
         // Connect
         // Connect
@@ -231,16 +232,23 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
         currentWebSocket = app.baseClient.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 Log.d("Hot51", "WebSocket connected, sending handshake and guest login")
+                Log.d("Hot51", "WSU URL: $wsu")
                 
                 val token = try {
-                    val uri = java.net.URI(wsu)
-                    val query = uri.query ?: ""
-                    query.split("&").find { it.startsWith("t=") }?.substringAfter("t=") ?: ""
+                    val tokenParam = wsu.substringAfter("t=", "").substringBefore("&")
+                    if (tokenParam.isEmpty()) {
+                        Log.e("Hot51", "Token parameter not found in wsu URL")
+                        ""
+                    } else {
+                        val decoded = java.net.URLDecoder.decode(tokenParam, "UTF-8")
+                        Log.d("Hot51", "Raw token param: $tokenParam")
+                        Log.d("Hot51", "Decoded token: $decoded")
+                        decoded
+                    }
                 } catch (e: Exception) {
                     Log.e("Hot51", "Failed to extract token from wsu: ${e.message}")
                     ""
                 }
-                Log.d("Hot51", "Extracted token from wsu: $token")
                 
                 val handshakeMessage = """
                     {"cmd":10000}
