@@ -140,9 +140,7 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
     }
     
 
-    // Encryption keys extracted from Hot51.kt (Updated from website inspection)
-    private val decryptKey = "9216345272696329"
-    private val decryptIv = "0507060302080104"
+
 
     private fun decryptWsu(encrypted: String?): String? {
         if (encrypted.isNullOrEmpty()) return null
