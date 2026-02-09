@@ -150,6 +150,10 @@ class Hot51 : MainAPI() {
         return !areaMatch || isExplicitBot
     }
 
+
+    private val decryptKeyNew = "star@livega*963."
+    private val decryptIvNew = "0608040307010502"
+
     private fun decrypt(encrypted: String?): String? {
         if (encrypted.isNullOrEmpty()) return null
         
@@ -179,7 +183,7 @@ class Hot51 : MainAPI() {
     }
 
     private fun decryptDebug(encrypted: String): String {
-         return decrypt(encrypted) ?: "Decryption Failed"
+        return decrypt(encrypted) ?: "Decryption Failed"
     }
 
     private fun md5(input: String): String {
