@@ -25,6 +25,9 @@ import javax.crypto.spec.SecretKeySpec
 
 class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
 
+    private val decryptKey = "1558668820991598"
+    private val decryptIv = "0102030405060708"
+
     // Data classes for API responses
     data class RoomInfoResponse(@JsonProperty("data") val data: RoomInfoData)
     data class RoomInfoData(
@@ -217,6 +220,7 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
         }
         
         Log.d("Hot51", "Decrypted wsu: $wsu")
+        val encryptedWsu = roomInfo.wsu
         
         // Connect
         // Connect
@@ -237,8 +241,8 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
                 val token = try {
                     val tokenParam = wsu.substringAfter("t=", "").substringBefore("&")
                     if (tokenParam.isEmpty()) {
-                        Log.e("Hot51", "Token parameter not found in wsu URL")
-                        ""
+                        Log.d("Hot51", "No token in URL, using encrypted wsu as token")
+                        encryptedWsu ?: ""
                     } else {
                         val decoded = java.net.URLDecoder.decode(tokenParam, "UTF-8")
                         Log.d("Hot51", "Raw token param: $tokenParam")
@@ -246,8 +250,8 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
                         decoded
                     }
                 } catch (e: Exception) {
-                    Log.e("Hot51", "Failed to extract token from wsu: ${e.message}")
-                    ""
+                    Log.e("Hot51", "Failed to extract token, using encrypted wsu: ${e.message}")
+                    encryptedWsu ?: ""
                 }
                 
                 val handshakeMessage = """
