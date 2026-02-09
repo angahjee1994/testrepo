@@ -32,7 +32,7 @@ class Moviebox : MainAPI() {
         private val bannedLanguages = setOf(
             "English", "French", "Hindi", "Bengali", "Urdu", "Punjabi",
             "Tamil", "Telugu", "Malayalam", "Kannada", "Arabic",
-            "Tagalog", "Indonesian", "Russian", "Malay", "Portuguese", "Kurdish"
+            "Tagalog", "Indonesian", "Russian", "Malay", "Gujarati", "Portuguese", "Kurdish"
         )
     }
 
