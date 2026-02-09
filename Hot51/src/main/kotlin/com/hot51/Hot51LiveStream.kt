@@ -78,7 +78,7 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
 
     suspend fun fetchRoomInfo(roomId: String, anchorId: String): RoomInfoData? {
         val url = "https://api.fnccdn.com/501/api/plr/zbliv/h5/v3/public/live/room-info?merchantId=501"
-        val payload = mapOf("roomId" to roomId, "anchorId" to anchorId, "merchantId" to 501)
+        val payload = mapOf("anchorId" to anchorId)
         val sign = generateSign(payload)
         
         val headers = mapOf(
