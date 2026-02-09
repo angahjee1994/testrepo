@@ -230,16 +230,7 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
             .build()
         currentWebSocket = app.baseClient.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
-                Log.d("Hot51", "WebSocket connected, sending login and enter room")
-                
-                val visitorId = java.util.UUID.randomUUID().toString()
-                val loginMessage = """
-                    {"cmd":10001,"loginRequest":{"merchantId":501,"memberId":"","memberType":7,"area":"VN","language":"ENU","visitorId":"$visitorId","type":3}}
-                """.trimIndent()
-                webSocket.send(loginMessage)
-                Log.d("Hot51", "Sent login message")
-                
-                Thread.sleep(500)
+                Log.d("Hot51", "WebSocket connected, sending enter room (guest mode)")
                 
                 val enterRoomMessage = """
                     {"cmd":10004,"enterRoomRequest":{"anchorId":"$anchorId","flag":""}}
