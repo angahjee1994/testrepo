@@ -232,6 +232,16 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 Log.d("Hot51", "WebSocket connected, sending handshake and guest login")
                 
+                val token = try {
+                    val uri = java.net.URI(wsu)
+                    val query = uri.query ?: ""
+                    query.split("&").find { it.startsWith("t=") }?.substringAfter("t=") ?: ""
+                } catch (e: Exception) {
+                    Log.e("Hot51", "Failed to extract token from wsu: ${e.message}")
+                    ""
+                }
+                Log.d("Hot51", "Extracted token from wsu: $token")
+                
                 val handshakeMessage = """
                     {"cmd":10000}
                 """.trimIndent()
@@ -242,10 +252,10 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
                 
                 val visitorId = System.currentTimeMillis().toString() + (0..999).random().toString().padStart(3, '0')
                 val loginMessage = """
-                    {"cmd":10001,"loginRequest":{"area":"VN","language":"ENU","token":"","userId":"","type":7,"merchantId":501,"visitorId":"$visitorId","memberId":"","platform":3}}
+                    {"cmd":10001,"loginRequest":{"area":"VN","language":"ENU","token":"$token","userId":"","type":7,"merchantId":501,"visitorId":"$visitorId","memberId":"","platform":3}}
                 """.trimIndent()
                 webSocket.send(loginMessage)
-                Log.d("Hot51", "Sent guest login (type=7, platform=3, visitorId=$visitorId)")
+                Log.d("Hot51", "Sent guest login (type=7, platform=3, visitorId=$visitorId, token=$token)")
                 
                 Thread.sleep(500)
                 
