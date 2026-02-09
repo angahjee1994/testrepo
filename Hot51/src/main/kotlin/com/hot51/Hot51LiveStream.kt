@@ -257,11 +257,11 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
             override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
                 Log.d("Hot51WS", "Received binary message: ${bytes.size} bytes")
                 try {
-                    val text = bytes.utf8()
-                    Log.d("Hot51WS", "Binary as text: $text")
-                    val msg = tryParseJson<WsMessage>(text)
-                    if (msg != null) {
-                        Log.d("Hot51WS", "Parsed binary message cmd=${msg.cmd}")
+                    val data = bytes.toByteArray()
+                    val (cmd, dataMap) = ProtobufParser.parseMessage(data)
+                    if (cmd != null) {
+                        Log.d("Hot51WS", "Parsed protobuf: cmd=$cmd data=$dataMap")
+                        val msg = WsMessage(cmd, dataMap)
                         _wsEvents.tryEmit(msg)
                     }
                 } catch (e: Exception) {
