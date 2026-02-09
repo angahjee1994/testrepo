@@ -83,13 +83,21 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
         
         val headers = mapOf(
             "Authorization" to "Basic d2ViLXBsYXllcjp3ZWJQbGF5ZXIyMDIyKjk2My4hQCM=",
+            "dev-type" to "H5",
+            "sign" to sign,
             "merchantId" to "501",
             "device" to "806abd11-fef0-4baa-9c3d-104b4693dc7d",
             "versionCode" to "101",
-            "dev-type" to "H5",
             "system-version" to "1.5.1",
             "time-zone" to "GMT+08:00",
-            "sign" to sign
+            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
+            "Origin" to "https://hotlive11.com",
+            "Referer" to "https://hotlive11.com/",
+            "area" to "VN",
+            "locale-language" to "ENU",
+            "Accept" to "application/json, text/plain, */*",
+            "Cache-Control" to "max-age=0",
+            "Content-Type" to "application/json;charset=utf-8"
         )
         return try {
             app.post(url, json = payload, headers = headers).parsedSafe<RoomInfoResponse>()?.data
