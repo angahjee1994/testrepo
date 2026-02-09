@@ -29,8 +29,7 @@ class Hot51 : MainAPI() {
     
 
     
-    private val decryptKeyNew = "star@livega*963."
-    private val decryptIvNew = "0608040307010502"
+
 
     override suspend fun load(url: String): LoadResponse {
         val data = tryParseJson<LinkData>(url) ?: LinkData(url)
@@ -378,16 +377,20 @@ class Hot51 : MainAPI() {
 
     @Keep
     fun getLiveComments(dataUrl: String): kotlinx.coroutines.flow.Flow<Hot51LiveStream.LiveComment>? {
-        Log.d("Hot51", "getLiveComments called")
-        val id = extractId(dataUrl)
-        return liveStream.getComments(id, id)
+        Log.d("Hot51", "getLiveComments called with dataUrl: $dataUrl")
+        val data = tryParseJson<LinkData>(dataUrl)
+        val anchorId = data?.anchorId ?: dataUrl
+        Log.d("Hot51", "Extracted anchorId for comments: $anchorId")
+        return liveStream.getComments(anchorId, anchorId)
     }
 
     @Keep
     fun getLiveGifts(dataUrl: String): kotlinx.coroutines.flow.Flow<Hot51LiveStream.LiveGift>? {
-        Log.d("Hot51", "getLiveGifts called")
-        val id = extractId(dataUrl)
-        return liveStream.getGifts(id, id)
+        Log.d("Hot51", "getLiveGifts called with dataUrl: $dataUrl")
+        val data = tryParseJson<LinkData>(dataUrl)
+        val anchorId = data?.anchorId ?: dataUrl
+        Log.d("Hot51", "Extracted anchorId for gifts: $anchorId")
+        return liveStream.getGifts(anchorId, anchorId)
     }
 
     private fun extractId(dataUrl: String): String {
