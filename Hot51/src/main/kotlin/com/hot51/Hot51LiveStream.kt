@@ -230,22 +230,60 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
             .build()
         currentWebSocket = app.baseClient.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
+                Log.d("Hot51", "WebSocket connected, sending login and enter room")
+                
+                val visitorId = java.util.UUID.randomUUID().toString()
+                val loginMessage = """
+                    {"cmd":10001,"loginRequest":{"merchantId":501,"memberId":"","memberType":7,"area":"VN","language":"ENU","visitorId":"$visitorId","type":3}}
+                """.trimIndent()
+                webSocket.send(loginMessage)
+                Log.d("Hot51", "Sent login message")
+                
+                Thread.sleep(500)
+                
+                val enterRoomMessage = """
+                    {"cmd":10004,"enterRoomRequest":{"anchorId":"$anchorId","flag":""}}
+                """.trimIndent()
+                webSocket.send(enterRoomMessage)
+                Log.d("Hot51", "Sent enter room message for anchorId=$anchorId")
+                
                 startHeartbeat(webSocket)
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
+                Log.d("Hot51WS", "Received text message: $text")
                 try {
                     val msg = tryParseJson<WsMessage>(text)
-                    if (msg != null) _wsEvents.tryEmit(msg)
-                } catch (e: Exception) {}
+                    if (msg != null) {
+                        Log.d("Hot51WS", "Parsed message cmd=${msg.cmd}")
+                        _wsEvents.tryEmit(msg)
+                    }
+                } catch (e: Exception) {
+                    Log.e("Hot51WS", "Error parsing message: ${e.message}")
+                }
+            }
+            
+            override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
+                Log.d("Hot51WS", "Received binary message: ${bytes.size} bytes")
+                try {
+                    val text = bytes.utf8()
+                    Log.d("Hot51WS", "Binary as text: $text")
+                    val msg = tryParseJson<WsMessage>(text)
+                    if (msg != null) {
+                        Log.d("Hot51WS", "Parsed binary message cmd=${msg.cmd}")
+                        _wsEvents.tryEmit(msg)
+                    }
+                } catch (e: Exception) {
+                    Log.e("Hot51WS", "Error parsing binary message: ${e.message}")
+                }
             }
             
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-                // If closed by server, we might want to reconnect or just null it
+                Log.d("Hot51WS", "WebSocket closing: code=$code reason=$reason")
             }
             
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                // Handle failure
+                Log.e("Hot51WS", "WebSocket failure: ${t.message}")
             }
         })
     }
