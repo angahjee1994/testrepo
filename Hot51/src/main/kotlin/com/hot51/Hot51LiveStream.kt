@@ -230,22 +230,30 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
             .build()
         currentWebSocket = app.baseClient.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
-                Log.d("Hot51", "WebSocket connected, sending guest login")
+                Log.d("Hot51", "WebSocket connected, sending handshake and guest login")
                 
-                val deviceId = "806abd11-fef0-4baa-9c3d-104b4693dc7d"
+                val handshakeMessage = """
+                    {"cmd":10000}
+                """.trimIndent()
+                webSocket.send(handshakeMessage)
+                Log.d("Hot51", "Sent handshake (CMD 10000)")
+                
+                Thread.sleep(200)
+                
+                val visitorId = System.currentTimeMillis().toString() + (0..999).random().toString().padStart(3, '0')
                 val loginMessage = """
-                    {"cmd":10001,"loginRequest":{"merchantId":501,"visitorId":"$deviceId","area":"VN","language":"ENU","type":2,"userId":"","memberId":""}}
+                    {"cmd":10001,"loginRequest":{"area":"VN","language":"ENU","token":"","userId":"","type":7,"merchantId":501,"visitorId":"$visitorId","memberId":"","platform":3}}
                 """.trimIndent()
                 webSocket.send(loginMessage)
-                Log.d("Hot51", "Sent guest login (type=2)")
+                Log.d("Hot51", "Sent guest login (type=7, platform=3, visitorId=$visitorId)")
                 
                 Thread.sleep(500)
                 
                 val enterRoomMessage = """
-                    {"cmd":10004,"enterRoomRequest":{"anchorId":"$anchorId","flag":""}}
+                    {"cmd":10004,"enterRoomRequest":{"roomId":"$roomId","password":""}}
                 """.trimIndent()
                 webSocket.send(enterRoomMessage)
-                Log.d("Hot51", "Sent enter room message for anchorId=$anchorId")
+                Log.d("Hot51", "Sent enter room message for roomId=$roomId")
                 
                 startHeartbeat(webSocket)
             }
