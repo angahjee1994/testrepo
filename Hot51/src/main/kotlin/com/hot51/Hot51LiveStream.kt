@@ -166,27 +166,38 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
     
 
 
-
+            Log.e(TAG, "Error fetching gift list: ${e.message}")
+        }
+    }
+    
     private fun decryptWsu(encrypted: String?): String? {
         if (encrypted.isNullOrEmpty()) return null
         try {
-            Log.d("Hot51", "Decryption attempt - Key: $decryptKey (${decryptKey.length} chars)")
-            Log.d("Hot51", "Decryption attempt - IV: $decryptIv (${decryptIv.length} chars)")
-            Log.d("Hot51", "Decryption attempt - Encrypted: $encrypted")
-            
             val keySpec = SecretKeySpec(decryptKey.toByteArray(Charsets.UTF_8), "AES")
             val ivSpec = IvParameterSpec(decryptIv.toByteArray(Charsets.UTF_8))
             val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
             cipher.init(Cipher.DECRYPT_MODE, keySpec, ivSpec)
             val decodedBytes = Base64.decode(encrypted, Base64.DEFAULT)
-            Log.d("Hot51", "Decoded bytes length: ${decodedBytes.size}")
             val decryptedBytes = cipher.doFinal(decodedBytes)
             val result = String(decryptedBytes, Charsets.UTF_8).trim()
-            Log.d("Hot51", "Decryption SUCCESS: $result")
             return result
         } catch (e: Exception) {
-            Log.e("Hot51", "Decryption FAILED: ${e.javaClass.simpleName}: ${e.message}")
-            e.printStackTrace()
+            Log.e(TAG, "Failed check WSU: ${e.message}")
+            return null
+        }
+    }
+
+    private fun encryptToken(data: String, key: String): String? {
+        try {
+            val iv = "0507060302080104" // Hardcoded IV from JS
+            val keySpec = SecretKeySpec(key.toByteArray(Charsets.UTF_8), "AES")
+            val ivSpec = IvParameterSpec(iv.toByteArray(Charsets.UTF_8))
+            val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
+            cipher.init(Cipher.ENCRYPT_MODE, keySpec, ivSpec)
+            val encryptedBytes = cipher.doFinal(data.toByteArray(Charsets.UTF_8))
+            return Base64.encodeToString(encryptedBytes, Base64.NO_WRAP)
+        } catch (e: Exception) {
+            Log.e(TAG, "Encrypt token failed: ${e.message}")
             return null
         }
     }
@@ -208,8 +219,6 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
         val animationUrl: String? = null,
     )
 
-
-
     // Shared Flow for WebSocket events to avoid multiple connections
     private val _wsEvents = MutableSharedFlow<WsMessage>(
         replay = 0, 
@@ -225,7 +234,11 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
     private val connectionLock = Any() // Simple synchronization
     @Volatile private var isConnecting = false
     private var lastCookies: String? = null
+    private var currentAnchorId: String = "" // Added to store anchorId for later use
     
+    // Store RoomInfo for later use in handshake response
+    private var currentRoomInfo: RoomInfoData? = null
+
     private suspend fun connectWebSocket(roomId: String, anchorId: String) {
         synchronized(connectionLock) {
             if (activeRoomId != roomId) {
@@ -243,24 +256,26 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
         }
         
         try {
-        
-        Log.d("Hot51", "Fetching room info for room=$roomId anchor=$anchorId")
-        val roomInfo = fetchRoomInfo(roomId, anchorId) ?: return
-        Log.d("Hot51", "Encrypted wsu: ${roomInfo.wsu}")
-        val wsu = decryptWsu(roomInfo.wsu) ?: roomInfo.wsu
-        
-        if (wsu == null) {
-            Log.e("Hot51", "Failed to get WSU for room $roomId")
-            return
+            Log.d(TAG, "Fetching room info for room=$roomId anchor=$anchorId")
+            val roomInfo = fetchRoomInfo(roomId, anchorId) ?: return
+            Log.d(TAG, "Encrypted wsu: ${roomInfo.wsu}")
+            val wsuUrl = decryptWsu(roomInfo.wsu) ?: roomInfo.wsu
+            currentAnchorId = anchorId // Store anchorId
+            
+            if (wsuUrl != null) {
+                connectWebSocket(wsuUrl, roomInfo)
+            } else {
+                Log.e(TAG, "Failed to decrypt WSU")
+            }
+        } finally {
+            isConnecting = false
         }
-        
-        Log.d("Hot51", "Decrypted wsu: $wsu")
-        val encryptedWsu = roomInfo.wsu
-        
-        // Connect
-        // Connect
-        val request = okhttp3.Request.Builder()
-            .url(wsu)
+    }
+
+    private fun connectWebSocket(url: String, roomInfo: RoomInfoData) {
+        currentRoomInfo = roomInfo
+        val request = Request.Builder()
+            .url(url)
             .addHeader("Origin", "https://hotlive11.com")
             .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36")
             .addHeader("Accept-Encoding", "gzip, deflate, br, zstd")
@@ -270,77 +285,62 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
             .apply {
                 if (!lastCookies.isNullOrEmpty()) {
                     addHeader("Cookie", lastCookies!!)
-                    Log.d("Hot51", "Added Cookie header to WS: $lastCookies")
+                    Log.d(TAG, "Added Cookie header to WS: $lastCookies")
                 }
             }
             .build()
         currentWebSocket = app.baseClient.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
-                Log.d("Hot51", "WebSocket connected, sending handshake and guest login")
-                Log.d("Hot51", "WSU URL: $wsu")
+                Log.d(TAG, "WebSocket Opened")
                 
-                val token = decryptWsu(roomInfo.wsu) ?: roomInfo.wsu ?: ""
-                Log.d("Hot51", "Using token (decrypted URL): $token")
-                
-                // Send Handshake (CMD 10000) using Protobuf
+                // Send Handshake (CMD 10000)
                 val handshakeBytes = ProtobufParser.createHandshake(10000)
+                Log.d(TAG, "Sending Handshake (10000)")
                 webSocket.send(okio.ByteString.of(*handshakeBytes))
-                Log.d("Hot51", "Sent handshake (CMD 10000) - Protobuf")
-                
-                Thread.sleep(200)
-                
-                val visitorId = getVisitorId()
-                Log.d("Hot51", "Using visitorId: $visitorId (UUID)")
-                
-                // Send Login (CMD 10001) using Protobuf
-                val loginBytes = ProtobufParser.createLogin(10001, token, visitorId)
-                webSocket.send(okio.ByteString.of(*loginBytes))
-                Log.d("Hot51", "Sent guest login (type=7, platform=3, visitorId=$visitorId, token=$token) - Protobuf")
-
-                Thread.sleep(500)
-                
-                // Send EnterRoom (CMD 10004) using Protobuf
-                val enterRoomBytes = ProtobufParser.createEnterRoom(10004, anchorId)
-                webSocket.send(okio.ByteString.of(*enterRoomBytes))
-                Log.d("Hot51", "Sent enterRoom (CMD 10004, anchorId=$anchorId) - Protobuf")
-
-                
-                Thread.sleep(500)
-                
-                val enterRoomMessage = """
-                    {"cmd":10004,"enterRoomRequest":{"roomId":"$roomId","password":""}}
-                """.trimIndent()
-                webSocket.send(enterRoomMessage)
-                Log.d("Hot51", "Sent enter room message for roomId=$roomId")
-                
-                startHeartbeat(webSocket)
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
-                Log.d("Hot51WS", "Received text message: $text")
+                Log.d(TAG, "Received text message: $text")
                 try {
                     val msg = tryParseJson<WsMessage>(text)
                     if (msg != null) {
-                        Log.d("Hot51WS", "Parsed message cmd=${msg.cmd}")
+                        Log.d(TAG, "Parsed message cmd=${msg.cmd}")
                         _wsEvents.tryEmit(msg)
                     }
                 } catch (e: Exception) {
-                    Log.e("Hot51WS", "Error parsing message: ${e.message}")
+                    Log.e(TAG, "Error parsing message: ${e.message}")
                 }
             }
             
             override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
-                Log.d("Hot51WS", "Received binary message: ${bytes.size} bytes")
+                Log.d(TAG, "Received binary message: ${bytes.size} bytes")
                 try {
                     val data = bytes.toByteArray()
                     val (cmd, dataMap) = ProtobufParser.parseMessage(data)
                     if (cmd != null) {
-                        Log.d("Hot51WS", "Parsed protobuf: cmd=$cmd data=$dataMap")
+                        Log.d(TAG, "Parsed protobuf: cmd=$cmd data=$dataMap")
+                        when (cmd) {
+                            10000 -> {
+                                Log.d(TAG, "Received Handshake Response (10000)")
+                                handleHandshakeResponse(dataMap)
+                            }
+                            10001 -> {
+                                Log.d(TAG, "Received Login Response (10001)")
+                                // Send EnterRoom (10004)
+                                if (currentAnchorId.isNotEmpty()) {
+                                    val enterRoomBytes = ProtobufParser.createEnterRoom(10004, currentAnchorId)
+                                    Log.d(TAG, "Sending EnterRoom (10004) for anchor $currentAnchorId")
+                                    webSocket.send(okio.ByteString.of(*enterRoomBytes))
+                                }
+                            }
+                            // ... other commands
+                        }
+                        
                         val msg = WsMessage(cmd, dataMap)
                         _wsEvents.tryEmit(msg)
                     }
                 } catch (e: Exception) {
-                    Log.e("Hot51WS", "Error parsing binary message: ${e.message}")
+                    Log.e(TAG, "Error parsing binary message: ${e.message}")
                 }
             }
             
@@ -367,6 +367,53 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
                 currentWebSocket = null
             }
         }
+    }
+    
+    private fun handleHandshakeResponse(dataMap: Map<String, Any?>?) {
+        if (dataMap == null) return
+        
+        // Search for Dynamic Key (16 chars string)
+        var dynamicKey: String? = null
+        
+        // Recursively search strings
+        fun searchKey(map: Map<String, Any?>) {
+            for ((k, v) in map) {
+                if (v is String) {
+                    // Heuristic: Key is 16 chars (or maybe more? 1558... is 16)
+                    if (v.length == 16) { 
+                        dynamicKey = v
+                        Log.d(TAG, "Found candidate Key: $v")
+                        return
+                    }
+                } else if (v is Map<*, *>) {
+                    @Suppress("UNCHECKED_CAST")
+                    searchKey(v as Map<String, Any?>)
+                    if (dynamicKey != null) return
+                }
+            }
+        }
+        searchKey(dataMap)
+        
+        if (dynamicKey != null) {
+            sendLogin(dynamicKey!!)
+        } else {
+            Log.e(TAG, "Failed to find Dynamic Key in Handshake Response")
+             // Try fallback? Or existing key?
+             // sendLogin("1558668820991598") // Fallback
+        }
+    }
+    
+    private fun sendLogin(key: String) {
+        val salt = "JPHJyYUJ^&*(743&%kgfXyb84d"
+        val jti = "null" // Assuming empty/null for guest
+        val rawToken = jti + salt
+        val token = encryptToken(rawToken, key) ?: ""
+        val visitorId = "" // Empty visitorId
+        
+        Log.d(TAG, "Sending Login (10001) with Key=$key Token=$token")
+
+        val loginBytes = ProtobufParser.createLogin(10001, token, visitorId)
+        webSocket?.send(okio.ByteString.of(*loginBytes))
     }
     
     private fun startHeartbeat(webSocket: WebSocket) {

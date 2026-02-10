@@ -39,6 +39,13 @@ object ProtobufParser {
                 }
             }
             
+            
+            // Generic parsing for other commands (like 10000)
+            if (chatData == null && giftData == null && cmd == 10000) {
+                 val genericData = parseGeneric(data)
+                 return Pair(cmd, genericData)
+            }
+
             val dataMap = when {
                 chatData != null -> chatData
                 giftData != null -> giftData
@@ -49,6 +56,66 @@ object ProtobufParser {
             Log.e("Hot51Proto", "Parse error: ${e.message}")
             return Pair(null, null)
         }
+    }
+    
+    // Recursive generic parser
+    private fun parseGeneric(data: ByteArray): Map<String, Any?> {
+        val result = mutableMapOf<String, Any?>()
+        var pos = 0
+        
+        while (pos < data.size) {
+            val tagResult = readTag(data, pos) ?: break
+            val (tag, wireType, newPos) = tagResult
+            pos = newPos
+            
+            // Skip cmd (1) which we already parsed
+            if (tag == 1) {
+                 val (value, nextPos) = readVarint(data, pos)
+                 pos = nextPos
+                 continue
+            }
+            
+            when (wireType) {
+                0 -> { // Varint
+                    val (value, nextPos) = readVarint(data, pos)
+                    result["field_$tag"] = value
+                    pos = nextPos
+                }
+                2 -> { // Length Delimited (String, Bytes, or Sub-Message)
+                    val (length, nextPos) = readVarint(data, pos)
+                    val len = length.toInt()
+                    val bytes = data.copyOfRange(nextPos, nextPos + len)
+                    
+                    // Try to decode as UTF-8 String
+                    val str = String(bytes, Charsets.UTF_8)
+                    // Simple heuristic: if it looks like a printable string
+                    // But if it's a sub-message, it might have binary.
+                    // Let's store BOTH or try to recurse?
+                    // For Key (16 digits), it is printable.
+                    result["field_${tag}_str"] = str
+                    result["field_${tag}_bytes"] = bytes
+                    
+                    // Try recursive parse if it looks like protobuf?
+                    // (Tag 1 is usually first field. Or Tag 2).
+                    // If bytes start with plausible tag...
+                    try {
+                        val subMap = parseGeneric(bytes)
+                        if (subMap.isNotEmpty()) {
+                             result["field_${tag}_obj"] = subMap
+                        }
+                    } catch (e: Exception) {
+                        // Ignore
+                    }
+                    
+                    pos = nextPos + len
+                }
+                else -> {
+                    // Skip 64-bit, 32-bit etc for now
+                    pos = skipField(data, pos, wireType)
+                }
+            }
+        }
+        return result
     }
     
     private fun parseChatResult(data: ByteArray): Map<String, Any?> {
