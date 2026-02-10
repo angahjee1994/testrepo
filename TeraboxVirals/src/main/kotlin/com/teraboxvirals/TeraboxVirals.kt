@@ -71,10 +71,16 @@ class TeraboxVirals : MainAPI() {
         val title = document.selectFirst(".entry-title")?.text()?.trim() ?: "Video"
         
         // Find the Terabox link immediately to fetch metadata
-        var tbLink = document.selectFirst(".dlbutton a")?.attr("href")
+        val allDlButtons = document.select(".dlbutton a")
+        var tbLink = allDlButtons.firstOrNull { 
+            val href = it.attr("href")
+            href.contains("terabox", ignoreCase = true) || href.contains("1024tera", ignoreCase = true)
+        }?.attr("href") ?: allDlButtons.firstOrNull()?.attr("href")
+
         if (tbLink == null) {
             tbLink = document.select("a").firstOrNull { 
-                it.attr("href").contains("terabox", ignoreCase = true) || it.attr("href").contains("1024tera", ignoreCase = true) 
+                val href = it.attr("href")
+                href.contains("terabox", ignoreCase = true) || href.contains("1024tera", ignoreCase = true) 
             }?.attr("href")
         }
         
@@ -155,8 +161,8 @@ class TeraboxVirals : MainAPI() {
                       var nextUk = uk
                       var nextShareid = shareid
                       if (nextUk == null) {
-                          val ukMatch = Regex("\"uk\":(\\d+)").find(jsonResponse)
-                          val shareidMatch = Regex("\"shareid\":(\\d+)").find(jsonResponse)
+                          val ukMatch = Regex("\"uk\":\\s*\"?(\\d+)\"?").find(jsonResponse)
+                          val shareidMatch = Regex("\"shareid\":\\s*\"?(\\d+)\"?").find(jsonResponse)
                           nextUk = ukMatch?.groupValues?.get(1)
                           nextShareid = shareidMatch?.groupValues?.get(1)
                       }
@@ -168,32 +174,40 @@ class TeraboxVirals : MainAPI() {
                       // Let's use a more robust regex scan on the whole response for simplicity for now as manual splitting is error prone.
                       
                       val items = jsonResponse.split("{\"category\"")
-                      // println("FULL JSON: $jsonResponse") // Uncomment to debug full json
+                      // println("FULL JSON SHARED: $jsonResponse") 
 
                       items.drop(1).forEach { chunk ->
                           val item = "{\"category\"$chunk"
                           
-                          val isDirMatch = Regex("\"isdir\":\"(.*?)\"").find(item)
+                          // Robust regex to handle "key":"value", "key":value, and potentially escaped quotes
+                          val isDirMatch = Regex("\"isdir\":\\s*\"?(\\d+)\"?").find(item)
                           val isDir = isDirMatch?.groupValues?.get(1) ?: "0"
                           
-                          val filenameMatch = Regex("\"server_filename\":\"(.*?)\"").find(item)
-                          val dlinkMatch = Regex("\"dlink\":\"(.*?)\"").find(item)
-                          val pathMatch = Regex("\"path\":\"(.*?)\"").find(item) 
-                          val thumbsMatch = Regex("\"url3\":\"(.*?)\"").find(item) // High res thumbnail
+                          val filenameMatch = Regex("\"server_filename\":\\s*\"(.*?)\"").find(item)
+                          val dlinkMatch = Regex("\"dlink\":\\s*\"(.*?)\"").find(item)
+                          val pathMatch = Regex("\"path\":\\s*\"(.*?)\"").find(item) 
+                          val thumbsMatch = Regex("\"url3\":\\s*\"(.*?)\"").find(item) // High res thumbnail
                           
                           if (filenameMatch != null) {
                               val filename = filenameMatch.groupValues[1]
                               
                               if (isDir == "1") { // It's a folder
-                                  val folderPath = pathMatch?.groupValues?.get(1)?.replace("\\/", "/") ?: "$currentPath/$filename"
-                                  // println("Found Folder: $folderPath")
+                                  // Fix path construction to avoid double slashes or incorrect joining
+                                  val rawPath = pathMatch?.groupValues?.get(1)?.replace("\\/", "/")
+                                  val folderPath = if (!rawPath.isNullOrEmpty()) {
+                                      rawPath
+                                  } else {
+                                      if (currentPath == "/") "/$filename" else "$currentPath/$filename"
+                                  }
+                                  
+                                  // println("Found Folder: $folderPath with UK: $nextUk")
 
                                   // Recursive call with uk/shareid
                                   if (folderPath != currentPath && folderPath.count { it == '/' } < 10 && nextUk != null) { 
                                       scanFolder(folderPath, nextUk, nextShareid)
                                   }
                               } else if (dlinkMatch != null) { // It's a file
-                                  val dlink = dlinkMatch.groupValues[2].replace("\\/", "/")
+                                  val dlink = dlinkMatch.groupValues[1].replace("\\/", "/")
                                   val ext = filename.substringAfterLast(".", "").lowercase()
                                   
                                   if (videoExtensions.contains(ext)) {
@@ -306,7 +320,12 @@ class TeraboxVirals : MainAPI() {
             }
         }
         
-        foundLinks.forEach { href ->
+        // Prioritize direct Terabox links over redirectors
+        val sortedLinks = foundLinks.sortedByDescending { 
+            it.contains("terabox", ignoreCase = true) || it.contains("1024tera", ignoreCase = true) 
+        }
+
+        sortedLinks.forEach { href ->
              if (href.contains("terabox", ignoreCase = true) || href.contains("1024tera", ignoreCase = true)) {
                  loadExtractor(href, subtitleCallback, callback)
              } else if (href.contains("downloadkatsini.com", ignoreCase = true)) {
