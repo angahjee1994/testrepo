@@ -54,9 +54,10 @@ class Terabox : ExtractorApi() {
                         this.name,
                         this.name,
                         dlink,
-                        fixedUrl,
                         INFER_TYPE,
-                    )
+                    ) {
+                        this.referer = fixedUrl
+                    }
                 )
             }
         }
@@ -74,9 +75,10 @@ class Terabox : ExtractorApi() {
                         this.name,
                         this.name,
                         dlinkMatch,
-                        fixedUrl,
                         INFER_TYPE,
-                    )
+                    ) {
+                        this.referer = fixedUrl
+                    }
                 )
             }
         }
