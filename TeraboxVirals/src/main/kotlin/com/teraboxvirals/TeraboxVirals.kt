@@ -117,66 +117,82 @@ class TeraboxVirals : MainAPI() {
                  .replace("1024terabox.com", "terabox.app") 
                  .replace("terabox.com", "terabox.app")
              
-             val surl = cleanLink.substringAfter("/s/").substringBefore("?")
-             val apiUrl = "https://www.terabox.com/share/list?surl=$surl"
-             
-             // Try multiple API headers to get a successful response
-             val headersList = listOf(
-                 mapOf("User-Agent" to "LogStatistic", "Referer" to cleanLink),
-                 mapOf("User-Agent" to "Mozilla/5.0", "Referer" to cleanLink, "Cookie" to "browserid=1;"),
-                 mapOf("User-Agent" to "TeraboxApp", "Referer" to cleanLink)
-             )
+             // Extract surl: remove '1' prefix if present as API usually expects the code without it for 'surl' param
+             // OR use 'shorturl' with the '1'. Let's stick to 'surl' without '1'.
+             var tempSurl = cleanLink.substringAfter("/s/").substringBefore("?")
+             if (tempSurl.startsWith("1")) tempSurl = tempSurl.substring(1)
+             val surl = tempSurl
 
-             var jsonResponse: String? = null
-             for (headers in headersList) {
-                 try {
-                     val res = app.get(apiUrl, headers = headers).text
-                     if (res.contains("\"list\":[")) {
-                        jsonResponse = res
-                        break
-                     }
-                 } catch (e: Exception) {}
-             }
-             
-             if (jsonResponse != null) {
-                  // Check for Foto folder or images for poster
-                  val imageRegex = Regex("\"server_filename\":\"(.*?)\".*?\"dlink\":\"(.*?)\"")
-                  // We might need to handle 'path' logic if it's a folder, but for now scan flat list or root
-                  
-                  // Simple heuristic: If we find a legit image in the response, we might use it (optional)
-                  // But sticking to the blog poster is safer unless requested.
-                  
-                  // Parse Episodes
-                  // Format: "server_filename":"name","size":...,"isdir":0,"dlink":"url"
-                  // We need to match filenames that are video
-                  
-                  // Use more robust parsing logic
-                  val videoExtensions = setOf("mp4", "mkv", "avi", "mov", "webm", "flv")
-                  
-                  // Split by object to avoid regex cross-match
-                  val items = jsonResponse.split("{\"category\"")
-                  items.forEach { item ->
-                      val filenameMatch = Regex("\"server_filename\":\"(.*?)\"").find(item)
-                      val dlinkMatch = Regex("\"dlink\":\"(.*?)\"").find(item)
+             // Recursive function to scan folders
+             suspend fun scanFolder(currentPath: String = "/") {
+                 val encodedPath = java.net.URLEncoder.encode(currentPath, "UTF-8")
+                 val folderApiUrl = "https://www.terabox.com/share/list?surl=$surl&path=$encodedPath" // Use path if not root
+                 
+                 val headersList = listOf(
+                     mapOf("User-Agent" to "LogStatistic", "Referer" to cleanLink),
+                     mapOf("User-Agent" to "Mozilla/5.0", "Referer" to cleanLink, "Cookie" to "browserid=1;"),
+                     mapOf("User-Agent" to "TeraboxApp", "Referer" to cleanLink)
+                 )
+                 
+                 // Try multiple headers for success
+                 var jsonResponse: String? = null
+                 for (headers in headersList) {
+                     try {
+                         val res = app.get(folderApiUrl, headers = headers).text
+                         if (res.contains("\"list\":[")) {
+                            jsonResponse = res
+                            break
+                         }
+                     } catch (e: Exception) {}
+                 }
+
+                 if (jsonResponse != null) {
+                      // 1. Find Files (Videos) in current folder
                       
-                      if (filenameMatch != null && dlinkMatch != null) {
-                          val filename = filenameMatch.groupValues[1]
-                          val dlink = dlinkMatch.groupValues[2].replace("\\/", "/")
+                      val videoExtensions = setOf("mp4", "mkv", "avi", "mov", "webm", "flv", "m4v", "wmv")
+                      
+                      // Split items carefully
+                      val items = jsonResponse.split("{\"category\"")
+                      items.drop(1).forEach { item -> 
+                          val isDirMatch = Regex("\"isdir\":\"(.*?)\"").find(item)
+                          val isDir = isDirMatch?.groupValues?.get(1) ?: "0"
                           
-                          val ext = filename.substringAfterLast(".", "").lowercase()
-                          if (videoExtensions.contains(ext)) {
-                               episodes.add(
-                                   newEpisode(dlink) {
-                                       this.name = filename
-                                       this.episode = episodes.size + 1
-                                       this.posterUrl = poster
-                                       // Direct link is put into data
-                                   }
-                               )
+                          val filenameMatch = Regex("\"server_filename\":\"(.*?)\"").find(item)
+                          val dlinkMatch = Regex("\"dlink\":\"(.*?)\"").find(item)
+                          val pathMatch = Regex("\"path\":\"(.*?)\"").find(item) 
+                          
+                          if (filenameMatch != null) {
+                              val filename = filenameMatch.groupValues[1]
+                              
+                              if (isDir == "1") {
+                                  val folderPath = pathMatch?.groupValues?.get(1)?.replace("\\/", "/") ?: "$currentPath$filename/"
+                                  // Prevent infinite loop or deep recursion
+                                  if (folderPath != currentPath && folderPath.count { it == '/' } < 5) { 
+                                      scanFolder(folderPath)
+                                  }
+                              } else if (dlinkMatch != null) {
+                                  val dlink = dlinkMatch.groupValues[2].replace("\\/", "/")
+                                  val ext = filename.substringAfterLast(".", "").lowercase()
+                                  
+                                  if (videoExtensions.contains(ext)) {
+                                       episodes.add(
+                                           newEpisode(dlink) {
+                                               this.name = filename
+                                               this.episode = episodes.size + 1
+                                               this.posterUrl = poster
+                                           }
+                                       )
+                                  }
+                              }
                           }
                       }
-                  }
+                 }
              }
+
+             // Start scan from root
+             try {
+                 scanFolder("/")
+             } catch (e: Exception) {}
         }
         
         // If no episodes found from API (or API failed), add the main link as a single episode
@@ -208,7 +224,12 @@ class TeraboxVirals : MainAPI() {
                      this.name,
                      data,
                      INFER_TYPE
-                 )
+                 ) {
+                     this.headers = mapOf(
+                         "User-Agent" to "LogStatistic",
+                         "Referer" to mainUrl 
+                     )
+                 }
              )
              return true
         }
