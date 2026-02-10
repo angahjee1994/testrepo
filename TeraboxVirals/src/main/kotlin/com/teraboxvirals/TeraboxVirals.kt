@@ -117,8 +117,12 @@ class TeraboxVirals : MainAPI() {
                  .replace("1024terabox.com", "terabox.app") 
                  .replace("terabox.com", "terabox.app")
              
-             // Extract surl: remove '1' prefix
-             var tempSurl = cleanLink.substringAfter("/s/").substringBefore("?")
+             // Extract surl: handle both /s/ path and surl= query param
+             var tempSurl = if (cleanLink.contains("surl=")) {
+                 cleanLink.substringAfter("surl=").substringBefore("&")
+             } else {
+                 cleanLink.substringAfter("/s/").substringBefore("?")
+             }
              if (tempSurl.startsWith("1")) tempSurl = tempSurl.substring(1)
              val surl = tempSurl
 
@@ -153,7 +157,7 @@ class TeraboxVirals : MainAPI() {
                  }
 
                  if (jsonResponse != null) {
-                      // Extract uk and shareid if this is root
+                      // Extract uk and shareid if this is root/initial response
                       var nextUk = uk
                       var nextShareid = shareid
                       if (nextUk == null) {
@@ -165,9 +169,15 @@ class TeraboxVirals : MainAPI() {
                       
                       val videoExtensions = setOf("mp4", "mkv", "avi", "mov", "webm", "flv", "m4v", "wmv")
                       
-                      // Split items carefully
-                      val items = jsonResponse.split("{\"category\"")
-                      items.drop(1).forEach { item -> 
+                      // Split items carefully by object separators to avoid regex scaning issues across entire file
+                      // But simpler regex scan might work if response isn't huge.
+                      // Let's use a more robust regex scan on the whole response for simplicity for now as manual splitting is error prone.
+                      
+                      // Find all items
+                      val itemRegex = Regex("\\{[^\\}]*\"server_filename\"[^\\}]*\\}")
+                      itemRegex.findAll(jsonResponse).forEach { match ->
+                          val item = match.value
+                          
                           val isDirMatch = Regex("\"isdir\":\"(.*?)\"").find(item)
                           val isDir = isDirMatch?.groupValues?.get(1) ?: "0"
                           
@@ -182,7 +192,6 @@ class TeraboxVirals : MainAPI() {
                               if (isDir == "1") { // It's a folder
                                   val folderPath = pathMatch?.groupValues?.get(1)?.replace("\\/", "/") ?: "$currentPath/$filename"
                                   // Recursive call with uk/shareid
-                                  // CRITICAL: Ensure we pass nextUk and nextShareid
                                   if (folderPath != currentPath && folderPath.count { it == '/' } < 10 && nextUk != null) { 
                                       scanFolder(folderPath, nextUk, nextShareid)
                                   }
@@ -192,6 +201,13 @@ class TeraboxVirals : MainAPI() {
                                   
                                   if (videoExtensions.contains(ext)) {
                                        val thumbUrl = thumbsMatch?.groupValues?.get(1)?.replace("\\/", "/") ?: poster
+                                       // Update main poster if it's the first video found and we don't have a good one yet
+                                       if (poster == null || poster?.contains("terabox") == false) {
+                                           if (thumbsMatch != null) {
+                                              poster = thumbUrl
+                                           }
+                                       }
+                                       
                                        episodes.add(
                                            newEpisode(dlink) {
                                                this.name = filename
@@ -211,6 +227,8 @@ class TeraboxVirals : MainAPI() {
                  scanFolder("/")
              } catch (e: Exception) {}
         }
+
+
         
         // If no episodes found from API (or API failed), add the main link as a single episode
         if (episodes.isEmpty()) {
@@ -245,7 +263,8 @@ class TeraboxVirals : MainAPI() {
                  ) {
                      this.headers = mapOf(
                          "User-Agent" to userAgent,
-                         "Referer" to "https://www.terabox.com" 
+                         "Referer" to "https://www.terabox.com/",
+                         "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"
                      )
                  }
              )
