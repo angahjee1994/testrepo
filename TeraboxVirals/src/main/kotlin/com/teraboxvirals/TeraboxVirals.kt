@@ -182,7 +182,8 @@ class TeraboxVirals : MainAPI() {
                               if (isDir == "1") { // It's a folder
                                   val folderPath = pathMatch?.groupValues?.get(1)?.replace("\\/", "/") ?: "$currentPath/$filename"
                                   // Recursive call with uk/shareid
-                                  if (folderPath != currentPath && folderPath.count { it == '/' } < 10) { 
+                                  // CRITICAL: Ensure we pass nextUk and nextShareid
+                                  if (folderPath != currentPath && folderPath.count { it == '/' } < 10 && nextUk != null) { 
                                       scanFolder(folderPath, nextUk, nextShareid)
                                   }
                               } else if (dlinkMatch != null) { // It's a file
@@ -237,14 +238,14 @@ class TeraboxVirals : MainAPI() {
              val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
              callback.invoke(
                  newExtractorLink(
-                     this.name,
-                     this.name,
+                     "Terabox",
+                     "Terabox",
                      data,
                      INFER_TYPE
                  ) {
                      this.headers = mapOf(
                          "User-Agent" to userAgent,
-                         "Referer" to mainUrl 
+                         "Referer" to "https://www.terabox.com" 
                      )
                  }
              )
