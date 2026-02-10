@@ -212,6 +212,7 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
     private var activeRoomId: String? = null
     private var listenersCount = 0
     private val connectionLock = Any() // Simple synchronization
+    @Volatile private var isConnecting = false
     
     private suspend fun connectWebSocket(roomId: String, anchorId: String) {
         synchronized(connectionLock) {
@@ -224,9 +225,12 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
                 activeRoomId = roomId
             }
             listenersCount++
+            
+            if (currentWebSocket != null || isConnecting) return
+            isConnecting = true
         }
         
-        if (currentWebSocket != null) return
+        try {
         
         Log.d("Hot51", "Fetching room info for room=$roomId anchor=$anchorId")
         val roomInfo = fetchRoomInfo(roomId, anchorId) ?: return
@@ -257,8 +261,8 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
                 Log.d("Hot51", "WebSocket connected, sending handshake and guest login")
                 Log.d("Hot51", "WSU URL: $wsu")
                 
-                val token = roomInfo.atr ?: roomInfo.wsu ?: ""
-                Log.d("Hot51", "Using token (atr): $token")
+                val token = roomInfo.wsu ?: ""
+                Log.d("Hot51", "Using token (encrypted wsu): $token")
                 
                 val handshakeMessage = """
                     {"cmd":10000}
@@ -323,6 +327,9 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
                 Log.e("Hot51WS", "WebSocket failure: ${t.message}")
             }
         })
+        } finally {
+            isConnecting = false
+        }
     }
     
     private fun disconnectWebSocket() {
