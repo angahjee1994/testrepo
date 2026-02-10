@@ -117,16 +117,22 @@ class TeraboxVirals : MainAPI() {
                  .replace("1024terabox.com", "terabox.app") 
                  .replace("terabox.com", "terabox.app")
              
-             // Extract surl: remove '1' prefix if present as API usually expects the code without it for 'surl' param
-             // OR use 'shorturl' with the '1'. Let's stick to 'surl' without '1'.
+             // Extract surl: remove '1' prefix
              var tempSurl = cleanLink.substringAfter("/s/").substringBefore("?")
              if (tempSurl.startsWith("1")) tempSurl = tempSurl.substring(1)
              val surl = tempSurl
 
              // Recursive function to scan folders
-             suspend fun scanFolder(currentPath: String = "/") {
-                 val encodedPath = java.net.URLEncoder.encode(currentPath, "UTF-8")
-                 val folderApiUrl = "https://www.terabox.com/share/list?surl=$surl&path=$encodedPath" // Use path if not root
+             // We need to persist uk and shareid from the first root call
+             suspend fun scanFolder(currentPath: String, uk: String? = null, shareid: String? = null) {
+                 val folderApiUrl = if (uk == null || shareid == null) {
+                     // First call: Root
+                     "https://www.terabox.com/share/list?shorturl=$surl&root=1"
+                 } else {
+                     // Subfolder call
+                     val encodedPath = java.net.URLEncoder.encode(currentPath, "UTF-8")
+                     "https://www.terabox.com/share/list?uk=$uk&shareid=$shareid&dir=$encodedPath&root=0"
+                 }
                  
                  val pcUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                  val headersList = listOf(
@@ -134,12 +140,12 @@ class TeraboxVirals : MainAPI() {
                      mapOf("User-Agent" to "LogStatistic", "Referer" to cleanLink)
                  )
                  
-                 // Try multiple headers for success
                  var jsonResponse: String? = null
                  for (headers in headersList) {
                      try {
                          val res = app.get(folderApiUrl, headers = headers).text
-                         if (res.contains("\"list\":[")) {
+                         // Verify success
+                         if (res.contains("\"errno\":0") || res.contains("\"list\":[")) {
                             jsonResponse = res
                             break
                          }
@@ -147,7 +153,15 @@ class TeraboxVirals : MainAPI() {
                  }
 
                  if (jsonResponse != null) {
-                      // 1. Find Files (Videos) in current folder
+                      // Extract uk and shareid if this is root
+                      var nextUk = uk
+                      var nextShareid = shareid
+                      if (nextUk == null) {
+                          val ukMatch = Regex("\"uk\":(\\d+)").find(jsonResponse)
+                          val shareidMatch = Regex("\"shareid\":(\\d+)").find(jsonResponse)
+                          nextUk = ukMatch?.groupValues?.get(1)
+                          nextShareid = shareidMatch?.groupValues?.get(1)
+                      }
                       
                       val videoExtensions = setOf("mp4", "mkv", "avi", "mov", "webm", "flv", "m4v", "wmv")
                       
@@ -160,26 +174,28 @@ class TeraboxVirals : MainAPI() {
                           val filenameMatch = Regex("\"server_filename\":\"(.*?)\"").find(item)
                           val dlinkMatch = Regex("\"dlink\":\"(.*?)\"").find(item)
                           val pathMatch = Regex("\"path\":\"(.*?)\"").find(item) 
+                          val thumbsMatch = Regex("\"url3\":\"(.*?)\"").find(item) // High res thumbnail
                           
                           if (filenameMatch != null) {
                               val filename = filenameMatch.groupValues[1]
                               
-                              if (isDir == "1") {
-                                  val folderPath = pathMatch?.groupValues?.get(1)?.replace("\\/", "/") ?: "$currentPath$filename/"
-                                  // Prevent infinite loop or deep recursion
-                                  if (folderPath != currentPath && folderPath.count { it == '/' } < 5) { 
-                                      scanFolder(folderPath)
+                              if (isDir == "1") { // It's a folder
+                                  val folderPath = pathMatch?.groupValues?.get(1)?.replace("\\/", "/") ?: "$currentPath/$filename"
+                                  // Recursive call with uk/shareid
+                                  if (folderPath != currentPath && folderPath.count { it == '/' } < 10) { 
+                                      scanFolder(folderPath, nextUk, nextShareid)
                                   }
-                              } else if (dlinkMatch != null) {
+                              } else if (dlinkMatch != null) { // It's a file
                                   val dlink = dlinkMatch.groupValues[2].replace("\\/", "/")
                                   val ext = filename.substringAfterLast(".", "").lowercase()
                                   
                                   if (videoExtensions.contains(ext)) {
+                                       val thumbUrl = thumbsMatch?.groupValues?.get(1)?.replace("\\/", "/") ?: poster
                                        episodes.add(
                                            newEpisode(dlink) {
                                                this.name = filename
                                                this.episode = episodes.size + 1
-                                               this.posterUrl = poster
+                                               this.posterUrl = thumbUrl
                                            }
                                        )
                                   }
