@@ -2,7 +2,10 @@ package com.teraboxvirals
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.loadExtractor
+import com.lagradost.cloudstream3.utils.INFER_TYPE
+import com.lagradost.cloudstream3.utils.newExtractorLink
 import org.jsoup.nodes.Element
 
 class TeraboxVirals : MainAPI() {
@@ -106,18 +109,111 @@ class TeraboxVirals : MainAPI() {
              // BUT we will verify if we can fetch the file list to get a better poster if possible.
         }
 
-        return newMovieLoadResponse(title, url, TvType.NSFW, url) {
+        // If we found a Terabox link, attempt to fetch the file list to populate episodes
+        val episodes = mutableListOf<Episode>()
+        if (!tbLink.isNullOrEmpty() && tbLink.contains("terabox")) {
+             // Clean the link
+             val cleanLink = tbLink.replace("teraboxapp.com", "terabox.app")
+                 .replace("1024terabox.com", "terabox.app") 
+                 .replace("terabox.com", "terabox.app")
+             
+             val surl = cleanLink.substringAfter("/s/").substringBefore("?")
+             val apiUrl = "https://www.terabox.com/share/list?surl=$surl"
+             
+             // Try multiple API headers to get a successful response
+             val headersList = listOf(
+                 mapOf("User-Agent" to "LogStatistic", "Referer" to cleanLink),
+                 mapOf("User-Agent" to "Mozilla/5.0", "Referer" to cleanLink, "Cookie" to "browserid=1;"),
+                 mapOf("User-Agent" to "TeraboxApp", "Referer" to cleanLink)
+             )
+
+             var jsonResponse: String? = null
+             for (headers in headersList) {
+                 try {
+                     val res = app.get(apiUrl, headers = headers).text
+                     if (res.contains("\"list\":[")) {
+                        jsonResponse = res
+                        break
+                     }
+                 } catch (e: Exception) {}
+             }
+             
+             if (jsonResponse != null) {
+                  // Check for Foto folder or images for poster
+                  val imageRegex = Regex("\"server_filename\":\"(.*?)\".*?\"dlink\":\"(.*?)\"")
+                  // We might need to handle 'path' logic if it's a folder, but for now scan flat list or root
+                  
+                  // Simple heuristic: If we find a legit image in the response, we might use it (optional)
+                  // But sticking to the blog poster is safer unless requested.
+                  
+                  // Parse Episodes
+                  // Format: "server_filename":"name","size":...,"isdir":0,"dlink":"url"
+                  // We need to match filenames that are video
+                  
+                  // Use more robust parsing logic
+                  val videoExtensions = setOf("mp4", "mkv", "avi", "mov", "webm", "flv")
+                  
+                  // Split by object to avoid regex cross-match
+                  val items = jsonResponse.split("{\"category\"")
+                  items.forEach { item ->
+                      val filenameMatch = Regex("\"server_filename\":\"(.*?)\"").find(item)
+                      val dlinkMatch = Regex("\"dlink\":\"(.*?)\"").find(item)
+                      
+                      if (filenameMatch != null && dlinkMatch != null) {
+                          val filename = filenameMatch.groupValues[1]
+                          val dlink = dlinkMatch.groupValues[2].replace("\\/", "/")
+                          
+                          val ext = filename.substringAfterLast(".", "").lowercase()
+                          if (videoExtensions.contains(ext)) {
+                               episodes.add(
+                                   newEpisode(dlink) {
+                                       this.name = filename
+                                       this.episode = episodes.size + 1
+                                       this.posterUrl = poster
+                                       // Direct link is put into data
+                                   }
+                               )
+                          }
+                      }
+                  }
+             }
+        }
+        
+        // If no episodes found from API (or API failed), add the main link as a single episode
+        if (episodes.isEmpty()) {
+            episodes.add(
+                newEpisode(url) {
+                    this.name = title
+                    this.episode = 1
+                    this.posterUrl = poster
+                    // If we have a plain Terabox link, pass it as data
+                    if (!tbLink.isNullOrEmpty()) this.data = tbLink
+                }
+            )
+        }
+
+        return newTvSeriesLoadResponse(title, url, TvType.NSFW, episodes) {
             this.posterUrl = poster
             this.plot = plot
             this.tags = tags
-            // We store the Terabox link in the data for loadLinks to use directly if found
-            if (!tbLink.isNullOrEmpty()) {
-                this.actors = listOf(ActorData(Actor(tbLink!!, image=null)))
-            }
         }
     }
 
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
+        // If data is a direct Terabox file link (from our load() episode logic), play it directly
+        if (data.contains("terabox.com/file/") || data.contains("d.terabox.com")) {
+             callback.invoke(
+                 newExtractorLink(
+                     this.name,
+                     this.name,
+                     data,
+                     INFER_TYPE
+                 )
+             )
+             return true
+        }
+
+        // Otherwise, scrape the page for links (Legacy/Movie behavior)
         val document = app.get(data).document
         
         // Find links in .dlbutton a
@@ -144,20 +240,15 @@ class TeraboxVirals : MainAPI() {
              if (href.contains("terabox", ignoreCase = true)) {
                  loadExtractor(href, subtitleCallback, callback)
              } else if (href.contains("downloadkatsini.com", ignoreCase = true)) {
-                 // Try to follow redirect/landing page
                  try {
                      val landingDoc = app.get(href).document
                      landingDoc.select("a").forEach { innerLink ->
                          val innerHref = innerLink.attr("href")
                          if (innerHref.contains("terabox", ignoreCase = true)) {
-                             // Fix the user's request: fetch from terabox stream link
-                             // We hand it to the Terabox extractor which we already implemented
                              loadExtractor(innerHref, subtitleCallback, callback)
                          }
                      }
-                 } catch (e: Exception) {
-                     // ignore
-                 }
+                 } catch (e: Exception) {}
              }
         }
         return true
