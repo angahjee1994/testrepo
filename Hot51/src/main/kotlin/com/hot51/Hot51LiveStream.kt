@@ -23,10 +23,11 @@ import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
+
 class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
 
-    private val decryptKey = "1558668820991598"
-    private val decryptIv = "0102030405060708"
+    private val decryptKey = "9216345272696329"
+    private val decryptIv = "0507060302080104"
 
     // Data classes for API responses
     data class RoomInfoResponse(@JsonProperty("data") val data: RoomInfoData)
