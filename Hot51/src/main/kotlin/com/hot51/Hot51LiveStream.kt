@@ -229,7 +229,7 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
             if (activeRoomId != roomId) {
                 currentWebSocket?.close(1000, "Switching room")
                 currentWebSocket = null
-                _wsEvents.tryEmit(WsMessage(null, null))
+                _wsEvents.tryEmit(WsMessage(null, null, null))
                 listenersCount = 0
                 activeRoomId = roomId
             }
@@ -323,7 +323,7 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
                             }
                         }
                         
-                        val msg = WsMessage(cmd, dataMap)
+                        val msg = WsMessage(cmd, dataMap, null)
                         _wsEvents.tryEmit(msg)
                     }
                 } catch (e: Exception) {
