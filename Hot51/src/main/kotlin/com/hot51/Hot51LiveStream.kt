@@ -117,7 +117,16 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
             "Content-Type" to "application/json;charset=utf-8"
         )
         return try {
-            app.post(url, json = payload, headers = headers).parsedSafe<RoomInfoResponse>()?.data
+            val response = app.post(url, json = payload, headers = headers)
+            
+            // Capture cookies for WebSocket
+            val cookieList = response.okhttpResponse.headers("Set-Cookie")
+            if (cookieList.isNotEmpty()) {
+                lastCookies = cookieList.joinToString("; ") { it.substringBefore(";") }
+                Log.d("Hot51", "Captured cookies: $lastCookies")
+            }
+            
+            response.parsedSafe<RoomInfoResponse>()?.data
         } catch (e: Exception) {
             Log.e("Hot51LiveStream", "Error fetching room info: ${e.message}")
             null
@@ -213,6 +222,7 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
     private var listenersCount = 0
     private val connectionLock = Any() // Simple synchronization
     @Volatile private var isConnecting = false
+    private var lastCookies: String? = null
     
     private suspend fun connectWebSocket(roomId: String, anchorId: String) {
         synchronized(connectionLock) {
@@ -255,6 +265,12 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
             .addHeader("Accept-Language", "en-US,en;q=0.9")
             .addHeader("Cache-Control", "no-cache")
             .addHeader("Pragma", "no-cache")
+            .apply {
+                if (!lastCookies.isNullOrEmpty()) {
+                    addHeader("Cookie", lastCookies!!)
+                    Log.d("Hot51", "Added Cookie header to WS: $lastCookies")
+                }
+            }
             .build()
         currentWebSocket = app.baseClient.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
