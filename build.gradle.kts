@@ -3,6 +3,9 @@ import com.lagradost.cloudstream3.gradle.CloudstreamExtension
 import org.gradle.kotlin.dsl.register
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
+import java.util.zip.ZipFile
+import groovy.json.JsonSlurper
+import groovy.json.JsonOutput
 
 buildscript {
     repositories {
@@ -13,7 +16,7 @@ buildscript {
 
     dependencies {
         classpath("com.android.tools.build:gradle:8.13.2")
-        classpath("com.github.recloudstream:gradle:master-SNAPSHOT")
+        classpath("com.github.recloudstream:gradle:cce1b8d84d")
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.3.0")
     }
 }
@@ -96,4 +99,74 @@ subprojects {
 
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
+}
+
+
+
+tasks.register("buildAndCollect") {
+    group = "build"
+    description = "Builds all plugins, copies .cs3 files, and generates metadata JSONs"
+
+    dependsOn(subprojects.map { ":${it.name}:make" })
+
+    doLast {
+        val buildsDir = File(rootDir, "Builds")
+        if (!buildsDir.exists()) {
+            buildsDir.mkdirs()
+        } else {
+            buildsDir.listFiles()?.forEach { it.delete() }
+        }
+
+        val plugins = mutableListOf<Map<String, Any>>()
+        val repoUrlBase = "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds"
+
+        subprojects.forEach { project ->
+            val buildDir = project.layout.buildDirectory.get().asFile
+            if (buildDir.exists()) {
+                buildDir.walk().filter { it.extension == "cs3" }.forEach { file ->
+                    val targetFile = File(buildsDir, file.name)
+                    file.copyTo(targetFile, overwrite = true)
+                    println("Copied ${file.name} to ${targetFile.absolutePath}")
+
+                    try {
+                        ZipFile(targetFile).use { zip ->
+                            val entry = zip.getEntry("manifest.json")
+                            if (entry != null) {
+                                val inputStream = zip.getInputStream(entry)
+                                val jsonContent = inputStream.reader().readText()
+                                val json = JsonSlurper().parseText(jsonContent) as MutableMap<String, Any>
+
+                                // Add URL and fileSize to the json
+                                json["url"] = "$repoUrlBase/${file.name}"
+                                json["fileSize"] = targetFile.length()
+
+
+
+                                plugins.add(json)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        println("Failed to extract metadata from ${file.name}: ${e.message}")
+                    }
+                }
+            }
+        }
+
+        // Save plugins.json
+        val pluginsFile = File(buildsDir, "plugins.json")
+        pluginsFile.writeText(JsonOutput.prettyPrint(JsonOutput.toJson(plugins)))
+        println("Generated plugins.json")
+
+        // Save repo.json
+        val repoJson = mapOf(
+            "name" to "botol",
+            "iconUrl" to "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/icon.png",
+            "description" to "Repository",
+            "manifestVersion" to 1,
+            "pluginLists" to listOf("https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/Builds/plugins.json")
+        )
+        val repoFile = File(buildsDir, "repo.json")
+        repoFile.writeText(JsonOutput.prettyPrint(JsonOutput.toJson(repoJson)))
+        println("Generated repo.json")
+    }
 }
