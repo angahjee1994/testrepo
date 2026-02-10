@@ -270,10 +270,11 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
                 
                 val visitorId = System.currentTimeMillis().toString() + (0..999).random().toString().padStart(3, '0')
                 val loginMessage = """
-                    {"cmd":10001,"loginRequest":{"area":"VN","language":"ENU","token":"$token","userId":"","type":7,"merchantId":501,"visitorId":"$visitorId","memberId":"","platform":3}}
+                    {"cmd":10001,"loginRequest":{"type":7,"platform":3,"visitorId":"$visitorId","token":"$token","localeLanguage":"ENU","areaCode":"MY"}}
                 """.trimIndent()
                 webSocket.send(loginMessage)
                 Log.d("Hot51", "Sent guest login (type=7, platform=3, visitorId=$visitorId, token=$token)")
+
                 
                 Thread.sleep(500)
                 
