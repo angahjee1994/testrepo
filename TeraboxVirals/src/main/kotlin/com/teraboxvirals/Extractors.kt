@@ -5,6 +5,7 @@ import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.utils.ExtractorApi
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
+import com.lagradost.cloudstream3.utils.newExtractorLink
 import com.lagradost.cloudstream3.utils.INFER_TYPE
 
 class Terabox : ExtractorApi() {
@@ -49,7 +50,7 @@ class Terabox : ExtractorApi() {
             
             dlinks.forEach { dlink ->
                 callback.invoke(
-                    ExtractorLink(
+                    newExtractorLink(
                         this.name,
                         this.name,
                         dlink,
@@ -69,7 +70,7 @@ class Terabox : ExtractorApi() {
             val dlinkMatch = Regex("\"dlink\":\"(.*?)\"").find(pageData)?.groupValues?.get(1)?.replace("\\/", "/")
             if (dlinkMatch != null) {
                 callback.invoke(
-                    ExtractorLink(
+                    newExtractorLink(
                         this.name,
                         this.name,
                         dlinkMatch,
