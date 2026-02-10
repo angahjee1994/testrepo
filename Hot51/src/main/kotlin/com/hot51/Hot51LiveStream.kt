@@ -24,7 +24,19 @@ import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 
+
 class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
+
+    companion object {
+        private var persistentVisitorId: String? = null
+        
+        private fun getVisitorId(): String {
+            if (persistentVisitorId == null) {
+                persistentVisitorId = System.currentTimeMillis().toString() + (100..999).random().toString()
+            }
+            return persistentVisitorId!!
+        }
+    }
 
     private val decryptKey = "9216345272696329"
     private val decryptIv = "0507060302080104"
@@ -255,7 +267,7 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
                 
                 Thread.sleep(200)
                 
-                val visitorId = System.currentTimeMillis().toString() + (0..999).random().toString().padStart(3, '0')
+                val visitorId = getVisitorId()
                 val loginMessage = """
                     {"cmd":10001,"loginRequest":{"type":7,"platform":3,"visitorId":"$visitorId","token":"$token","localeLanguage":"ENU","areaCode":"MY"}}
                 """.trimIndent()
