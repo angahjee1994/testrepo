@@ -32,7 +32,7 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
         
         private fun getVisitorId(): String {
             if (persistentVisitorId == null) {
-                persistentVisitorId = System.currentTimeMillis().toString() + (100..999).random().toString()
+                persistentVisitorId = java.util.UUID.randomUUID().toString()
             }
             return persistentVisitorId!!
         }
@@ -101,7 +101,7 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
         val headers = mapOf(
             "Authorization" to "Basic d2ViLXBsYXllcjp3ZWJQbGF5ZXIyMDIyKjk2My4hQCM=",
             "dev-type" to "H5",
-            "sign" to sign,
+            "sign" to "11f569ed792da4e0cff8a393534a5bf2",
             "merchantId" to "501",
             "device" to visitorId,
             "versionCode" to "101",
@@ -110,7 +110,7 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
             "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
             "Origin" to "https://hotlive11.com",
             "Referer" to "https://hotlive11.com/",
-            "area" to "VN",
+            "area" to "MY",
             "locale-language" to "ENU",
             "Accept" to "application/json, text/plain, */*",
             "Cache-Control" to "max-age=0",
