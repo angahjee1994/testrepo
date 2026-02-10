@@ -181,4 +181,85 @@ object ProtobufParser {
             else -> pos
         }
     }
+
+    fun createHandshake(cmd: Int): ByteArray {
+        val stream = java.io.ByteArrayOutputStream()
+        writeTag(stream, 1, 0)
+        writeVarint(stream, cmd.toLong())
+        return stream.toByteArray()
+    }
+
+    fun createLogin(
+        cmd: Int, 
+        token: String, 
+        visitorId: String,
+        areaCode: String = "MY",
+        locale: String = "ENU"
+    ): ByteArray {
+         val stream = java.io.ByteArrayOutputStream()
+         writeTag(stream, 1, 0)
+         writeVarint(stream, cmd.toLong())
+         
+         val loginStream = java.io.ByteArrayOutputStream()
+         writeString(loginStream, 1, areaCode)
+         writeString(loginStream, 2, locale)
+         writeString(loginStream, 3, token)
+         writeInt32(loginStream, 5, 7) // type=7 (Guest)
+         writeInt32(loginStream, 6, 501) // merchantId
+         writeString(loginStream, 7, visitorId)
+         writeInt32(loginStream, 9, 3) // platform=3 (H5)
+         
+         writeTag(stream, 15, 2)
+         writeVarint(stream, loginStream.size().toLong())
+         stream.write(loginStream.toByteArray())
+         
+         return stream.toByteArray()
+    }
+
+    fun createEnterRoom(cmd: Int, anchorId: String): ByteArray {
+        val stream = java.io.ByteArrayOutputStream()
+        writeTag(stream, 1, 0)
+        writeVarint(stream, cmd.toLong())
+        
+        val bodyStream = java.io.ByteArrayOutputStream()
+        writeString(bodyStream, 1, anchorId)
+        
+        writeTag(stream, 19, 2)
+        writeVarint(stream, bodyStream.size().toLong())
+        stream.write(bodyStream.toByteArray())
+        
+        return stream.toByteArray()
+    }
+
+    private fun writeTag(stream: java.io.ByteArrayOutputStream, fieldNumber: Int, wireType: Int) {
+        val key = (fieldNumber shl 3) or wireType
+        writeVarint(stream, key.toLong())
+    }
+
+    private fun writeVarint(stream: java.io.ByteArrayOutputStream, value: Long) {
+        var v = value
+        while (true) {
+            if ((v and 0x7F.inv()) == 0L) {
+                stream.write(v.toInt())
+                return
+            } else {
+                stream.write((v.toInt() and 0x7F) or 0x80)
+                v = v ushr 7
+            }
+        }
+    }
+    
+    private fun writeString(stream: java.io.ByteArrayOutputStream, fieldNumber: Int, value: String) {
+        if (value.isEmpty()) return
+        writeTag(stream, fieldNumber, 2)
+        val bytes = value.toByteArray(Charsets.UTF_8)
+        writeVarint(stream, bytes.size.toLong())
+        stream.write(bytes)
+    }
+    
+    private fun writeInt32(stream: java.io.ByteArrayOutputStream, fieldNumber: Int, value: Int) {
+        if (value == 0) return
+        writeTag(stream, fieldNumber, 0)
+        writeVarint(stream, value.toLong())
+    }
 }

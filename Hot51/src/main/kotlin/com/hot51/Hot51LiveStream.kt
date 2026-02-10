@@ -118,6 +118,7 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
         )
         return try {
             val response = app.post(url, json = payload, headers = headers)
+            Log.d("Hot51", "RoomInfo Raw: ${response.text}")
             
             // Capture cookies for WebSocket
             val cookieList = response.okhttpResponse.headers("Set-Cookie")
@@ -280,12 +281,19 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
                 val token = roomInfo.wsu ?: ""
                 Log.d("Hot51", "Using token (encrypted wsu): $token")
                 
+                // Send Handshake (CMD 10000) using Protobuf
+                val handshakeBytes = ProtobufParser.createHandshake(10000)
+                webSocket.send(okio.ByteString.of(*handshakeBytes))
+                Log.d("Hot51", "Sent handshake (CMD 10000) - Protobuf")
+                
+                Thread.sleep(200)
+                
                 val visitorId = getVisitorId()
                 
-                val loginMessage = "{\"cmd\":10001,\"loginRequest\":{\"type\":7,\"platform\":3,\"visitorId\":\"$visitorId\",\"token\":\"$token\",\"localeLanguage\":\"ENU\",\"merchantId\":501,\"userId\":\"\",\"memberId\":\"\"}}"
-                
-                webSocket.send(loginMessage)
-                Log.d("Hot51", "Sent guest login (type=7, platform=3, visitorId=$visitorId, token=$token)")
+                // Send Login (CMD 10001) using Protobuf
+                val loginBytes = ProtobufParser.createLogin(10001, token, visitorId)
+                webSocket.send(okio.ByteString.of(*loginBytes))
+                Log.d("Hot51", "Sent guest login (type=7, platform=3, visitorId=$visitorId, token=$token) - Protobuf")
 
                 
                 Thread.sleep(500)
