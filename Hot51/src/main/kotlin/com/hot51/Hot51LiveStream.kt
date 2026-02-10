@@ -101,7 +101,7 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
         val headers = mapOf(
             "Authorization" to "Basic d2ViLXBsYXllcjp3ZWJQbGF5ZXIyMDIyKjk2My4hQCM=",
             "dev-type" to "H5",
-            "sign" to "11f569ed792da4e0cff8a393534a5bf2",
+            "sign" to sign,
             "merchantId" to "501",
             "device" to visitorId,
             "versionCode" to "101",
@@ -270,7 +270,7 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
                 
                 val visitorId = getVisitorId()
                 val loginMessage = """
-                    {"cmd":10001,"loginRequest":{"type":7,"platform":3,"visitorId":"$visitorId","token":"$token","localeLanguage":"ENU","areaCode":"MY"}}
+                    {"cmd":10001,"loginRequest":{"type":7,"platform":3,"visitorId":"$visitorId","token":"$token","localeLanguage":"ENU","areaCode":"MY","merchantId":501,"userId":"","memberId":""}}
                 """.trimIndent()
                 webSocket.send(loginMessage)
                 Log.d("Hot51", "Sent guest login (type=7, platform=3, visitorId=$visitorId, token=$token)")
