@@ -244,21 +244,8 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
                 Log.d("Hot51", "WebSocket connected, sending handshake and guest login")
                 Log.d("Hot51", "WSU URL: $wsu")
                 
-                val token = try {
-                    val tokenParam = wsu.substringAfter("t=", "").substringBefore("&")
-                    if (tokenParam.isEmpty()) {
-                        Log.d("Hot51", "No token in URL, using encrypted wsu as token")
-                        encryptedWsu ?: ""
-                    } else {
-                        val decoded = java.net.URLDecoder.decode(tokenParam, "UTF-8")
-                        Log.d("Hot51", "Raw token param: $tokenParam")
-                        Log.d("Hot51", "Decoded token: $decoded")
-                        decoded
-                    }
-                } catch (e: Exception) {
-                    Log.e("Hot51", "Failed to extract token, using encrypted wsu: ${e.message}")
-                    encryptedWsu ?: ""
-                }
+                val token = roomInfo.atr ?: roomInfo.wsu ?: ""
+                Log.d("Hot51", "Using token (atr): $token")
                 
                 val handshakeMessage = """
                     {"cmd":10000}
