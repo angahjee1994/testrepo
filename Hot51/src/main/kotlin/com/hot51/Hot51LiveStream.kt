@@ -280,18 +280,10 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
                 val token = roomInfo.wsu ?: ""
                 Log.d("Hot51", "Using token (encrypted wsu): $token")
                 
-                val handshakeMessage = """
-                    {"cmd":10000}
-                """.trimIndent()
-                webSocket.send(handshakeMessage)
-                Log.d("Hot51", "Sent handshake (CMD 10000)")
-                
-                Thread.sleep(200)
-                
                 val visitorId = getVisitorId()
-                val loginMessage = """
-                    {"cmd":10001,"loginRequest":{"type":7,"platform":3,"visitorId":"$visitorId","token":"$token","localeLanguage":"ENU","areaCode":"MY","merchantId":501,"userId":"","memberId":""}}
-                """.trimIndent()
+                
+                val loginMessage = "{\"cmd\":10001,\"loginRequest\":{\"type\":7,\"platform\":3,\"visitorId\":\"$visitorId\",\"token\":\"$token\",\"localeLanguage\":\"ENU\",\"merchantId\":501,\"userId\":\"\",\"memberId\":\"\"}}"
+                
                 webSocket.send(loginMessage)
                 Log.d("Hot51", "Sent guest login (type=7, platform=3, visitorId=$visitorId, token=$token)")
 
