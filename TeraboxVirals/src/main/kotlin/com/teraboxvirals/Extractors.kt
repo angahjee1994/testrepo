@@ -27,23 +27,25 @@ class Terabox : ExtractorApi() {
             .replace("momot.com", "terabox.com")
 
         // Parse surl from url
-        val surl = if (fixedUrl.contains("surl=")) {
+        // Parse surl from url
+        val rawSurl = if (fixedUrl.contains("surl=")) {
             fixedUrl.substringAfter("surl=").substringBefore("&")
         } else {
-            val s = fixedUrl.substringAfter("/s/").substringBefore("?").substringBefore("&")
-            // If it's a short URL path without '1' prefix, add it if it looks like a standard surl
-            if (s.startsWith("1") || s.length < 15) s else "1$s"
+            fixedUrl.substringAfter("/s/").substringBefore("?").substringBefore("&")
         }
+        
+        // Remove '1' prefix if present for 'shorturl'
+        val surl = if (rawSurl.startsWith("1")) rawSurl.substring(1) else rawSurl
         
         // Use a robust PC User Agent
         val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         
-        // Method 1: Hit the share/list API
-        val apiUrl = "https://www.terabox.com/share/list?surl=$surl"
+        // Method 1: Hit the share/list API using 'shorturl'
+        val apiUrl = "https://www.terabox.com/share/list?shorturl=$surl&root=1"
         val response = app.get(apiUrl, headers = mapOf(
             "User-Agent" to userAgent,
             "Referer" to fixedUrl,
-            "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA" // Some cookies might help
+            "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"
         ))
         
         val data = response.text
