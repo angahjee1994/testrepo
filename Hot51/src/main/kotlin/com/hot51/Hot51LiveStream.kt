@@ -7,20 +7,8 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okhttp3.Response
 import okio.ByteString
-import okhttp3.Request
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.Job
-import android.util.Log
-import android.util.Base64
-import javax.crypto.Cipher
-import javax.crypto.spec.IvParameterSpec
-import javax.crypto.spec.SecretKeySpec
-import java.nio.charset.StandardCharsets
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 
 class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
 
@@ -93,7 +81,14 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
     @Volatile private var isConnecting = false
     private var lastCookies: String? = null
     private var currentAnchorId: String = "" 
-    private var currentRoomInfo: RoomInfoData? = null
+    private val client: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .pingInterval(20, TimeUnit.SECONDS)
+            .build()
+    }
 
     private fun md5(input: String): String {
         val md = java.security.MessageDigest.getInstance("MD5")
@@ -264,9 +259,10 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
             }
             .build()
             
-        currentWebSocket = app.baseClient.newWebSocket(request, object : WebSocketListener() {
+        Log.e(TAG, "Starting WebSocket connection to: $url")
+        currentWebSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
-                Log.d(TAG, "WebSocket Opened")
+                Log.e(TAG, "WebSocket Opened Successfully")
                 val handshakeBytes = ProtobufParser.createHandshake(10000)
                 Log.d(TAG, "Sending Handshake (10000)")
                 webSocket.send(okio.ByteString.of(*handshakeBytes))
@@ -320,7 +316,7 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
             }
             
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                Log.e(TAG, "WebSocket failure: ${t.message}")
+                Log.e(TAG, "WebSocket failure: ${t.message}", t)
             }
         })
     }
