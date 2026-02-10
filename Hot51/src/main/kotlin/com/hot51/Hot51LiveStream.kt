@@ -95,6 +95,7 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
     @Volatile private var isConnecting = false
     private var lastCookies: String? = null
     private var currentAnchorId: String = "" 
+    private var currentRoomInfo: RoomInfoData? = null
     private val client: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .readTimeout(30, TimeUnit.SECONDS)
