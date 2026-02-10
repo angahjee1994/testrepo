@@ -289,8 +289,8 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
                 
                 Thread.sleep(200)
                 
-                val visitorId = roomInfo.gid ?: getVisitorId()
-                Log.d("Hot51", "Using visitorId: $visitorId (gid from roomInfo)")
+                val visitorId = getVisitorId()
+                Log.d("Hot51", "Using visitorId: $visitorId (UUID)")
                 
                 // Send Login (CMD 10001) using Protobuf
                 val loginBytes = ProtobufParser.createLogin(10001, token, visitorId)
