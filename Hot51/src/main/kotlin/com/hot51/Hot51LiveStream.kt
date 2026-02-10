@@ -257,8 +257,8 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
                 Log.d("Hot51", "WebSocket connected, sending handshake and guest login")
                 Log.d("Hot51", "WSU URL: $wsu")
                 
-                val token = roomInfo.wsu ?: ""
-                Log.d("Hot51", "Using token (encrypted wsu): $token")
+                val token = roomInfo.atr ?: roomInfo.wsu ?: ""
+                Log.d("Hot51", "Using token (atr): $token")
                 
                 val handshakeMessage = """
                     {"cmd":10000}
