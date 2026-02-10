@@ -35,11 +35,15 @@ class Terabox : ExtractorApi() {
             if (s.startsWith("1") || s.length < 15) s else "1$s"
         }
         
+        // Use a robust PC User Agent
+        val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        
         // Method 1: Hit the share/list API
         val apiUrl = "https://www.terabox.com/share/list?surl=$surl"
         val response = app.get(apiUrl, headers = mapOf(
-            "User-Agent" to "LogStatistic",
-            "Referer" to fixedUrl
+            "User-Agent" to userAgent,
+            "Referer" to fixedUrl,
+            "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA" // Some cookies might help
         ))
         
         val data = response.text
@@ -57,6 +61,10 @@ class Terabox : ExtractorApi() {
                         INFER_TYPE,
                     ) {
                         this.referer = fixedUrl
+                        this.headers = mapOf(
+                            "User-Agent" to userAgent,
+                            "Referer" to fixedUrl
+                        )
                     }
                 )
             }

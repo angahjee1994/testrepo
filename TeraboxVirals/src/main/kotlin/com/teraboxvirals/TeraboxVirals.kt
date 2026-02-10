@@ -128,10 +128,10 @@ class TeraboxVirals : MainAPI() {
                  val encodedPath = java.net.URLEncoder.encode(currentPath, "UTF-8")
                  val folderApiUrl = "https://www.terabox.com/share/list?surl=$surl&path=$encodedPath" // Use path if not root
                  
+                 val pcUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                  val headersList = listOf(
-                     mapOf("User-Agent" to "LogStatistic", "Referer" to cleanLink),
-                     mapOf("User-Agent" to "Mozilla/5.0", "Referer" to cleanLink, "Cookie" to "browserid=1;"),
-                     mapOf("User-Agent" to "TeraboxApp", "Referer" to cleanLink)
+                     mapOf("User-Agent" to pcUserAgent, "Referer" to cleanLink, "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"),
+                     mapOf("User-Agent" to "LogStatistic", "Referer" to cleanLink)
                  )
                  
                  // Try multiple headers for success
@@ -218,6 +218,7 @@ class TeraboxVirals : MainAPI() {
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
         // If data is a direct Terabox file link (from our load() episode logic), play it directly
         if (data.contains("terabox.com/file/") || data.contains("d.terabox.com")) {
+             val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
              callback.invoke(
                  newExtractorLink(
                      this.name,
@@ -226,7 +227,7 @@ class TeraboxVirals : MainAPI() {
                      INFER_TYPE
                  ) {
                      this.headers = mapOf(
-                         "User-Agent" to "LogStatistic",
+                         "User-Agent" to userAgent,
                          "Referer" to mainUrl 
                      )
                  }
