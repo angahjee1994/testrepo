@@ -96,13 +96,14 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
         val url = "https://api.fnccdn.com/501/api/plr/zbliv/h5/v3/public/live/room-info?merchantId=501"
         val payload = mapOf("anchorId" to anchorId)
         val sign = generateSign(payload)
+        val visitorId = getVisitorId()
         
         val headers = mapOf(
             "Authorization" to "Basic d2ViLXBsYXllcjp3ZWJQbGF5ZXIyMDIyKjk2My4hQCM=",
             "dev-type" to "H5",
             "sign" to sign,
             "merchantId" to "501",
-            "device" to "806abd11-fef0-4baa-9c3d-104b4693dc7d",
+            "device" to visitorId,
             "versionCode" to "101",
             "system-version" to "1.5.1",
             "time-zone" to "GMT+08:00",
