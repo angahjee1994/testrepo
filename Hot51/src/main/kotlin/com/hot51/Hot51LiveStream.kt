@@ -1,15 +1,13 @@
 package com.hot51
 
 import com.lagradost.cloudstream3.*
-
 import com.lagradost.cloudstream3.utils.AppUtils
-import com.lagradost.cloudstream3.utils.AppUtils.parseJson
-import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.fasterxml.jackson.annotation.JsonProperty
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okhttp3.Response
 import okio.ByteString
+import okhttp3.Request
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -22,12 +20,12 @@ import android.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
-
-
+import java.nio.charset.StandardCharsets
 
 class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
 
     companion object {
+        private const val TAG = "Hot51LiveStream"
         private var persistentVisitorId: String? = null
         
         private fun getVisitorId(): String {
@@ -60,19 +58,42 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
 
     // Simplified WebSocket message structure
     data class WsMessage(@JsonProperty("cmd") val cmd: Int?, @JsonProperty("data") val data: Any?)
-    data class WsChatData(
-        @JsonProperty("nickname") val nickname: String?, 
-        @JsonProperty("avatar") val avatar: String?,
-        @JsonProperty("content") val content: String?
+    
+    // Data classes exposed to Hot51.kt
+    data class LiveComment(
+        val username: String,
+        val message: String,
+        val timestamp: Long,
+        val avatarUrl: String? = null,
     )
-    data class WsGiftData(
-        @JsonProperty("nickname") val nickname: String?,
-        @JsonProperty("giftId") val giftId: String?,
-        @JsonProperty("giftCount") val giftCount: Int?
+
+    data class LiveGift(
+        val username: String,
+        val giftName: String,
+        val giftIconUrl: String,
+        val giftCount: Int,
+        val timestamp: Long,
+        val animationUrl: String? = null,
     )
 
     // Cache explicitly fetched gift list
     private var giftMap: Map<String, GiftItem> = emptyMap()
+
+    // Shared Flow for WebSocket events
+    private val _wsEvents = MutableSharedFlow<WsMessage>(
+        replay = 0, 
+        extraBufferCapacity = 64, 
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    
+    private var currentWebSocket: WebSocket? = null
+    private var activeRoomId: String? = null
+    private var listenersCount = 0
+    private val connectionLock = Any()
+    @Volatile private var isConnecting = false
+    private var lastCookies: String? = null
+    private var currentAnchorId: String = "" 
+    private var currentRoomInfo: RoomInfoData? = null
 
     private fun md5(input: String): String {
         val md = java.security.MessageDigest.getInstance("MD5")
@@ -119,26 +140,23 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
         )
         return try {
             val response = app.post(url, json = payload, headers = headers)
-            Log.d("Hot51", "RoomInfo Raw: ${response.text}")
+            Log.d(TAG, "RoomInfo Raw: ${response.text}")
             
-            // Capture cookies for WebSocket
             val cookieList = response.okhttpResponse.headers("Set-Cookie")
             if (cookieList.isNotEmpty()) {
                 lastCookies = cookieList.joinToString("; ") { it.substringBefore(";") }
-                Log.d("Hot51", "Captured cookies: $lastCookies")
+                Log.d(TAG, "Captured cookies: $lastCookies")
             }
             
             response.parsedSafe<RoomInfoResponse>()?.data
         } catch (e: Exception) {
-            Log.e("Hot51LiveStream", "Error fetching room info: ${e.message}")
+            Log.e(TAG, "Error fetching room info: ${e.message}")
             null
         }
     }
 
     suspend fun fetchGiftList() {
         if (giftMap.isNotEmpty()) return
-        // Use the API endpoint found in logs for "toys" as that's likely the one working for web H5
-        // User reports this URL works: https://api.fnccdn.com/501/api/plr/financemo/vips/v2/h5/search
         val timestamp = System.currentTimeMillis() / 1000
         val url = "https://api.fnccdn.com/501/api/plr/financemo/vips/v2/h5/search"
         val params = mapOf("merchantId" to 501, "t" to timestamp)
@@ -160,12 +178,6 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
             val response = app.get(fullUrl, headers = headers).parsedSafe<GiftListResponse>()
             giftMap = response?.data?.associateBy { it.id } ?: emptyMap()
         } catch (e: Exception) {
-            Log.e("Hot51LiveStream", "Error fetching gift list: ${e.message}")
-        }
-    }
-    
-
-
             Log.e(TAG, "Error fetching gift list: ${e.message}")
         }
     }
@@ -202,50 +214,12 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
         }
     }
 
-    // Local definition since extension doesn't see Core's MainAPI update
-    data class LiveComment(
-        val username: String,
-        val message: String,
-        val timestamp: Long,
-        val avatarUrl: String? = null,
-    )
-
-    data class LiveGift(
-        val username: String, // Note: Was 'senderName' in my previous local version, but I changed it to 'username' in the core check. Wait, let me double check the core file again.
-        val giftName: String,
-        val giftIconUrl: String,
-        val giftCount: Int,
-        val timestamp: Long,
-        val animationUrl: String? = null,
-    )
-
-    // Shared Flow for WebSocket events to avoid multiple connections
-    private val _wsEvents = MutableSharedFlow<WsMessage>(
-        replay = 0, 
-        extraBufferCapacity = 64, 
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
-    
-    // Keep track of current connection
-    private var currentWebSocket: WebSocket? = null
-    private var connectionJob: Job? = null
-    private var activeRoomId: String? = null
-    private var listenersCount = 0
-    private val connectionLock = Any() // Simple synchronization
-    @Volatile private var isConnecting = false
-    private var lastCookies: String? = null
-    private var currentAnchorId: String = "" // Added to store anchorId for later use
-    
-    // Store RoomInfo for later use in handshake response
-    private var currentRoomInfo: RoomInfoData? = null
-
     private suspend fun connectWebSocket(roomId: String, anchorId: String) {
         synchronized(connectionLock) {
             if (activeRoomId != roomId) {
-                // Changing room, close old one
                 currentWebSocket?.close(1000, "Switching room")
                 currentWebSocket = null
-                _wsEvents.tryEmit(WsMessage(null, null)) // Clear buffer? No, just let it be
+                _wsEvents.tryEmit(WsMessage(null, null))
                 listenersCount = 0
                 activeRoomId = roomId
             }
@@ -260,7 +234,7 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
             val roomInfo = fetchRoomInfo(roomId, anchorId) ?: return
             Log.d(TAG, "Encrypted wsu: ${roomInfo.wsu}")
             val wsuUrl = decryptWsu(roomInfo.wsu) ?: roomInfo.wsu
-            currentAnchorId = anchorId // Store anchorId
+            currentAnchorId = anchorId
             
             if (wsuUrl != null) {
                 connectWebSocket(wsuUrl, roomInfo)
@@ -289,11 +263,10 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
                 }
             }
             .build()
+            
         currentWebSocket = app.baseClient.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 Log.d(TAG, "WebSocket Opened")
-                
-                // Send Handshake (CMD 10000)
                 val handshakeBytes = ProtobufParser.createHandshake(10000)
                 Log.d(TAG, "Sending Handshake (10000)")
                 webSocket.send(okio.ByteString.of(*handshakeBytes))
@@ -302,7 +275,7 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
             override fun onMessage(webSocket: WebSocket, text: String) {
                 Log.d(TAG, "Received text message: $text")
                 try {
-                    val msg = tryParseJson<WsMessage>(text)
+                    val msg = AppUtils.tryParseJson<WsMessage>(text)
                     if (msg != null) {
                         Log.d(TAG, "Parsed message cmd=${msg.cmd}")
                         _wsEvents.tryEmit(msg)
@@ -326,14 +299,12 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
                             }
                             10001 -> {
                                 Log.d(TAG, "Received Login Response (10001)")
-                                // Send EnterRoom (10004)
                                 if (currentAnchorId.isNotEmpty()) {
                                     val enterRoomBytes = ProtobufParser.createEnterRoom(10004, currentAnchorId)
                                     Log.d(TAG, "Sending EnterRoom (10004) for anchor $currentAnchorId")
                                     webSocket.send(okio.ByteString.of(*enterRoomBytes))
                                 }
                             }
-                            // ... other commands
                         }
                         
                         val msg = WsMessage(cmd, dataMap)
@@ -345,41 +316,23 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
             }
             
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-                Log.d("Hot51WS", "WebSocket closing: code=$code reason=$reason")
+                Log.d(TAG, "WebSocket closing: code=$code reason=$reason")
             }
             
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                Log.e("Hot51WS", "WebSocket failure: ${t.message}")
+                Log.e(TAG, "WebSocket failure: ${t.message}")
             }
         })
-        } finally {
-            isConnecting = false
-        }
-    }
-    
-    private fun disconnectWebSocket() {
-        synchronized(connectionLock) {
-            listenersCount--
-            if (listenersCount <= 0) {
-                listenersCount = 0
-                activeRoomId = null
-                currentWebSocket?.close(1000, "No listeners")
-                currentWebSocket = null
-            }
-        }
     }
     
     private fun handleHandshakeResponse(dataMap: Map<String, Any?>?) {
         if (dataMap == null) return
         
-        // Search for Dynamic Key (16 chars string)
         var dynamicKey: String? = null
         
-        // Recursively search strings
         fun searchKey(map: Map<String, Any?>) {
             for ((k, v) in map) {
                 if (v is String) {
-                    // Heuristic: Key is 16 chars (or maybe more? 1558... is 16)
                     if (v.length == 16) { 
                         dynamicKey = v
                         Log.d(TAG, "Found candidate Key: $v")
@@ -398,63 +351,42 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
             sendLogin(dynamicKey!!)
         } else {
             Log.e(TAG, "Failed to find Dynamic Key in Handshake Response")
-             // Try fallback? Or existing key?
-             // sendLogin("1558668820991598") // Fallback
         }
     }
     
     private fun sendLogin(key: String) {
         val salt = "JPHJyYUJ^&*(743&%kgfXyb84d"
-        val jti = "null" // Assuming empty/null for guest
+        val jti = "null" 
         val rawToken = jti + salt
         val token = encryptToken(rawToken, key) ?: ""
-        val visitorId = "" // Empty visitorId
+        val visitorId = ""
         
         Log.d(TAG, "Sending Login (10001) with Key=$key Token=$token")
 
         val loginBytes = ProtobufParser.createLogin(10001, token, visitorId)
-        webSocket?.send(okio.ByteString.of(*loginBytes))
+        currentWebSocket?.send(okio.ByteString.of(*loginBytes))
     }
     
-    private fun startHeartbeat(webSocket: WebSocket) {
-        // We can't easily launch a coroutine from here without a scope.
-        // But since we are in Hot51LiveStream which is a class, we don't have a scope.
-        // We can create a thread or use GlobalScope (bad practice but effective for this simple loop).
-        // Better: use the 'connectionJob' we defined.
-        
-        // Actually, let's just use a Thread for the heartbeat to be simple and robust against scope cancellation issues
-        // or rely on the fact that if the app dies, the thread dies.
-        Thread {
-            try {
-                while (currentWebSocket != null) {
-                    // Send heartbeat cmd: 0 or 999
-                    // JSON format: {"cmd":0,"data":{}} ??
-                    // Based on typical implementation for these apps:
-                    val heartbeat = "{\"cmd\":0}" 
-                    webSocket.send(heartbeat)
-                    Thread.sleep(10000) // 10 seconds
-                }
-            } catch (e: Exception) {
-                // End loop
+    private fun disconnectWebSocket() {
+        synchronized(connectionLock) {
+            listenersCount--
+            if (listenersCount <= 0) {
+                listenersCount = 0
+                activeRoomId = null
+                currentWebSocket?.close(1000, "No listeners")
+                currentWebSocket = null
             }
-        }.start()
+        }
     }
 
     fun getComments(roomId: String, anchorId: String): Flow<LiveComment> = callbackFlow {
-        // Connect if needed
         connectWebSocket(roomId, anchorId)
         
         val job = launch {
             _wsEvents.collect { msg ->
                 try {
-                    // Log the raw data for debugging
-                    Log.d("Hot51", "WS RAW: ${msg.data}")
-                    
                     val dataMap = msg.data as? Map<String, Any> ?: emptyMap()
-                    val cmd = msg.cmd
                     
-                    // CMD 20 = Chat? 
-                    // Let's look for known fields.
                     if (dataMap.containsKey("content") && dataMap.containsKey("nickname")) {
                         val comment = LiveComment(
                             username = dataMap["nickname"] as? String ?: "User",
@@ -485,7 +417,6 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
                 try {
                     val dataMap = msg.data as? Map<String, Any> ?: emptyMap()
                     
-                    // Identify Gift
                     if (dataMap.containsKey("giftId")) {
                         val giftId = dataMap["giftId"].toString()
                         val count = (dataMap["giftCount"] as? Number)?.toInt() ?: 1
