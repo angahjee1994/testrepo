@@ -247,6 +247,10 @@ class TeraboxVirals : MainAPI() {
         
         if (isTeraboxData) {
              val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+             
+             // If domain is 1024tera, change referer
+             val referer = if (data.contains("1024tera")) "https://www.1024tera.com/" else "https://www.terabox.com/"
+
              callback.invoke(
                  newExtractorLink(
                      "Terabox",
@@ -256,7 +260,7 @@ class TeraboxVirals : MainAPI() {
                  ) {
                      this.headers = mapOf(
                          "User-Agent" to userAgent,
-                         "Referer" to "https://www.terabox.com/",
+                         "Referer" to referer,
                          "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"
                      )
                  }
