@@ -145,16 +145,23 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
     private fun decryptWsu(encrypted: String?): String? {
         if (encrypted.isNullOrEmpty()) return null
         try {
+            Log.d("Hot51", "Decryption attempt - Key: $decryptKey (${decryptKey.length} chars)")
+            Log.d("Hot51", "Decryption attempt - IV: $decryptIv (${decryptIv.length} chars)")
+            Log.d("Hot51", "Decryption attempt - Encrypted: $encrypted")
+            
             val keySpec = SecretKeySpec(decryptKey.toByteArray(Charsets.UTF_8), "AES")
             val ivSpec = IvParameterSpec(decryptIv.toByteArray(Charsets.UTF_8))
             val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
             cipher.init(Cipher.DECRYPT_MODE, keySpec, ivSpec)
             val decodedBytes = Base64.decode(encrypted, Base64.DEFAULT)
+            Log.d("Hot51", "Decoded bytes length: ${decodedBytes.size}")
             val decryptedBytes = cipher.doFinal(decodedBytes)
             val result = String(decryptedBytes, Charsets.UTF_8).trim()
+            Log.d("Hot51", "Decryption SUCCESS: $result")
             return result
         } catch (e: Exception) {
-            Log.e("Hot51LiveStream", "Decryption failed: ${e.message}")
+            Log.e("Hot51", "Decryption FAILED: ${e.javaClass.simpleName}: ${e.message}")
+            e.printStackTrace()
             return null
         }
     }
