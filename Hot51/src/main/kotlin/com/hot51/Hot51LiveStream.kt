@@ -59,7 +59,7 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
     )
 
     // Simplified WebSocket message structure
-    data class WsMessage(@JsonProperty("cmd") val cmd: Int?, @JsonProperty("data") val data: Any?)
+    data class WsMessage(@JsonProperty("cmd") val cmd: Int?, @JsonProperty("data") val data: Any?, @JsonProperty("result") val result: Any?)
     
     // Data classes exposed to Hot51.kt
     data class LiveComment(
@@ -289,6 +289,11 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
                     val msg = AppUtils.tryParseJson<WsMessage>(text)
                     if (msg != null) {
                         Log.d(TAG, "Parsed message cmd=${msg.cmd}")
+                        if (msg.cmd == 10000 && msg.result != null) {
+                             Log.d(TAG, "Received Handshake Response (Text): ${msg.result}")
+                             val key = msg.result.toString()
+                             sendLogin(key)
+                        }
                         _wsEvents.tryEmit(msg)
                     }
                 } catch (e: Exception) {
@@ -370,7 +375,7 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
         val jti = "null" 
         val rawToken = jti + salt
         val token = encryptToken(rawToken, key) ?: ""
-        val visitorId = ""
+        val visitorId = getVisitorId()
         
         Log.d(TAG, "Sending Login (10001) with Key=$key Token=$token")
 
