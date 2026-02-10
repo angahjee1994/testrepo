@@ -46,7 +46,8 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
     data class RoomInfoData(
         @JsonProperty("wsu") val wsu: String?, 
         @JsonProperty("atr") val atr: String?,
-        @JsonProperty("lid") val lid: String?
+        @JsonProperty("lid") val lid: String?,
+        @JsonProperty("gid") val gid: String?
     )
 
     data class GiftListResponse(@JsonProperty("data") val data: List<GiftItem>?)
@@ -288,12 +289,20 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
                 
                 Thread.sleep(200)
                 
-                val visitorId = getVisitorId()
+                val visitorId = roomInfo.gid ?: getVisitorId()
+                Log.d("Hot51", "Using visitorId: $visitorId (gid from roomInfo)")
                 
                 // Send Login (CMD 10001) using Protobuf
                 val loginBytes = ProtobufParser.createLogin(10001, token, visitorId)
                 webSocket.send(okio.ByteString.of(*loginBytes))
                 Log.d("Hot51", "Sent guest login (type=7, platform=3, visitorId=$visitorId, token=$token) - Protobuf")
+
+                Thread.sleep(500)
+                
+                // Send EnterRoom (CMD 10004) using Protobuf
+                val enterRoomBytes = ProtobufParser.createEnterRoom(10004, anchorId)
+                webSocket.send(okio.ByteString.of(*enterRoomBytes))
+                Log.d("Hot51", "Sent enterRoom (CMD 10004, anchorId=$anchorId) - Protobuf")
 
                 
                 Thread.sleep(500)
