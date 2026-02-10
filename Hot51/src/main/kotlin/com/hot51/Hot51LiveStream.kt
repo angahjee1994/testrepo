@@ -246,7 +246,7 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
         val request = okhttp3.Request.Builder()
             .url(wsu)
             .addHeader("Origin", "https://hotlive11.com")
-            .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36")
+            .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36")
             .addHeader("Accept-Encoding", "gzip, deflate, br, zstd")
             .addHeader("Accept-Language", "en-US,en;q=0.9")
             .addHeader("Cache-Control", "no-cache")
@@ -257,8 +257,8 @@ class Hot51LiveStream(val app: com.lagradost.nicehttp.Requests) {
                 Log.d("Hot51", "WebSocket connected, sending handshake and guest login")
                 Log.d("Hot51", "WSU URL: $wsu")
                 
-                val token = roomInfo.wsu ?: ""
-                Log.d("Hot51", "Using token (encrypted wsu): $token")
+                val token = roomInfo.atr ?: roomInfo.wsu ?: ""
+                Log.d("Hot51", "Using token (atr): $token")
                 
                 val handshakeMessage = """
                     {"cmd":10000}
