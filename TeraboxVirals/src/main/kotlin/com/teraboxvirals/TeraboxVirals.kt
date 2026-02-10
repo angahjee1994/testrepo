@@ -112,20 +112,26 @@ class TeraboxVirals : MainAPI() {
 
              // Recursive function to scan folders
              // We need to persist uk and shareid from the first root call
+             // Recursive function to scan folders
+             // We need to persist uk and shareid from the first root call
              suspend fun scanFolder(currentPath: String, uk: String? = null, shareid: String? = null) {
+                 // Determine API domain based on link source
+                 val apiDomain = if (tbLink?.contains("1024tera") == true) "www.1024tera.com" else "www.terabox.com"
+                 val referer = "https://$apiDomain/"
+
                  val folderApiUrl = if (uk == null || shareid == null) {
                      // First call: Root
-                     "https://www.terabox.com/share/list?shorturl=$surl&root=1"
+                     "https://$apiDomain/share/list?shorturl=$surl&root=1"
                  } else {
                      // Subfolder call
                      val encodedPath = java.net.URLEncoder.encode(currentPath, "UTF-8")
-                     "https://www.terabox.com/share/list?uk=$uk&shareid=$shareid&dir=$encodedPath&root=0&web=1"
+                     "https://$apiDomain/share/list?uk=$uk&shareid=$shareid&dir=$encodedPath&root=0&web=1"
                  }
                  
                  val pcUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                  val headersList = listOf(
-                     mapOf("User-Agent" to pcUserAgent, "Referer" to cleanLink, "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"),
-                     mapOf("User-Agent" to "LogStatistic", "Referer" to cleanLink)
+                     mapOf("User-Agent" to pcUserAgent, "Referer" to referer, "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"),
+                     mapOf("User-Agent" to "LogStatistic", "Referer" to referer)
                  )
                  
                  var jsonResponse: String? = null
