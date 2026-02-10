@@ -135,7 +135,7 @@ class TeraboxVirals : MainAPI() {
                  } else {
                      // Subfolder call
                      val encodedPath = java.net.URLEncoder.encode(currentPath, "UTF-8")
-                     "https://www.terabox.com/share/list?uk=$uk&shareid=$shareid&dir=$encodedPath&root=0"
+                     "https://www.terabox.com/share/list?uk=$uk&shareid=$shareid&dir=$encodedPath&root=0&web=1"
                  }
                  
                  val pcUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -173,10 +173,11 @@ class TeraboxVirals : MainAPI() {
                       // But simpler regex scan might work if response isn't huge.
                       // Let's use a more robust regex scan on the whole response for simplicity for now as manual splitting is error prone.
                       
-                      // Find all items
-                      val itemRegex = Regex("\\{[^\\}]*\"server_filename\"[^\\}]*\\}")
-                      itemRegex.findAll(jsonResponse).forEach { match ->
-                          val item = match.value
+                      val items = jsonResponse.split("{\"category\"")
+                      // println("FULL JSON: $jsonResponse") // Uncomment to debug full json
+
+                      items.drop(1).forEach { chunk ->
+                          val item = "{\"category\"$chunk"
                           
                           val isDirMatch = Regex("\"isdir\":\"(.*?)\"").find(item)
                           val isDir = isDirMatch?.groupValues?.get(1) ?: "0"
@@ -191,6 +192,8 @@ class TeraboxVirals : MainAPI() {
                               
                               if (isDir == "1") { // It's a folder
                                   val folderPath = pathMatch?.groupValues?.get(1)?.replace("\\/", "/") ?: "$currentPath/$filename"
+                                  // println("Found Folder: $folderPath")
+
                                   // Recursive call with uk/shareid
                                   if (folderPath != currentPath && folderPath.count { it == '/' } < 10 && nextUk != null) { 
                                       scanFolder(folderPath, nextUk, nextShareid)
@@ -200,19 +203,22 @@ class TeraboxVirals : MainAPI() {
                                   val ext = filename.substringAfterLast(".", "").lowercase()
                                   
                                   if (videoExtensions.contains(ext)) {
-                                       val thumbUrl = thumbsMatch?.groupValues?.get(1)?.replace("\\/", "/") ?: poster
-                                       // Update main poster if it's the first video found and we don't have a good one yet
-                                       if (poster == null || poster?.contains("terabox") == false) {
-                                           if (thumbsMatch != null) {
-                                              poster = thumbUrl
-                                           }
+                                       val thumbUrl = thumbsMatch?.groupValues?.get(1)?.replace("\\/", "/")
+                                       
+                                       // Update main poster if it's the first high-res one found
+                                       if (thumbUrl != null && (poster == null || poster?.contains("terabox") == false)) {
+                                           println("Updated Poster to High-Res: $thumbUrl")
+                                           poster = thumbUrl
                                        }
+                                       
+                                       val finalPoster = thumbUrl ?: poster
+                                       // println("Added Episode: $filename | Poster: $finalPoster")
                                        
                                        episodes.add(
                                            newEpisode(dlink) {
                                                this.name = filename
                                                this.episode = episodes.size + 1
-                                               this.posterUrl = thumbUrl
+                                               this.posterUrl = finalPoster
                                            }
                                        )
                                   }
