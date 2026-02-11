@@ -91,7 +91,8 @@ class TeraboxVirals : MainAPI() {
              } catch (e: Exception) {}
         }
 
-        var poster = document.selectFirst(".post-filter-image img")?.attr("src") 
+        var poster = document.selectFirst(".post-body img")?.attr("src")
+            ?: document.selectFirst(".post-filter-image img")?.attr("src")
             ?: document.selectFirst("meta[property=og:image]")?.attr("content")
         val plot = document.select(".post-body").text().trim()
         val tags = document.select(".post-tag a").map { it.text() }
@@ -116,11 +117,6 @@ class TeraboxVirals : MainAPI() {
              if (tempSurl.startsWith("1")) tempSurl = tempSurl.substring(1)
              val surl = tempSurl
 
-             // Extract tokens from sharing page HTML
-             val sharingPageHtml = if (tbLink != null) app.get(tbLink!!).text else ""
-             val jsToken = Regex("[\"']jsToken[\"']\\s*:\\s*[\"']([^\"']+)[\"']").find(sharingPageHtml)?.groupValues?.get(1)
-             val bdstoken = Regex("[\"']bdstoken[\"']\\s*:\\s*[\"']([^\"']+)[\"']").find(sharingPageHtml)?.groupValues?.get(1)
-
              // Initial tokens for streaming API
              var sharedSign: String? = null
              var sharedTimestamp: String? = null
@@ -129,7 +125,7 @@ class TeraboxVirals : MainAPI() {
 
              // Fetch initial metadata and tokens via shorturlinfo API
              val apiDomain = if (tbLink?.contains("1024tera") == true) "www.1024tera.com" else "www.terabox.com"
-             val shortUrlInfoApi = "https://$apiDomain/api/shorturlinfo?app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=$jsToken&shorturl=1$surl&root=1"
+             val shortUrlInfoApi = "https://$apiDomain/api/shorturlinfo?app_id=250528&web=1&channel=dubox&clienttype=0&shorturl=1$surl&root=1"
              
              try {
                  val infoRes = app.get(shortUrlInfoApi, headers = mapOf("Referer" to "https://$apiDomain/")).text
@@ -146,10 +142,10 @@ class TeraboxVirals : MainAPI() {
                  val effectiveShareid = shareid ?: initialShareid
 
                  val folderApiUrl = if (effectiveUk == null || effectiveShareid == null) {
-                     "https://$apiDomain/share/list?shorturl=$surl&root=1&web=1&channel=dubox&clienttype=0&jsToken=$jsToken"
+                     "https://$apiDomain/share/list?shorturl=$surl&root=1&web=1&channel=dubox&clienttype=0"
                  } else {
                      val encodedPath = java.net.URLEncoder.encode(currentPath, "UTF-8")
-                     "https://$apiDomain/share/list?uk=$effectiveUk&shareid=$effectiveShareid&dir=$encodedPath&root=0&web=1&channel=dubox&clienttype=0&jsToken=$jsToken"
+                     "https://$apiDomain/share/list?uk=$effectiveUk&shareid=$effectiveShareid&dir=$encodedPath&root=0&web=1&channel=dubox&clienttype=0"
                  }
                  
                  val headersList = listOf(
