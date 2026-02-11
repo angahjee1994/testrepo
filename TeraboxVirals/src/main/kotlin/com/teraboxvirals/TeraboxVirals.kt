@@ -52,14 +52,12 @@ class TeraboxVirals : MainAPI() {
         val title = element.selectFirst(".entry-title a")?.text() ?: element.selectFirst("img")?.attr("alt") ?: "Video"
         val href = linkElement.attr("href")
         
-        // Robust poster selection for home/search feed
-        var poster = element.selectFirst(".post-filter-link img")?.attr("src")
-            ?: element.selectFirst(".snip-thumbnail")?.attr("src")
-            ?: element.selectFirst(".post-filter-image img")?.attr("src")
-
-        // Handle lazy loading if necessary (though verified not present currently, it's good practice)
-        if (poster?.contains("blank.gif") == true || poster.isNullOrEmpty()) {
-            poster = element.selectFirst("img")?.attr("data-src") ?: element.selectFirst("img")?.attr("src")
+        // Robust poster selection: check src, data-src, and srcset for real images
+        var poster = element.selectFirst(".post-filter-link img, .snip-thumbnail, .post-filter-image img, img")?.let { img ->
+            listOf("data-src", "src", "srcset", "data-original").firstNotNullOfOrNull { attr ->
+                val value = img.attr(attr).takeIf { it.isNotEmpty() && !it.contains("blank.gif") && !it.contains("pixel.gif") }
+                if (attr == "srcset" && value != null) value.split(",").last().trim().split(" ").first() else value
+            }
         }
 
         return newMovieSearchResponse(title, href, TvType.NSFW) {
@@ -113,9 +111,16 @@ class TeraboxVirals : MainAPI() {
              }
         }
 
-        var poster = document.selectFirst(".post-body img")?.attr("src")
-            ?: document.selectFirst(".post-filter-image img")?.attr("src")
-            ?: document.selectFirst("meta[property=og:image]")?.attr("content")
+        // More robust poster selection for detail page: prioritize high-res images
+        var poster = document.selectFirst(".post-body img, .post-filter-image img, meta[property='og:image']")?.let { img ->
+            if (img.tagName() == "meta") img.attr("content")
+            else {
+                listOf("data-src", "src", "srcset").firstNotNullOfOrNull { attr ->
+                    val value = img.attr(attr).takeIf { it.isNotEmpty() && !it.contains("blank.gif") }
+                    if (attr == "srcset" && value != null) value.split(",").last().trim().split(" ").first() else value
+                }
+            }
+        }
         val plot = document.select(".post-body").text().trim()
         val tags = document.select(".post-tag a").map { it.text() }
 
@@ -149,11 +154,14 @@ class TeraboxVirals : MainAPI() {
 
              // Extract tokens from the actual Terabox sharing page to bypass shorturlinfo challenges
              println("Fetching Terabox page for tokens: $cleanLink")
-             val sharingPageHtml = try { app.get(cleanLink).text } catch(e: Exception) { "" }
-             sharedSign = Regex("[\"']sign[\"']\\s*:\\s*[\"']([^\"']+)[\"']").find(sharingPageHtml)?.groupValues?.get(1)
-             sharedTimestamp = Regex("[\"']timestamp[\"']\\s*:\\s*(\\d+)").find(sharingPageHtml)?.groupValues?.get(1)
-             initialUk = Regex("[\"']uk[\"']\\s*:\\s*\"?(\\d+)\"?").find(sharingPageHtml)?.groupValues?.get(1)
-             initialShareid = Regex("[\"']shareid[\"']\\s*:\\s*\"?(\\d+)\"?").find(sharingPageHtml)?.groupValues?.get(1)
+             // Use a desktop UA to ensure we get the full JS payload
+             val sharingPageHtml = try { app.get(cleanLink, headers = mapOf("User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36")).text } catch(e: Exception) { "" }
+             
+             // Search for tokens in JSON strings or JS objects
+             sharedSign = Regex("[\"']sign[\"']\\s*[:=]\\s*[\"']([^\"']+)[\"']").find(sharingPageHtml)?.groupValues?.get(1)
+             sharedTimestamp = Regex("[\"']timestamp[\"']\\s*[:=]\\s*(?:[\"'](\\d+)[\"']|(\\d+))").find(sharingPageHtml)?.let { it.groupValues[1].ifEmpty { it.groupValues[2] } }
+             initialUk = Regex("[\"']uk[\"']\\s*[:=]\\s*(?:[\"'](\\d+)[\"']|(\\d+))").find(sharingPageHtml)?.let { it.groupValues[1].ifEmpty { it.groupValues[2] } }
+             initialShareid = Regex("[\"']shareid[\"']\\s*[:=]\\s*(?:[\"'](\\d+)[\"']|(\\d+))").find(sharingPageHtml)?.let { it.groupValues[1].ifEmpty { it.groupValues[2] } }
              
              println("Terabox Page Tokens: sign=$sharedSign, timestamp=$sharedTimestamp, uk=$initialUk, shareid=$initialShareid")
 
