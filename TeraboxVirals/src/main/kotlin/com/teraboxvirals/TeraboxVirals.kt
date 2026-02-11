@@ -53,7 +53,7 @@ class TeraboxVirals : MainAPI() {
         val href = linkElement.attr("href")
         
         // Robust poster selection: check src, data-src, and srcset for real images
-        val watermarkPatterns = listOf("Join", "@TB", "@Tudung", "telegram", "channel", "@Mantap")
+        val watermarkPatterns = listOf("Join", "@TB", "@Tudung", "telegram", "channel", "@Mantap", "TBMalay")
         var poster = element.select(".post-filter-link img, .snip-thumbnail, .post-filter-image img, img").firstNotNullOfOrNull { img ->
             val imgUrl = listOf("data-src", "src", "srcset", "data-original").firstNotNullOfOrNull { attr ->
                 val value = img.attr(attr).takeIf { it.isNotEmpty() && !it.contains("blank.gif") && !it.contains("pixel.gif") }
@@ -120,7 +120,7 @@ class TeraboxVirals : MainAPI() {
              }
         }
 
-        val watermarkPatterns = listOf("Join", "@TB", "@Tudung", "telegram", "channel", "@Mantap")
+        val watermarkPatterns = listOf("Join", "@TB", "@Tudung", "telegram", "channel", "@Mantap", "TBMalay")
         var poster = document.select(".post-body img").firstNotNullOfOrNull { img ->
             val imgUrl = listOf("data-src", "src", "srcset").firstNotNullOfOrNull { attr ->
                 val value = img.attr(attr).takeIf { it.isNotEmpty() && !it.contains("blank.gif") && !it.contains("pixel.gif") }
@@ -129,7 +129,12 @@ class TeraboxVirals : MainAPI() {
             val altText = img.attr("alt")
             val isWatermark = watermarkPatterns.any { pattern -> imgUrl?.contains(pattern, ignoreCase = true) == true || altText.contains(pattern, ignoreCase = true) }
             imgUrl?.takeIf { !isWatermark }
-        } ?: document.selectFirst("meta[property='og:image']")?.attr("content")
+        }
+        if (poster == null) {
+            val ogImage = document.selectFirst("meta[property='og:image']")?.attr("content")
+            val ogIsWatermark = ogImage != null && watermarkPatterns.any { ogImage.contains(it, ignoreCase = true) }
+            if (!ogIsWatermark) poster = ogImage
+        }
         if (poster != null) {
             if (!poster.startsWith("http")) poster = mainUrl + (if (poster.startsWith("/")) "" else "/") + poster
             poster = poster.replace(Regex("/s\\d+(-[bc])?/"), "/s1600/")
@@ -216,39 +221,41 @@ class TeraboxVirals : MainAPI() {
                           val filenameMatch = Regex("\"server_filename\":\\s*\"(.*?)\"").find(item)
                           val dlinkMatch = Regex("\"dlink\":\\s*\"(.*?)\"").find(item)
                           val pathMatch = Regex("\"path\":\\s*\"(.*?)\"").find(item) 
-                          val thumbsMatch = Regex("\"url[1-3]\":\\s*\"(.*?)\"").findAll(item).toList()
-                          val fsidMatch = Regex("^\\s*\"?(\\d+)\"?").find(item)
-                          
-                          if (filenameMatch != null) {
-                              val filename = filenameMatch.groupValues[1]
-                              val fsid = fsidMatch?.groupValues?.get(1)
-                              val itemPath = pathMatch?.groupValues?.get(1)?.replace("\\/", "/")?.replace("\\\\/", "/")
-                              
-                              if (isDir == "1") { // It's a folder
-                                  if (!itemPath.isNullOrEmpty() && itemPath != dirPath && itemPath.count { it == '/' } < 10) { 
-                                      println("Found Folder: $itemPath, scanning...")
-                                      scanFolder(itemPath)
-                                  }
-                              } else {
-                                  val ext = filename.substringAfterLast(".", "").lowercase()
-                                  if (videoExtensions.contains(ext)) {
-                                       val rawDlink = dlinkMatch?.groupValues?.get(1)?.replace("\\\\/", "/")
-                                       val episodeData = if (rawDlink != null) {
-                                           "TERABOX_DLINK|$rawDlink|$apiDomain"
-                                       } else {
-                                           "TERABOX_STREAMING|$fsid|$surl|$apiDomain|${initialUk ?: ""}|${initialShareid ?: ""}"
-                                       }
-                                           
-                                       val thumbUrl = thumbsMatch.lastOrNull()?.groupValues?.get(1)?.replace("\\\\/", "/")
+                           val thumbsMatch = Regex("\"url[1-3]\":\\s*\"(.*?)\"").findAll(item).toList()
+                           val fsidMatch = Regex("^\\s*\"?(\\d+)\"?").find(item)
+                           
+                           if (filenameMatch != null) {
+                               val filename = filenameMatch.groupValues[1]
+                               val fsid = fsidMatch?.groupValues?.get(1)
+                               val itemPath = pathMatch?.groupValues?.get(1)?.replace("\\/", "/")?.replace("\\\\/", "/")
+                               
+                               if (isDir == "1") { // It's a folder
+                                   if (!itemPath.isNullOrEmpty() && itemPath != dirPath && itemPath.count { it == '/' } < 10) { 
+                                       println("Found Folder: $itemPath, scanning...")
+                                       scanFolder(itemPath)
+                                   }
+                               } else {
+                                   val ext = filename.substringAfterLast(".", "").lowercase()
+                                   if (videoExtensions.contains(ext)) {
+                                        val rawDlink = dlinkMatch?.groupValues?.get(1)?.replace("\\\\/", "/")
+                                        val episodeData = if (rawDlink != null) {
+                                            "TERABOX_DLINK|$rawDlink|$apiDomain"
+                                        } else {
+                                            "TERABOX_LINK|https://$apiDomain/s/1$surl|$apiDomain"
+                                        }
+                                            
+                                        val thumbUrl = thumbsMatch.lastOrNull()?.groupValues?.get(1)?.replace("\\\\/", "/")
                                        
-                                       println("Found Video: $filename (has dlink: ${rawDlink != null})")
-                                       episodes.add(
-                                           newEpisode(episodeData) {
-                                               this.name = filename
-                                               this.episode = episodes.size + 1
-                                               this.posterUrl = poster
-                                           }
-                                       )
+                                        val episodeThumb = thumbUrl ?: poster
+                                        if (poster == null && thumbUrl != null) poster = thumbUrl
+                                        println("Found Video: $filename (has dlink: ${rawDlink != null}, thumb: ${thumbUrl != null})")
+                                        episodes.add(
+                                            newEpisode(episodeData) {
+                                                this.name = filename
+                                                this.episode = episodes.size + 1
+                                                this.posterUrl = episodeThumb
+                                            }
+                                        )
                                   }
                               }
                           }
@@ -313,62 +320,15 @@ class TeraboxVirals : MainAPI() {
             return true
         }
 
-        if (data.startsWith("TERABOX_STREAMING|")) {
+        if (data.startsWith("TERABOX_LINK|")) {
             val parts = data.split("|")
-            val fsid = parts[1]
-            val surl = parts[2]
-            val domain = parts[3]
-            val uk = parts.getOrElse(4) { "" }
-            val shareid = parts.getOrElse(5) { "" }
-
-            if (uk.isNotEmpty() && shareid.isNotEmpty()) {
-                val streamingUrl = "https://$domain/share/streaming?uk=$uk&shareid=$shareid&type=M3U8_FLV_264_480&fid=$fsid&web=1&channel=dubox&clienttype=0"
-                println("Trying streaming: $streamingUrl")
-                callback.invoke(
-                    newExtractorLink(
-                        "Terabox Streaming",
-                        "Terabox",
-                        streamingUrl,
-                        INFER_TYPE
-                    ) {
-                        this.headers = mapOf(
-                            "User-Agent" to userAgent,
-                            "Referer" to "https://$domain/",
-                            "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"
-                        )
-                    }
-                )
-            }
-
-            println("Fetching dlink via share/list for fsid=$fsid")
+            val teraboxUrl = parts[1]
+            val domain = parts.getOrElse(2) { "www.terabox.com" }
+            println("Extracting via Terabox extractor: $teraboxUrl")
             try {
-                val listUrl = "https://$domain/share/list?shorturl=$surl&dir=%2F&root=1&web=1&channel=dubox&clienttype=0"
-                val listRes = app.get(listUrl, headers = mapOf(
-                    "User-Agent" to userAgent,
-                    "Referer" to "https://$domain/",
-                    "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"
-                )).text
-                Regex("\"dlink\":\"(.*?)\"").findAll(listRes).forEach { match ->
-                    val dlink = match.groupValues[1].replace("\\/", "/")
-                    if (dlink.isNotEmpty()) {
-                        callback.invoke(
-                            newExtractorLink(
-                                "Terabox",
-                                "Terabox",
-                                dlink,
-                                INFER_TYPE
-                            ) {
-                                this.headers = mapOf(
-                                    "User-Agent" to userAgent,
-                                    "Referer" to "https://$domain/",
-                                    "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"
-                                )
-                            }
-                        )
-                    }
-                }
+                Terabox().getUrl(teraboxUrl, "https://$domain/", subtitleCallback, callback)
             } catch (e: Exception) {
-                println("Dlink fetch error: ${e.message}")
+                println("Terabox extractor error: ${e.message}")
             }
             return true
         }

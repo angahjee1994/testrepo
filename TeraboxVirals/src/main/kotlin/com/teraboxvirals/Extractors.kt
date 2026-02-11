@@ -19,78 +19,96 @@ class Terabox : ExtractorApi() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
-        val fixedUrl = url.replace("teraboxapp.com", "terabox.com")
-            .replace("1024terabox.com", "terabox.com")
-            .replace("mirrobox.com", "terabox.com")
-            .replace("nephobox.com", "terabox.com")
-            .replace("freeterabox.com", "terabox.com")
-            .replace("momot.com", "terabox.com")
-
-        // Parse surl from url
-        // Parse surl from url
-        val rawSurl = if (fixedUrl.contains("surl=")) {
-            fixedUrl.substringAfter("surl=").substringBefore("&")
+        val rawSurl = if (url.contains("surl=")) {
+            url.substringAfter("surl=").substringBefore("&")
         } else {
-            fixedUrl.substringAfter("/s/").substringBefore("?").substringBefore("&")
+            url.substringAfter("/s/").substringBefore("?").substringBefore("&")
         }
-        
-        // Remove '1' prefix if present for 'shorturl'
         val surl = if (rawSurl.startsWith("1")) rawSurl.substring(1) else rawSurl
         
-        // Use a robust PC User Agent
         val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        val foundDlinks = mutableSetOf<String>()
         
-        // Method 1: Hit the share/list API using 'shorturl'
-        val apiUrl = "https://www.terabox.com/share/list?shorturl=$surl&root=1"
-        val response = app.get(apiUrl, headers = mapOf(
-            "User-Agent" to userAgent,
-            "Referer" to fixedUrl,
-            "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"
-        ))
+        val domains = listOf("www.terabox.com", "www.1024tera.com")
         
-        val data = response.text
-        if (data.contains("\"dlink\":\"")) {
-            val dlinks = Regex("\"dlink\":\"(.*?)\"").findAll(data).map { 
-                it.groupValues[1].replace("\\/", "/") 
-            }.filter { it.isNotEmpty() }.toList()
+        for (domain in domains) {
+            val apiReferer = "https://$domain/"
+            val headers = mapOf(
+                "User-Agent" to userAgent,
+                "Referer" to apiReferer,
+                "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"
+            )
             
-            dlinks.forEach { dlink ->
-                callback.invoke(
-                    newExtractorLink(
-                        this.name,
-                        this.name,
-                        dlink,
-                        INFER_TYPE,
-                    ) {
-                        this.referer = fixedUrl
-                        this.headers = mapOf(
-                            "User-Agent" to userAgent,
-                            "Referer" to fixedUrl
-                        )
+            suspend fun scanDir(dirPath: String, depth: Int = 0) {
+                if (depth > 5) return
+                val root = if (dirPath == "/") "1" else "0"
+                val apiUrl = "https://$domain/share/list?shorturl=$surl&dir=${java.net.URLEncoder.encode(dirPath, "UTF-8")}&root=$root&web=1&channel=dubox&clienttype=0&app_id=250528"
+                try {
+                    val res = app.get(apiUrl, headers = headers).text
+                    if (!res.contains("\"errno\":0")) return
+                    
+                    Regex("\"dlink\":\\s*\"(.*?)\"").findAll(res).forEach { match ->
+                        val dlink = match.groupValues[1].replace("\\/", "/")
+                        if (dlink.isNotEmpty()) foundDlinks.add(dlink)
                     }
-                )
+                    
+                    val items = res.split("\"fs_id\":")
+                    items.drop(1).forEach { chunk ->
+                        val isDir = Regex("\"isdir\":\\s*\"?(\\d+)\"?").find(chunk)?.groupValues?.get(1) ?: "0"
+                        val path = Regex("\"path\":\\s*\"(.*?)\"").find(chunk)?.groupValues?.get(1)?.replace("\\/", "/")
+                        if (isDir == "1" && !path.isNullOrEmpty() && path != dirPath) {
+                            scanDir(path, depth + 1)
+                        }
+                    }
+                } catch (e: Exception) {
+                    println("Extractor scan error ($domain $dirPath): ${e.message}")
+                }
             }
+            
+            scanDir("/")
+            if (foundDlinks.isNotEmpty()) break
         }
         
-        // Method 2: Fallback to scraping the page for INITIAL_STATE if API fails or returns empty
-        if (data.contains("\"dlink\":\"").not()) {
-            val pageRes = app.get(fixedUrl)
-            val pageData = pageRes.text
-            
-            // Look for any dlink in the raw page content
-            val dlinkMatch = Regex("\"dlink\":\"(.*?)\"").find(pageData)?.groupValues?.get(1)?.replace("\\/", "/")
-            if (dlinkMatch != null) {
-                callback.invoke(
-                    newExtractorLink(
-                        this.name,
-                        this.name,
-                        dlinkMatch,
-                        INFER_TYPE,
-                    ) {
-                        this.referer = fixedUrl
+        foundDlinks.forEach { dlink ->
+            callback.invoke(
+                newExtractorLink(
+                    this.name,
+                    this.name,
+                    dlink,
+                    INFER_TYPE,
+                ) {
+                    this.referer = url
+                    this.headers = mapOf(
+                        "User-Agent" to userAgent,
+                        "Referer" to url
+                    )
+                }
+            )
+        }
+        
+        if (foundDlinks.isEmpty()) {
+            println("No dlinks found via API, trying page scrape")
+            try {
+                val pageRes = app.get(url, headers = mapOf("User-Agent" to userAgent)).text
+                Regex("\"dlink\":\"(.*?)\"").findAll(pageRes).forEach { match ->
+                    val dlink = match.groupValues[1].replace("\\/", "/")
+                    if (dlink.isNotEmpty()) {
+                        callback.invoke(
+                            newExtractorLink(
+                                this.name,
+                                this.name,
+                                dlink,
+                                INFER_TYPE,
+                            ) {
+                                this.referer = url
+                            }
+                        )
                     }
-                )
+                }
+            } catch (e: Exception) {
+                println("Page scrape error: ${e.message}")
             }
         }
     }
 }
+
