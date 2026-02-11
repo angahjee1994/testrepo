@@ -64,14 +64,19 @@ class TeraboxVirals : MainAPI() {
 
     private suspend fun callListApi(surl: String, apiDomain: String, dirPath: String): String? {
         val folderApiUrl = "https://$apiDomain/share/list?shorturl=$surl&dir=${java.net.URLEncoder.encode(dirPath, "UTF-8")}&root=${if (dirPath == "/") "1" else "0"}&web=1&channel=dubox&clienttype=0"
-        val headersList = listOf(
-            mapOf("Referer" to "https://$apiDomain/", "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"),
-            mapOf("User-Agent" to "LogStatistic", "Referer" to "https://$apiDomain/")
+        val headers = mapOf(
+            "Referer" to "https://$apiDomain/",
+            "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"
         )
-        for (headers in headersList) {
+        for (attempt in 1..3) {
             try {
                 val res = app.get(folderApiUrl, headers = headers).text
                 if (res.contains("\"errno\":0") || res.contains("\"list\":[")) return res
+                if (res.contains("need verify")) {
+                    println("List API 'need verify', retry $attempt/3...")
+                    continue
+                }
+                return null
             } catch (_: Exception) {}
         }
         return null
