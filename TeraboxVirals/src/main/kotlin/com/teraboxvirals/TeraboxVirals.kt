@@ -116,6 +116,11 @@ class TeraboxVirals : MainAPI() {
              if (tempSurl.startsWith("1")) tempSurl = tempSurl.substring(1)
              val surl = tempSurl
 
+             // Extract sign and timestamp for streaming API
+             val sharingPageHtml = document.html()
+             val sign = Regex("[\"']sign[\"']\\s*[:=]\\s*[\"']([^\"']+)[\"']").find(sharingPageHtml)?.groupValues?.get(1)
+             val timestamp = Regex("[\"']timestamp[\"']\\s*[:=]\\s*(\\d+)").find(sharingPageHtml)?.groupValues?.get(1)
+
              // Recursive function to scan folders
              // We need to persist uk and shareid from the first root call
              // Recursive function to scan folders
@@ -169,30 +174,26 @@ class TeraboxVirals : MainAPI() {
                       
                       val videoExtensions = setOf("mp4", "mkv", "avi", "mov", "webm", "flv", "m4v", "wmv")
                       
-                      // Split items carefully by object separators to avoid regex scaning issues across entire file
-                      // But simpler regex scan might work if response isn't huge.
-                      // Let's use a more robust regex scan on the whole response for simplicity for now as manual splitting is error prone.
+                      // Using a chunk-based extraction to handle items correctly
+                      val items = jsonResponse.split("\"fs_id\":")
                       
-                      val items = jsonResponse.split("{\"category\"")
-                      // println("FULL JSON SHARED: $jsonResponse") 
-
                       items.drop(1).forEach { chunk ->
-                          val item = "{\"category\"$chunk"
+                          val item = chunk // Chunk starts right after fs_id:
                           
-                          // Robust regex to handle "key":"value", "key":value, and potentially escaped quotes
                           val isDirMatch = Regex("\"isdir\":\\s*\"?(\\d+)\"?").find(item)
                           val isDir = isDirMatch?.groupValues?.get(1) ?: "0"
                           
                           val filenameMatch = Regex("\"server_filename\":\\s*\"(.*?)\"").find(item)
                           val dlinkMatch = Regex("\"dlink\":\\s*\"(.*?)\"").find(item)
                           val pathMatch = Regex("\"path\":\\s*\"(.*?)\"").find(item) 
-                          val thumbsMatch = Regex("\"url3\":\\s*\"(.*?)\"").find(item) // High res thumbnail
+                          val thumbsMatch = Regex("\"url[1-3]\":\\s*\"(.*?)\"").findAll(item).toList()
+                          val fsidMatch = Regex("^\\s*\"?(\\d+)\"?").find(item)
                           
                           if (filenameMatch != null) {
                               val filename = filenameMatch.groupValues[1]
+                              val fsid = fsidMatch?.groupValues?.get(1)
                               
                               if (isDir == "1") { // It's a folder
-                                  // Fix path construction to avoid double slashes or incorrect joining
                                   val rawPath = pathMatch?.groupValues?.get(1)?.replace("\\/", "/")
                                   val folderPath = if (!rawPath.isNullOrEmpty()) {
                                       rawPath
@@ -200,27 +201,23 @@ class TeraboxVirals : MainAPI() {
                                       if (currentPath == "/") "/$filename" else "$currentPath/$filename"
                                   }
                                   
-                                  // println("Found Folder: $folderPath with UK: $nextUk")
-
-                                  // Recursive call with uk/shareid
                                   if (folderPath != currentPath && folderPath.count { it == '/' } < 10 && nextUk != null) { 
                                       scanFolder(folderPath, nextUk, nextShareid)
                                   }
-                              } else if (dlinkMatch != null) { // It's a file
-                                  val dlink = dlinkMatch.groupValues[1].replace("\\/", "/")
+                              } else { // It's a file
                                   val ext = filename.substringAfterLast(".", "").lowercase()
-                                  
                                   if (videoExtensions.contains(ext)) {
-                                       val thumbUrl = thumbsMatch?.groupValues?.get(1)?.replace("\\/", "/")
+                                       val dlink = dlinkMatch?.groupValues?.get(1)?.replace("\\/", "/") 
+                                           ?: "TERABOX_STREAMING_FALLBACK|$fsid|$nextUk|$nextShareid|$sign|$timestamp"
+                                           
+                                       // Try to get high-res url3, else url2/url1
+                                       val thumbUrl = thumbsMatch.lastOrNull()?.groupValues?.get(1)?.replace("\\/", "/")
                                        
-                                       // Update main poster if it's the first high-res one found
                                        if (thumbUrl != null && (poster == null || poster?.contains("terabox") == false)) {
-                                           println("Updated Poster to High-Res: $thumbUrl")
                                            poster = thumbUrl
                                        }
                                        
                                        val finalPoster = thumbUrl ?: poster
-                                       // println("Added Episode: $filename | Poster: $finalPoster")
                                        
                                        episodes.add(
                                            newEpisode(dlink) {
@@ -295,6 +292,42 @@ class TeraboxVirals : MainAPI() {
                  }
              )
              return true
+        }
+
+        // Handle streaming fallback from scanFolder
+        if (data.startsWith("TERABOX_STREAMING_FALLBACK")) {
+            val parts = data.split("|")
+            if (parts.size >= 6) {
+                val fsid = parts[1]
+                val uk = parts[2]
+                val shareid = parts[3]
+                var sign = parts[4]
+                var timestamp = parts[5]
+                
+                val apiDomain = if (data.contains("1024tera")) "www.1024tera.com" else "www.terabox.com"
+                
+                // If sign/timestamp are missing, try to fetch them from the sharing info if we can, 
+                // but for now we'll assume they were passed or try a common fallback if available.
+                // share/streaming?uk=...&shareid=...&type=M3U8_FLV_264_480&fid=...&sign=...&timestamp=...
+                
+                val streamingUrl = "https://$apiDomain/share/streaming?uk=$uk&shareid=$shareid&type=M3U8_FLV_264_480&fid=$fsid&sign=$sign&timestamp=$timestamp&web=1&channel=dubox&clienttype=0"
+                
+                callback.invoke(
+                    newExtractorLink(
+                        "Terabox Streaming",
+                        "Terabox",
+                        streamingUrl,
+                        INFER_TYPE
+                    ) {
+                        this.headers = mapOf(
+                            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                            "Referer" to "https://$apiDomain/",
+                            "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"
+                        )
+                    }
+                )
+                return true
+            }
         }
 
         // Otherwise, scrape the page for links (Legacy/Movie behavior)
