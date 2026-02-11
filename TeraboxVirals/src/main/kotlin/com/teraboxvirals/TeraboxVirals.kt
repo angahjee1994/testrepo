@@ -76,28 +76,41 @@ class TeraboxVirals : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse? {
-        val document = app.get(url).document
+        println("Load URL Triggered: $url")
+        val response = app.get(url)
+        println("Detail Page Fetch Success: ${response.url}")
+        val document = response.document
         val title = document.selectFirst(".entry-title")?.text()?.trim() ?: "Video"
         
         // Find the Terabox link immediately to fetch metadata
         val allDlButtons = document.select(".dlbutton a")
+        println("Found ${allDlButtons.size} dlbuttons")
         var tbLink = allDlButtons.firstOrNull { 
             val href = it.attr("href")
+            println("Checking button href: $href")
             href.contains("terabox", ignoreCase = true) || href.contains("1024tera", ignoreCase = true)
         }?.attr("href") ?: allDlButtons.firstOrNull()?.attr("href")
 
         if (tbLink == null) {
+            println("No link in .dlbutton, checking all page anchors...")
             tbLink = document.select("a").firstOrNull { 
                 val href = it.attr("href")
-                href.contains("terabox", ignoreCase = true) || href.contains("1024tera", ignoreCase = true) 
+                val isMatch = href.contains("terabox", ignoreCase = true) || href.contains("1024tera", ignoreCase = true) 
+                if (isMatch) println("Found match in general <a>: $href")
+                isMatch
             }?.attr("href")
         }
+        println("Selected tbLink: $tbLink")
         
         // Handle landing page redirect if needed
         if (tbLink?.contains("downloadkatsini.com") == true) {
              try {
-                 tbLink = app.get(tbLink).document.selectFirst("a[href*=terabox], a[href*=1024tera]")?.attr("href")
-             } catch (e: Exception) {}
+                 println("Handling landing page redirect: $tbLink")
+                 tbLink = app.get(tbLink!!).document.selectFirst("a[href*=terabox], a[href*=1024tera]")?.attr("href")
+                 println("Redirected tbLink: $tbLink")
+             } catch (e: Exception) {
+                 println("Redirect Error: ${e.message}")
+             }
         }
 
         var poster = document.selectFirst(".post-body img")?.attr("src")
