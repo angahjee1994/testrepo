@@ -59,6 +59,13 @@ class TeraboxVirals : MainAPI() {
                 if (attr == "srcset" && value != null) value.split(",").last().trim().split(" ").first() else value
             }
         }
+        
+        // Ensure absolute URL and remove Blogger thumbnail resizing
+        if (poster != null) {
+            if (!poster.startsWith("http")) poster = mainUrl + (if (poster.startsWith("/")) "" else "/") + poster
+            poster = poster.replace(Regex("/s\\d+(-[bc])?/"), "/s1600/")
+        }
+        println("Search Result Poster: $poster")
 
         return newMovieSearchResponse(title, href, TvType.NSFW) {
             this.posterUrl = poster
@@ -121,6 +128,11 @@ class TeraboxVirals : MainAPI() {
                 }
             }
         }
+        if (poster != null) {
+            if (!poster.startsWith("http")) poster = mainUrl + (if (poster.startsWith("/")) "" else "/") + poster
+            poster = poster.replace(Regex("/s\\d+(-[bc])?/"), "/s1600/")
+        }
+        println("Detail Page Poster: $poster")
         val plot = document.select(".post-body").text().trim()
         val tags = document.select(".post-tag a").map { it.text() }
 
@@ -154,14 +166,33 @@ class TeraboxVirals : MainAPI() {
 
              // Extract tokens from the actual Terabox sharing page to bypass shorturlinfo challenges
              println("Fetching Terabox page for tokens: $cleanLink")
-             // Use a desktop UA to ensure we get the full JS payload
-             val sharingPageHtml = try { app.get(cleanLink, headers = mapOf("User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36")).text } catch(e: Exception) { "" }
+             // Use systematic headers and try multiple site versions
+             val headers = mapOf(
+                 "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+                 "Cookie" to "browserid=1; lang=en",
+                 "Referer" to "https://www.terabox.app/"
+             )
+             
+             var sharingPageHtml = try { app.get(cleanLink, headers = headers).text } catch(e: Exception) { "" }
+             
+             // If desktop page fails, try mobile version which often has cleaner tokens
+             if (!sharingPageHtml.contains("sign")) {
+                 val mobileLink = cleanLink.replace("/s/", "/wap/sharing/link?surl=")
+                 println("Trying mobile tokens: $mobileLink")
+                 try { sharingPageHtml += app.get(mobileLink, headers = headers).text } catch(e: Exception) {}
+             }
              
              // Search for tokens in JSON strings or JS objects
              sharedSign = Regex("[\"']sign[\"']\\s*[:=]\\s*[\"']([^\"']+)[\"']").find(sharingPageHtml)?.groupValues?.get(1)
-             sharedTimestamp = Regex("[\"']timestamp[\"']\\s*[:=]\\s*(?:[\"'](\\d+)[\"']|(\\d+))").find(sharingPageHtml)?.let { it.groupValues[1].ifEmpty { it.groupValues[2] } }
-             initialUk = Regex("[\"']uk[\"']\\s*[:=]\\s*(?:[\"'](\\d+)[\"']|(\\d+))").find(sharingPageHtml)?.let { it.groupValues[1].ifEmpty { it.groupValues[2] } }
-             initialShareid = Regex("[\"']shareid[\"']\\s*[:=]\\s*(?:[\"'](\\d+)[\"']|(\\d+))").find(sharingPageHtml)?.let { it.groupValues[1].ifEmpty { it.groupValues[2] } }
+             sharedTimestamp = Regex("[\"']timestamp[\"']\\s*[:=]\\s*(?:[\"'](\\d+)[\"']|(\\d+))").find(sharingPageHtml)?.let { m -> 
+                 m.groupValues.getOrNull(1)?.takeIf { it.isNotEmpty() } ?: m.groupValues.getOrNull(2) 
+             }
+             initialUk = Regex("[\"']uk[\"']\\s*[:=]\\s*(?:[\"'](\\d+)[\"']|(\\d+))").find(sharingPageHtml)?.let { m -> 
+                 m.groupValues.getOrNull(1)?.takeIf { it.isNotEmpty() && it != "0" } ?: m.groupValues.getOrNull(2)?.takeIf { it != "0" }
+             }
+             initialShareid = Regex("[\"']shareid[\"']\\s*[:=]\\s*(?:[\"'](\\d+)[\"']|(\\d+))").find(sharingPageHtml)?.let { m -> 
+                 m.groupValues.getOrNull(1)?.takeIf { it.isNotEmpty() } ?: m.groupValues.getOrNull(2) 
+             }
              
              println("Terabox Page Tokens: sign=$sharedSign, timestamp=$sharedTimestamp, uk=$initialUk, shareid=$initialShareid")
 
