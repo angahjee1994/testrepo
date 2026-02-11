@@ -116,32 +116,42 @@ class TeraboxVirals : MainAPI() {
              if (tempSurl.startsWith("1")) tempSurl = tempSurl.substring(1)
              val surl = tempSurl
 
-             // Extract sign and timestamp for streaming API
-             val sharingPageHtml = document.html()
-             val sign = Regex("[\"']sign[\"']\\s*[:=]\\s*[\"']([^\"']+)[\"']").find(sharingPageHtml)?.groupValues?.get(1)
-             val timestamp = Regex("[\"']timestamp[\"']\\s*[:=]\\s*(\\d+)").find(sharingPageHtml)?.groupValues?.get(1)
+             // Extract tokens from sharing page HTML
+             val sharingPageHtml = if (tbLink != null) app.get(tbLink!!).text else ""
+             val jsToken = Regex("[\"']jsToken[\"']\\s*:\\s*[\"']([^\"']+)[\"']").find(sharingPageHtml)?.groupValues?.get(1)
+             val bdstoken = Regex("[\"']bdstoken[\"']\\s*:\\s*[\"']([^\"']+)[\"']").find(sharingPageHtml)?.groupValues?.get(1)
+
+             // Initial tokens for streaming API
+             var sharedSign: String? = null
+             var sharedTimestamp: String? = null
+             var initialUk: String? = null
+             var initialShareid: String? = null
+
+             // Fetch initial metadata and tokens via shorturlinfo API
+             val apiDomain = if (tbLink?.contains("1024tera") == true) "www.1024tera.com" else "www.terabox.com"
+             val shortUrlInfoApi = "https://$apiDomain/api/shorturlinfo?app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=$jsToken&shorturl=1$surl&root=1"
+             
+             try {
+                 val infoRes = app.get(shortUrlInfoApi, headers = mapOf("Referer" to "https://$apiDomain/")).text
+                 sharedSign = Regex("\"sign\":\"(.*?)\"").find(infoRes)?.groupValues?.get(1)
+                 sharedTimestamp = Regex("\"timestamp\":(\\d+)").find(infoRes)?.groupValues?.get(1)
+                 initialUk = Regex("\"uk\":(\\d+)").find(infoRes)?.groupValues?.get(1)
+                 initialShareid = Regex("\"shareid\":(\\d+)").find(infoRes)?.groupValues?.get(1)
+             } catch (e: Exception) {}
 
              // Recursive function to scan folders
-             // We need to persist uk and shareid from the first root call
-             // Recursive function to scan folders
-             // We need to persist uk and shareid from the first root call
-             // Recursive function to scan folders
-             // We need to persist uk and shareid from the first root call
              suspend fun scanFolder(currentPath: String, uk: String? = null, shareid: String? = null) {
-                 // Determine API domain based on link source
-                 val apiDomain = if (tbLink?.contains("1024tera") == true) "www.1024tera.com" else "www.terabox.com"
                  val referer = "https://$apiDomain/"
+                 val effectiveUk = uk ?: initialUk
+                 val effectiveShareid = shareid ?: initialShareid
 
-                 val folderApiUrl = if (uk == null || shareid == null) {
-                     // First call: Root - Add web=1, channel=dubox, clienttype=0
-                     "https://$apiDomain/share/list?shorturl=$surl&root=1&web=1&channel=dubox&clienttype=0"
+                 val folderApiUrl = if (effectiveUk == null || effectiveShareid == null) {
+                     "https://$apiDomain/share/list?shorturl=$surl&root=1&web=1&channel=dubox&clienttype=0&jsToken=$jsToken"
                  } else {
-                     // Subfolder call
                      val encodedPath = java.net.URLEncoder.encode(currentPath, "UTF-8")
-                     "https://$apiDomain/share/list?uk=$uk&shareid=$shareid&dir=$encodedPath&root=0&web=1&channel=dubox&clienttype=0"
+                     "https://$apiDomain/share/list?uk=$effectiveUk&shareid=$effectiveShareid&dir=$encodedPath&root=0&web=1&channel=dubox&clienttype=0&jsToken=$jsToken"
                  }
                  
-                 // Remove explicit User-Agent to prevent duplication (OkHttp adds one by default)
                  val headersList = listOf(
                      mapOf("Referer" to referer, "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"),
                      mapOf("User-Agent" to "LogStatistic", "Referer" to referer)
@@ -208,7 +218,7 @@ class TeraboxVirals : MainAPI() {
                                   val ext = filename.substringAfterLast(".", "").lowercase()
                                   if (videoExtensions.contains(ext)) {
                                        val dlink = dlinkMatch?.groupValues?.get(1)?.replace("\\/", "/") 
-                                           ?: "TERABOX_STREAMING_FALLBACK|$fsid|$nextUk|$nextShareid|$sign|$timestamp"
+                                           ?: "TERABOX_STREAMING_FALLBACK|$fsid|$nextUk|$nextShareid|$sharedSign|$sharedTimestamp"
                                            
                                        // Try to get high-res url3, else url2/url1
                                        val thumbUrl = thumbsMatch.lastOrNull()?.groupValues?.get(1)?.replace("\\/", "/")
