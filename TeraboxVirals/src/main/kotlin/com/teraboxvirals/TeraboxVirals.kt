@@ -108,6 +108,7 @@ class TeraboxVirals : MainAPI() {
 
         // If we found a Terabox link, try to use it for better metadata (images/files)
         val isTerabox = !tbLink.isNullOrEmpty() && (tbLink.contains("terabox", ignoreCase = true) || tbLink.contains("1024tera", ignoreCase = true))
+        println("Terabox Link Found: $tbLink (isTerabox: $isTerabox)")
     
         // If we found a Terabox link, attempt to fetch the file list to populate episodes
         val episodes = mutableListOf<Episode>()
@@ -125,6 +126,7 @@ class TeraboxVirals : MainAPI() {
              }
              if (tempSurl.startsWith("1")) tempSurl = tempSurl.substring(1)
              val surl = tempSurl
+             println("Extracted surl: $surl (from temp: $tempSurl)")
 
              // Initial tokens for streaming API
              var sharedSign: String? = null
@@ -136,21 +138,28 @@ class TeraboxVirals : MainAPI() {
              val sharingPageHtml = document.html()
              sharedSign = Regex("[\\\"']sign[\\\"']\\\\s*[:=]\\\\s*[\\\"']([^\\\"']+)[\\\"']").find(sharingPageHtml)?.groupValues?.get(1)
              sharedTimestamp = Regex("[\\\"']timestamp[\\\"']\\\\s*[:=]\\\\s*(\\\\d+)").find(sharingPageHtml)?.groupValues?.get(1)
+             println("HTML Tokens: sign=$sharedSign, timestamp=$sharedTimestamp")
 
              // Fetch initial metadata and tokens via shorturlinfo API ONLY as a fallback
              val apiDomain = if (tbLink?.contains("1024tera") == true) "www.1024tera.com" else "www.terabox.com"
              
              if (initialUk == null || sharedSign == null) {
                  val shortUrlInfoApi = "https://$apiDomain/api/shorturlinfo?app_id=250528&web=1&channel=dubox&clienttype=0&shorturl=1$surl&root=1"
+                 println("Calling Handshake API: $shortUrlInfoApi")
                  try {
                      val infoRes = app.get(shortUrlInfoApi, headers = mapOf("Referer" to "https://$apiDomain/")).text
+                     println("Handshake Response: ${infoRes.take(100)}...")
                      if (sharedSign == null) sharedSign = Regex("\"sign\":\"(.*?)\"").find(infoRes)?.groupValues?.get(1)
                      if (sharedTimestamp == null) sharedTimestamp = Regex("\"timestamp\":(\\d+)").find(infoRes)?.groupValues?.get(1)
                      initialUk = Regex("\"uk\":(\\d+)").find(infoRes)?.groupValues?.get(1)
                      initialShareid = Regex("\"shareid\":(\\d+)").find(infoRes)?.groupValues?.get(1)
-                 } catch (e: Exception) {}
+                     println("Handshake Tokens: sign=$sharedSign, uk=$initialUk, shareid=$initialShareid")
+                 } catch (e: Exception) {
+                     println("Handshake Error: ${e.message}")
+                 }
              }
 
+             // Recursive function to scan folders
              // Recursive function to scan folders
              suspend fun scanFolder(dirPath: String) {
                  val referer = "https://$apiDomain/"
@@ -166,12 +175,18 @@ class TeraboxVirals : MainAPI() {
                  var jsonResponse: String? = null
                  for (headers in headersList) {
                      try {
+                         println("Calling List API (dir=$dirPath): $folderApiUrl")
                          val res = app.get(folderApiUrl, headers = headers).text
                          if (res.contains("\"errno\":0") || res.contains("\"list\":[")) {
+                            println("List Success: ${res.take(100)}...")
                             jsonResponse = res
                             break
+                         } else {
+                            println("List Failed: ${res.take(100)}...")
                          }
-                     } catch (e: Exception) {}
+                     } catch (e: Exception) {
+                         println("List Error: ${e.message}")
+                     }
                  }
 
                  if (jsonResponse != null) {
@@ -179,6 +194,7 @@ class TeraboxVirals : MainAPI() {
                       if (initialUk == null) {
                           initialUk = Regex("\"uk\":\\s*\"?(\\d+)\"?").find(jsonResponse)?.groupValues?.get(1)
                           initialShareid = Regex("\"shareid\":\\s*\"?(\\d+)\"?").find(jsonResponse)?.groupValues?.get(1)
+                          println("Extracted Uk/ShareId from List: $initialUk / $initialShareid")
                       }
 
                       val videoExtensions = setOf("mp4", "mkv", "avi", "mov", "webm", "flv", "m4v", "wmv")
@@ -204,6 +220,7 @@ class TeraboxVirals : MainAPI() {
                               
                               if (isDir == "1") { // It's a folder
                                   if (!itemPath.isNullOrEmpty() && itemPath != dirPath && itemPath.count { it == '/' } < 10) { 
+                                      println("Found Folder: $itemPath, scanning...")
                                       scanFolder(itemPath)
                                   }
                               } else { // It's a file
@@ -217,6 +234,7 @@ class TeraboxVirals : MainAPI() {
                                            poster = thumbUrl
                                        }
                                        
+                                       println("Found Video: $filename")
                                        episodes.add(
                                            newEpisode(dlink) {
                                                this.name = filename
@@ -233,8 +251,12 @@ class TeraboxVirals : MainAPI() {
 
              // Start scan from root
              try {
+                 println("Starting Folder Scan from root...")
                  scanFolder("/")
-             } catch (e: Exception) {}
+                 println("Scan Complete. Total episodes found: ${episodes.size}")
+             } catch (e: Exception) {
+                 println("Scan Runtime Error: ${e.message}")
+             }
         }
 
 
