@@ -48,10 +48,19 @@ class TeraboxVirals : MainAPI() {
     }
 
     private fun toSearchResult(element: Element): SearchResponse? {
-        val titleElement = element.selectFirst(".entry-title a") ?: return null
-        val title = titleElement.text()
-        val href = titleElement.attr("href")
-        val poster = element.selectFirst(".post-filter-image img")?.attr("src")
+        val linkElement = element.selectFirst(".post-filter-link") ?: element.selectFirst(".entry-title a") ?: return null
+        val title = element.selectFirst(".entry-title a")?.text() ?: element.selectFirst("img")?.attr("alt") ?: "Video"
+        val href = linkElement.attr("href")
+        
+        // Robust poster selection for home/search feed
+        var poster = element.selectFirst(".post-filter-link img")?.attr("src")
+            ?: element.selectFirst(".snip-thumbnail")?.attr("src")
+            ?: element.selectFirst(".post-filter-image img")?.attr("src")
+
+        // Handle lazy loading if necessary (though verified not present currently, it's good practice)
+        if (poster?.contains("blank.gif") == true || poster.isNullOrEmpty()) {
+            poster = element.selectFirst("img")?.attr("data-src") ?: element.selectFirst("img")?.attr("src")
+        }
 
         return newMovieSearchResponse(title, href, TvType.NSFW) {
             this.posterUrl = poster
@@ -122,8 +131,9 @@ class TeraboxVirals : MainAPI() {
              var sharedTimestamp: String? = null
              var initialUk: String? = null
              var initialShareid: String? = null
+             var initialJsonResponse: String? = null
 
-             // Fetch initial metadata and tokens via shorturlinfo API
+             // Fetch initial metadata and tokens via shorturlinfo API (using 1 prefix for surl)
              val apiDomain = if (tbLink?.contains("1024tera") == true) "www.1024tera.com" else "www.terabox.com"
              val shortUrlInfoApi = "https://$apiDomain/api/shorturlinfo?app_id=250528&web=1&channel=dubox&clienttype=0&shorturl=1$surl&root=1"
              
@@ -133,36 +143,44 @@ class TeraboxVirals : MainAPI() {
                  sharedTimestamp = Regex("\"timestamp\":(\\d+)").find(infoRes)?.groupValues?.get(1)
                  initialUk = Regex("\"uk\":(\\d+)").find(infoRes)?.groupValues?.get(1)
                  initialShareid = Regex("\"shareid\":(\\d+)").find(infoRes)?.groupValues?.get(1)
+                 
+                 // Reuse the list from this call for the root directory if it contains items
+                 if (infoRes.contains("\"list\":[")) {
+                     initialJsonResponse = infoRes
+                 }
              } catch (e: Exception) {}
 
              // Recursive function to scan folders
-             suspend fun scanFolder(currentPath: String, uk: String? = null, shareid: String? = null) {
+             suspend fun scanFolder(currentPath: String, uk: String? = null, shareid: String? = null, preloadedJson: String? = null) {
                  val referer = "https://$apiDomain/"
                  val effectiveUk = uk ?: initialUk
                  val effectiveShareid = shareid ?: initialShareid
 
-                 val folderApiUrl = if (effectiveUk == null || effectiveShareid == null) {
-                     "https://$apiDomain/share/list?shorturl=$surl&root=1&web=1&channel=dubox&clienttype=0"
-                 } else {
-                     val encodedPath = java.net.URLEncoder.encode(currentPath, "UTF-8")
-                     "https://$apiDomain/share/list?uk=$effectiveUk&shareid=$effectiveShareid&dir=$encodedPath&root=0&web=1&channel=dubox&clienttype=0"
-                 }
+                 var jsonResponse = preloadedJson
                  
-                 val headersList = listOf(
-                     mapOf("Referer" to referer, "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"),
-                     mapOf("User-Agent" to "LogStatistic", "Referer" to referer)
-                 )
-                 
-                 var jsonResponse: String? = null
-                 for (headers in headersList) {
-                     try {
-                         val res = app.get(folderApiUrl, headers = headers).text
-                         // Verify success
-                         if (res.contains("\"errno\":0") || res.contains("\"list\":[")) {
-                            jsonResponse = res
-                            break
-                         }
-                     } catch (e: Exception) {}
+                 if (jsonResponse == null) {
+                     val folderApiUrl = if (effectiveUk == null || effectiveShareid == null) {
+                         // Fallback search using surl if tokens aren't ready
+                         "https://$apiDomain/share/list?shorturl=$surl&root=1&web=1&channel=dubox&clienttype=0"
+                     } else {
+                         val encodedPath = java.net.URLEncoder.encode(currentPath, "UTF-8")
+                         "https://$apiDomain/share/list?uk=$effectiveUk&shareid=$effectiveShareid&dir=$encodedPath&root=0&web=1&channel=dubox&clienttype=0"
+                     }
+                     
+                     val headersList = listOf(
+                         mapOf("Referer" to referer, "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"),
+                         mapOf("User-Agent" to "LogStatistic", "Referer" to referer)
+                     )
+                     
+                     for (headers in headersList) {
+                         try {
+                             val res = app.get(folderApiUrl, headers = headers).text
+                             if (res.contains("\"errno\":0") || res.contains("\"list\":[")) {
+                                jsonResponse = res
+                                break
+                             }
+                         } catch (e: Exception) {}
+                     }
                  }
 
 // ... (rest of scanFolder logic) ...
@@ -239,9 +257,9 @@ class TeraboxVirals : MainAPI() {
                  }
              }
 
-             // Start scan from root
+             // Start scan from root - pass preloaded JSON if available
              try {
-                 scanFolder("/")
+                 scanFolder("/", preloadedJson = initialJsonResponse)
              } catch (e: Exception) {}
         }
 
