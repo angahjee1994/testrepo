@@ -147,11 +147,15 @@ class TeraboxVirals : MainAPI() {
              var initialUk: String? = null
              var initialShareid: String? = null
 
-             // Extract sign and timestamp from the sharing page HTML to bypass shorturlinfo challenges
-             val sharingPageHtml = document.html()
-             sharedSign = Regex("[\\\"']sign[\\\"']\\\\s*[:=]\\\\s*[\\\"']([^\\\"']+)[\\\"']").find(sharingPageHtml)?.groupValues?.get(1)
-             sharedTimestamp = Regex("[\\\"']timestamp[\\\"']\\\\s*[:=]\\\\s*(\\\\d+)").find(sharingPageHtml)?.groupValues?.get(1)
-             println("HTML Tokens: sign=$sharedSign, timestamp=$sharedTimestamp")
+             // Extract tokens from the actual Terabox sharing page to bypass shorturlinfo challenges
+             println("Fetching Terabox page for tokens: $cleanLink")
+             val sharingPageHtml = try { app.get(cleanLink).text } catch(e: Exception) { "" }
+             sharedSign = Regex("[\"']sign[\"']\\s*:\\s*[\"']([^\"']+)[\"']").find(sharingPageHtml)?.groupValues?.get(1)
+             sharedTimestamp = Regex("[\"']timestamp[\"']\\s*:\\s*(\\d+)").find(sharingPageHtml)?.groupValues?.get(1)
+             initialUk = Regex("[\"']uk[\"']\\s*:\\s*\"?(\\d+)\"?").find(sharingPageHtml)?.groupValues?.get(1)
+             initialShareid = Regex("[\"']shareid[\"']\\s*:\\s*\"?(\\d+)\"?").find(sharingPageHtml)?.groupValues?.get(1)
+             
+             println("Terabox Page Tokens: sign=$sharedSign, timestamp=$sharedTimestamp, uk=$initialUk, shareid=$initialShareid")
 
              // Fetch initial metadata and tokens via shorturlinfo API ONLY as a fallback
              val apiDomain = if (tbLink?.contains("1024tera") == true) "www.1024tera.com" else "www.terabox.com"
@@ -229,7 +233,7 @@ class TeraboxVirals : MainAPI() {
                           if (filenameMatch != null) {
                               val filename = filenameMatch.groupValues[1]
                               val fsid = fsidMatch?.groupValues?.get(1)
-                              val itemPath = pathMatch?.groupValues?.get(1)?.replace("\\\\/", "/")
+                              val itemPath = pathMatch?.groupValues?.get(1)?.replace("\\/", "/")?.replace("\\\\/", "/")
                               
                               if (isDir == "1") { // It's a folder
                                   if (!itemPath.isNullOrEmpty() && itemPath != dirPath && itemPath.count { it == '/' } < 10) { 
