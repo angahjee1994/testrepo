@@ -167,6 +167,7 @@ class TeraboxVirals : MainAPI() {
 
              var initialUk: String? = null
              var initialShareid: String? = null
+             var fotoPoster: String? = null
 
              val apiDomain = if (tbLink?.contains("1024tera") == true) "www.1024tera.com" else "www.terabox.com"
 
@@ -209,6 +210,8 @@ class TeraboxVirals : MainAPI() {
                        println("List Tokens: uk=$initialUk, shareid=$initialShareid")
 
                       val videoExtensions = setOf("mp4", "mkv", "avi", "mov", "webm", "flv", "m4v", "wmv")
+                      val imageExtensions = setOf("jpg", "jpeg", "png", "webp", "gif") // Added
+                      val isFotoFolder = dirPath.contains("Foto", ignoreCase = true) // Added
                       
                       // Using a chunk-based extraction to handle items correctly
                       val items = jsonResponse.split("\"fs_id\":")
@@ -229,13 +232,20 @@ class TeraboxVirals : MainAPI() {
                                val fsid = fsidMatch?.groupValues?.get(1)
                                val itemPath = pathMatch?.groupValues?.get(1)?.replace("\\/", "/")?.replace("\\\\/", "/")
                                
-                               if (isDir == "1") { // It's a folder
+                               if (isDir == "1") {
                                    if (!itemPath.isNullOrEmpty() && itemPath != dirPath && itemPath.count { it == '/' } < 10) { 
                                        println("Found Folder: $itemPath, scanning...")
                                        scanFolder(itemPath)
                                    }
                                } else {
                                    val ext = filename.substringAfterLast(".", "").lowercase()
+                                   if (isFotoFolder && imageExtensions.contains(ext) && fotoPoster == null) {
+                                        val imgThumb = thumbsMatch.lastOrNull()?.groupValues?.get(1)?.replace("\\\\/", "/")
+                                        if (imgThumb != null) {
+                                            fotoPoster = imgThumb
+                                            println("Found Foto Poster: $imgThumb")
+                                        }
+                                   }
                                    if (videoExtensions.contains(ext)) {
                                         val rawDlink = dlinkMatch?.groupValues?.get(1)?.replace("\\\\/", "/")
                                         val episodeData = if (rawDlink != null) {
@@ -256,7 +266,8 @@ class TeraboxVirals : MainAPI() {
                                                 this.posterUrl = episodeThumb
                                             }
                                         )
-                                  }
+                                   }
+                               }
                               }
                           }
                       }
@@ -267,7 +278,8 @@ class TeraboxVirals : MainAPI() {
              try {
                  println("Starting Folder Scan from root...")
                  scanFolder("/")
-                 println("Scan Complete. Total episodes found: ${episodes.size}")
+                 println("Scan Complete. Total episodes found: ${episodes.size}, fotoPoster: $fotoPoster")
+                 if (fotoPoster != null) poster = fotoPoster
              } catch (e: Exception) {
                  println("Scan Runtime Error: ${e.message}")
              }
