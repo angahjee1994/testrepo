@@ -150,151 +150,136 @@ class TeraboxVirals : MainAPI() {
         // If we found a Terabox link, attempt to fetch the file list to populate episodes
         val episodes = mutableListOf<Episode>()
         if (isTerabox) {
-             // Clean the link
-             val cleanLink = tbLink.replace("teraboxapp.com", "terabox.app")
-                 .replace("1024terabox.com", "terabox.app") 
-                 .replace("terabox.com", "terabox.app")
-             
-             // Extract surl: handle both /s/ path and surl= query param
-             var tempSurl = if (cleanLink.contains("surl=")) {
-                 cleanLink.substringAfter("surl=").substringBefore("&")
-             } else {
-                 cleanLink.substringAfter("/s/").substringBefore("?")
-             }
-             if (tempSurl.startsWith("1")) tempSurl = tempSurl.substring(1)
-             val surl = tempSurl
-             println("Extracted surl: $surl (from temp: $tempSurl)")
+            val cleanLink = tbLink.replace("teraboxapp.com", "terabox.app")
+                .replace("1024terabox.com", "terabox.app")
+                .replace("terabox.com", "terabox.app")
 
-             var initialUk: String? = null
-             var initialShareid: String? = null
-             var fotoPoster: String? = null
+            var tempSurl = if (cleanLink.contains("surl=")) {
+                cleanLink.substringAfter("surl=").substringBefore("&")
+            } else {
+                cleanLink.substringAfter("/s/").substringBefore("?")
+            }
+            if (tempSurl.startsWith("1")) tempSurl = tempSurl.substring(1)
+            val surl = tempSurl
+            println("Extracted surl: $surl (from temp: $tempSurl)")
 
-             val apiDomain = if (tbLink?.contains("1024tera") == true) "www.1024tera.com" else "www.terabox.com"
+            var initialUk: String? = null
+            var initialShareid: String? = null
+            var fotoPoster: String? = null
+            val apiDomain = if (tbLink?.contains("1024tera") == true) "www.1024tera.com" else "www.terabox.com"
+            val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-             val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-             suspend fun scanFolder(dirPath: String) {
-                 val referer = "https://$apiDomain/"
-                 
-                 // Use shorturl + dir for consistent guest traversal
-                 val folderApiUrl = "https://$apiDomain/share/list?shorturl=$surl&dir=${java.net.URLEncoder.encode(dirPath, "UTF-8")}&root=${if (dirPath == "/") "1" else "0"}&web=1&channel=dubox&clienttype=0"
-                 
-                 val headersList = listOf(
-                     mapOf("Referer" to referer, "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"),
-                     mapOf("User-Agent" to "LogStatistic", "Referer" to referer)
-                 )
-                 
-                 var jsonResponse: String? = null
-                 for (headers in headersList) {
-                     try {
-                         println("Calling List API (dir=$dirPath): $folderApiUrl")
-                         val res = app.get(folderApiUrl, headers = headers).text
-                         if (res.contains("\"errno\":0") || res.contains("\"list\":[")) {
+            suspend fun scanFolder(dirPath: String) {
+                val referer = "https://$apiDomain/"
+                val folderApiUrl = "https://$apiDomain/share/list?shorturl=$surl&dir=${java.net.URLEncoder.encode(dirPath, "UTF-8")}&root=${if (dirPath == "/") "1" else "0"}&web=1&channel=dubox&clienttype=0"
+                val headersList = listOf(
+                    mapOf("Referer" to referer, "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"),
+                    mapOf("User-Agent" to "LogStatistic", "Referer" to referer)
+                )
+
+                var jsonResponse: String? = null
+                for (headers in headersList) {
+                    try {
+                        println("Calling List API (dir=$dirPath): $folderApiUrl")
+                        val res = app.get(folderApiUrl, headers = headers).text
+                        if (res.contains("\"errno\":0") || res.contains("\"list\":[")) {
                             println("List Success: ${res.take(100)}...")
                             jsonResponse = res
                             break
-                         } else {
+                        } else {
                             println("List Failed: ${res.take(100)}...")
-                         }
-                     } catch (e: Exception) {
-                         println("List Error: ${e.message}")
-                     }
-                 }
+                        }
+                    } catch (e: Exception) {
+                        println("List Error: ${e.message}")
+                    }
+                }
 
-                  if (jsonResponse != null) {
-                       if (initialUk == null) {
-                           initialUk = Regex("\"uk\":\\s*\"?(\\d+)\"?").find(jsonResponse)?.groupValues?.get(1)?.takeIf { it != "0" }
-                       }
-                       val responseShareId = Regex("\"share_id\":\\s*\"?(\\d+)\"?").find(jsonResponse)?.groupValues?.get(1)
-                           ?: Regex("\"shareid\":\\s*\"?(\\d+)\"?").find(jsonResponse)?.groupValues?.get(1)
-                       if (responseShareId != null) initialShareid = responseShareId
-                       println("List Tokens: uk=$initialUk, shareid=$initialShareid")
+                if (jsonResponse == null) return
 
-                      val videoExtensions = setOf("mp4", "mkv", "avi", "mov", "webm", "flv", "m4v", "wmv")
-                      val imageExtensions = setOf("jpg", "jpeg", "png", "webp", "gif") // Added
-                      val isFotoFolder = dirPath.contains("Foto", ignoreCase = true) // Added
-                      
-                      // Using a chunk-based extraction to handle items correctly
-                      val items = jsonResponse.split("\"fs_id\":")
-                      items.drop(1).forEach { chunk ->
-                          val item = chunk 
-                          
-                          val isDirMatch = Regex("\"isdir\":\\s*\"?(\\d+)\"?").find(item)
-                          val isDir = isDirMatch?.groupValues?.get(1) ?: "0"
-                          
-                          val filenameMatch = Regex("\"server_filename\":\\s*\"(.*?)\"").find(item)
-                          val dlinkMatch = Regex("\"dlink\":\\s*\"(.*?)\"").find(item)
-                          val pathMatch = Regex("\"path\":\\s*\"(.*?)\"").find(item) 
-                           val thumbsMatch = Regex("\"url[1-3]\":\\s*\"(.*?)\"").findAll(item).toList()
-                           val fsidMatch = Regex("^\\s*\"?(\\d+)\"?").find(item)
-                           
-                           if (filenameMatch != null) {
-                               val filename = filenameMatch.groupValues[1]
-                               val fsid = fsidMatch?.groupValues?.get(1)
-                               val itemPath = pathMatch?.groupValues?.get(1)?.replace("\\/", "/")?.replace("\\\\/", "/")
-                               
-                               if (isDir == "1") {
-                                   if (!itemPath.isNullOrEmpty() && itemPath != dirPath && itemPath.count { it == '/' } < 10) { 
-                                       println("Found Folder: $itemPath, scanning...")
-                                       scanFolder(itemPath)
-                                   }
-                               } else {
-                                   val ext = filename.substringAfterLast(".", "").lowercase()
-                                   if (isFotoFolder && imageExtensions.contains(ext) && fotoPoster == null) {
-                                        val imgThumb = thumbsMatch.lastOrNull()?.groupValues?.get(1)?.replace("\\\\/", "/")
-                                        if (imgThumb != null) {
-                                            fotoPoster = imgThumb
-                                            println("Found Foto Poster: $imgThumb")
-                                        }
-                                   }
-                                   if (videoExtensions.contains(ext)) {
-                                        val rawDlink = dlinkMatch?.groupValues?.get(1)?.replace("\\\\/", "/")
-                                        val episodeData = if (rawDlink != null) {
-                                            "TERABOX_DLINK|$rawDlink|$apiDomain"
-                                        } else {
-                                            "TERABOX_LINK|https://$apiDomain/s/1$surl|$apiDomain"
-                                        }
-                                            
-                                        val thumbUrl = thumbsMatch.lastOrNull()?.groupValues?.get(1)?.replace("\\\\/", "/")
-                                       
-                                        val episodeThumb = thumbUrl ?: poster
-                                        if (poster == null && thumbUrl != null) poster = thumbUrl
-                                        println("Found Video: $filename (has dlink: ${rawDlink != null}, thumb: ${thumbUrl != null})")
-                                        episodes.add(
-                                            newEpisode(episodeData) {
-                                                this.name = filename
-                                                this.episode = episodes.size + 1
-                                                this.posterUrl = episodeThumb
-                                            }
-                                        )
-                                   }
-                               }
-                              }
-                          }
-                      }
-                 }
-             }
+                if (initialUk == null) {
+                    initialUk = Regex("\"uk\":\\s*\"?(\\d+)\"?").find(jsonResponse)?.groupValues?.get(1)?.takeIf { it != "0" }
+                }
+                val responseShareId = Regex("\"share_id\":\\s*\"?(\\d+)\"?").find(jsonResponse)?.groupValues?.get(1)
+                    ?: Regex("\"shareid\":\\s*\"?(\\d+)\"?").find(jsonResponse)?.groupValues?.get(1)
+                if (responseShareId != null) initialShareid = responseShareId
+                println("List Tokens: uk=$initialUk, shareid=$initialShareid")
 
-             // Start scan from root
-             try {
-                 println("Starting Folder Scan from root...")
-                 scanFolder("/")
-                 println("Scan Complete. Total episodes found: ${episodes.size}, fotoPoster: $fotoPoster")
-                 if (fotoPoster != null) poster = fotoPoster
-             } catch (e: Exception) {
-                 println("Scan Runtime Error: ${e.message}")
-             }
+                val videoExtensions = setOf("mp4", "mkv", "avi", "mov", "webm", "flv", "m4v", "wmv")
+                val imageExtensions = setOf("jpg", "jpeg", "png", "webp", "gif")
+                val isFotoFolder = dirPath.contains("Foto", ignoreCase = true)
+
+                val items = jsonResponse.split("\"fs_id\":")
+                items.drop(1).forEach { chunk ->
+                    val isDirMatch = Regex("\"isdir\":\\s*\"?(\\d+)\"?").find(chunk)
+                    val isDir = isDirMatch?.groupValues?.get(1) ?: "0"
+                    val filenameMatch = Regex("\"server_filename\":\\s*\"(.*?)\"").find(chunk)
+                    val dlinkMatch = Regex("\"dlink\":\\s*\"(.*?)\"").find(chunk)
+                    val pathMatch = Regex("\"path\":\\s*\"(.*?)\"").find(chunk)
+                    val thumbsMatch = Regex("\"url[1-3]\":\\s*\"(.*?)\"").findAll(chunk).toList()
+
+                    if (filenameMatch != null) {
+                        val filename = filenameMatch.groupValues[1]
+                        val itemPath = pathMatch?.groupValues?.get(1)?.replace("\\/", "/")?.replace("\\\\/", "/")
+
+                        if (isFotoFolder) {
+                            val debugExt = filename.substringAfterLast(".", "").lowercase()
+                            println("Foto Item: $filename (ext=$debugExt, isDir=$isDir, thumbs=${thumbsMatch.size})")
+                        }
+
+                        if (isDir == "1") {
+                            if (!itemPath.isNullOrEmpty() && itemPath != dirPath && itemPath.count { it == '/' } < 10) {
+                                println("Found Folder: $itemPath, scanning...")
+                                scanFolder(itemPath)
+                            }
+                        } else {
+                            val ext = filename.substringAfterLast(".", "").lowercase()
+                            if (isFotoFolder && imageExtensions.contains(ext) && fotoPoster == null) {
+                                val imgThumb = thumbsMatch.lastOrNull()?.groupValues?.get(1)?.replace("\\\\/", "/")
+                                if (imgThumb != null) {
+                                    fotoPoster = imgThumb
+                                    println("Found Foto Poster: $imgThumb")
+                                }
+                            }
+                            if (videoExtensions.contains(ext)) {
+                                val rawDlink = dlinkMatch?.groupValues?.get(1)?.replace("\\\\/", "/")
+                                val episodeData = if (rawDlink != null) {
+                                    "TERABOX_DLINK|$rawDlink|$apiDomain"
+                                } else {
+                                    "TERABOX_LINK|https://$apiDomain/s/1$surl|$apiDomain"
+                                }
+                                val thumbUrl = thumbsMatch.lastOrNull()?.groupValues?.get(1)?.replace("\\\\/", "/")
+                                val episodeThumb = thumbUrl ?: poster
+                                if (poster == null && thumbUrl != null) poster = thumbUrl
+                                println("Found Video: $filename (has dlink: ${rawDlink != null}, thumb: ${thumbUrl != null})")
+                                episodes.add(
+                                    newEpisode(episodeData) {
+                                        this.name = filename
+                                        this.episode = episodes.size + 1
+                                        this.posterUrl = episodeThumb
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            try {
+                println("Starting Folder Scan from root...")
+                scanFolder("/")
+                println("Scan Complete. Total episodes found: ${episodes.size}, fotoPoster: $fotoPoster")
+                if (fotoPoster != null) poster = fotoPoster
+            } catch (e: Exception) {
+                println("Scan Runtime Error: ${e.message}")
+            }
         }
 
-
-        
-        // If no episodes found from API (or API failed), add the main link as a single episode
         if (episodes.isEmpty()) {
             episodes.add(
                 newEpisode(url) {
                     this.name = title
                     this.episode = 1
                     this.posterUrl = poster
-                    // If we have a plain Terabox link, pass it as data
                     if (!tbLink.isNullOrEmpty()) this.data = tbLink
                 }
             )
