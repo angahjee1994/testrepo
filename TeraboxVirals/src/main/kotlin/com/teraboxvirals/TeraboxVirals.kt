@@ -16,12 +16,7 @@ class TeraboxVirals : MainAPI() {
 
     override val mainPage = mainPageOf(
         "" to "Latest Posts",
-        "search/label/Viral" to "Viral",
-        "search/label/Indo" to "Indo",
-        "search/label/Melayu" to "Melayu",
-        "search/label/awek%20tudung" to "Awek Tudung",
-        "search/label/Hijaber" to "Hijaber",
-        "search/label/Couple" to "Couple"
+        "search/label/Viral" to "Viral"
     )
 
     private val defaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
