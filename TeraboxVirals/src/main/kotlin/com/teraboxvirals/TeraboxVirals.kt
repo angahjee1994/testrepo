@@ -131,78 +131,62 @@ class TeraboxVirals : MainAPI() {
              var sharedTimestamp: String? = null
              var initialUk: String? = null
              var initialShareid: String? = null
-             var initialJsonResponse: String? = null
 
-             // Fetch initial metadata and tokens via shorturlinfo API (using 1 prefix for surl)
+             // Extract sign and timestamp from the sharing page HTML to bypass shorturlinfo challenges
+             val sharingPageHtml = document.html()
+             sharedSign = Regex("[\\\"']sign[\\\"']\\\\s*[:=]\\\\s*[\\\"']([^\\\"']+)[\\\"']").find(sharingPageHtml)?.groupValues?.get(1)
+             sharedTimestamp = Regex("[\\\"']timestamp[\\\"']\\\\s*[:=]\\\\s*(\\\\d+)").find(sharingPageHtml)?.groupValues?.get(1)
+
+             // Fetch initial metadata and tokens via shorturlinfo API ONLY as a fallback
              val apiDomain = if (tbLink?.contains("1024tera") == true) "www.1024tera.com" else "www.terabox.com"
-             val shortUrlInfoApi = "https://$apiDomain/api/shorturlinfo?app_id=250528&web=1&channel=dubox&clienttype=0&shorturl=1$surl&root=1"
              
-             try {
-                 val infoRes = app.get(shortUrlInfoApi, headers = mapOf("Referer" to "https://$apiDomain/")).text
-                 sharedSign = Regex("\"sign\":\"(.*?)\"").find(infoRes)?.groupValues?.get(1)
-                 sharedTimestamp = Regex("\"timestamp\":(\\d+)").find(infoRes)?.groupValues?.get(1)
-                 initialUk = Regex("\"uk\":(\\d+)").find(infoRes)?.groupValues?.get(1)
-                 initialShareid = Regex("\"shareid\":(\\d+)").find(infoRes)?.groupValues?.get(1)
-                 
-                 // Reuse the list from this call for the root directory if it contains items
-                 if (infoRes.contains("\"list\":[")) {
-                     initialJsonResponse = infoRes
-                 }
-             } catch (e: Exception) {}
+             if (initialUk == null || sharedSign == null) {
+                 val shortUrlInfoApi = "https://$apiDomain/api/shorturlinfo?app_id=250528&web=1&channel=dubox&clienttype=0&shorturl=1$surl&root=1"
+                 try {
+                     val infoRes = app.get(shortUrlInfoApi, headers = mapOf("Referer" to "https://$apiDomain/")).text
+                     if (sharedSign == null) sharedSign = Regex("\"sign\":\"(.*?)\"").find(infoRes)?.groupValues?.get(1)
+                     if (sharedTimestamp == null) sharedTimestamp = Regex("\"timestamp\":(\\d+)").find(infoRes)?.groupValues?.get(1)
+                     initialUk = Regex("\"uk\":(\\d+)").find(infoRes)?.groupValues?.get(1)
+                     initialShareid = Regex("\"shareid\":(\\d+)").find(infoRes)?.groupValues?.get(1)
+                 } catch (e: Exception) {}
+             }
 
              // Recursive function to scan folders
-             suspend fun scanFolder(currentPath: String, uk: String? = null, shareid: String? = null, preloadedJson: String? = null) {
+             suspend fun scanFolder(dirPath: String) {
                  val referer = "https://$apiDomain/"
-                 val effectiveUk = uk ?: initialUk
-                 val effectiveShareid = shareid ?: initialShareid
-
-                 var jsonResponse = preloadedJson
                  
-                 if (jsonResponse == null) {
-                     val folderApiUrl = if (effectiveUk == null || effectiveShareid == null) {
-                         // Fallback search using surl if tokens aren't ready
-                         "https://$apiDomain/share/list?shorturl=$surl&root=1&web=1&channel=dubox&clienttype=0"
-                     } else {
-                         val encodedPath = java.net.URLEncoder.encode(currentPath, "UTF-8")
-                         "https://$apiDomain/share/list?uk=$effectiveUk&shareid=$effectiveShareid&dir=$encodedPath&root=0&web=1&channel=dubox&clienttype=0"
-                     }
-                     
-                     val headersList = listOf(
-                         mapOf("Referer" to referer, "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"),
-                         mapOf("User-Agent" to "LogStatistic", "Referer" to referer)
-                     )
-                     
-                     for (headers in headersList) {
-                         try {
-                             val res = app.get(folderApiUrl, headers = headers).text
-                             if (res.contains("\"errno\":0") || res.contains("\"list\":[")) {
-                                jsonResponse = res
-                                break
-                             }
-                         } catch (e: Exception) {}
-                     }
+                 // Use shorturl + dir for consistent guest traversal
+                 val folderApiUrl = "https://$apiDomain/share/list?shorturl=$surl&dir=${java.net.URLEncoder.encode(dirPath, "UTF-8")}&root=${if (dirPath == "/") "1" else "0"}&web=1&channel=dubox&clienttype=0"
+                 
+                 val headersList = listOf(
+                     mapOf("Referer" to referer, "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"),
+                     mapOf("User-Agent" to "LogStatistic", "Referer" to referer)
+                 )
+                 
+                 var jsonResponse: String? = null
+                 for (headers in headersList) {
+                     try {
+                         val res = app.get(folderApiUrl, headers = headers).text
+                         if (res.contains("\"errno\":0") || res.contains("\"list\":[")) {
+                            jsonResponse = res
+                            break
+                         }
+                     } catch (e: Exception) {}
                  }
 
-// ... (rest of scanFolder logic) ...
-
                  if (jsonResponse != null) {
-                      // Extract uk and shareid if this is root/initial response
-                      var nextUk = uk
-                      var nextShareid = shareid
-                      if (nextUk == null) {
-                          val ukMatch = Regex("\"uk\":\\s*\"?(\\d+)\"?").find(jsonResponse)
-                          val shareidMatch = Regex("\"shareid\":\\s*\"?(\\d+)\"?").find(jsonResponse)
-                          nextUk = ukMatch?.groupValues?.get(1)
-                          nextShareid = shareidMatch?.groupValues?.get(1)
+                      // Extract uk and shareid if we don't have them yet (share/list root provides these)
+                      if (initialUk == null) {
+                          initialUk = Regex("\"uk\":\\s*\"?(\\d+)\"?").find(jsonResponse)?.groupValues?.get(1)
+                          initialShareid = Regex("\"shareid\":\\s*\"?(\\d+)\"?").find(jsonResponse)?.groupValues?.get(1)
                       }
-                      
+
                       val videoExtensions = setOf("mp4", "mkv", "avi", "mov", "webm", "flv", "m4v", "wmv")
                       
                       // Using a chunk-based extraction to handle items correctly
                       val items = jsonResponse.split("\"fs_id\":")
-                      
                       items.drop(1).forEach { chunk ->
-                          val item = chunk // Chunk starts right after fs_id:
+                          val item = chunk 
                           
                           val isDirMatch = Regex("\"isdir\":\\s*\"?(\\d+)\"?").find(item)
                           val isDir = isDirMatch?.groupValues?.get(1) ?: "0"
@@ -216,38 +200,28 @@ class TeraboxVirals : MainAPI() {
                           if (filenameMatch != null) {
                               val filename = filenameMatch.groupValues[1]
                               val fsid = fsidMatch?.groupValues?.get(1)
+                              val itemPath = pathMatch?.groupValues?.get(1)?.replace("\\\\/", "/")
                               
                               if (isDir == "1") { // It's a folder
-                                  val rawPath = pathMatch?.groupValues?.get(1)?.replace("\\/", "/")
-                                  val folderPath = if (!rawPath.isNullOrEmpty()) {
-                                      rawPath
-                                  } else {
-                                      if (currentPath == "/") "/$filename" else "$currentPath/$filename"
-                                  }
-                                  
-                                  if (folderPath != currentPath && folderPath.count { it == '/' } < 10 && nextUk != null) { 
-                                      scanFolder(folderPath, nextUk, nextShareid)
+                                  if (!itemPath.isNullOrEmpty() && itemPath != dirPath && itemPath.count { it == '/' } < 10) { 
+                                      scanFolder(itemPath)
                                   }
                               } else { // It's a file
                                   val ext = filename.substringAfterLast(".", "").lowercase()
                                   if (videoExtensions.contains(ext)) {
-                                       val dlink = dlinkMatch?.groupValues?.get(1)?.replace("\\/", "/") 
-                                           ?: "TERABOX_STREAMING_FALLBACK|$fsid|$nextUk|$nextShareid|$sharedSign|$sharedTimestamp"
+                                       val dlink = dlinkMatch?.groupValues?.get(1)?.replace("\\\\/", "/") 
+                                           ?: "TERABOX_STREAMING_FALLBACK|$fsid|$initialUk|$initialShareid|$sharedSign|$sharedTimestamp"
                                            
-                                       // Try to get high-res url3, else url2/url1
-                                       val thumbUrl = thumbsMatch.lastOrNull()?.groupValues?.get(1)?.replace("\\/", "/")
-                                       
+                                       val thumbUrl = thumbsMatch.lastOrNull()?.groupValues?.get(1)?.replace("\\\\/", "/")
                                        if (thumbUrl != null && (poster == null || poster?.contains("terabox") == false)) {
                                            poster = thumbUrl
                                        }
-                                       
-                                       val finalPoster = thumbUrl ?: poster
                                        
                                        episodes.add(
                                            newEpisode(dlink) {
                                                this.name = filename
                                                this.episode = episodes.size + 1
-                                               this.posterUrl = finalPoster
+                                               this.posterUrl = thumbUrl ?: poster
                                            }
                                        )
                                   }
@@ -257,9 +231,9 @@ class TeraboxVirals : MainAPI() {
                  }
              }
 
-             // Start scan from root - pass preloaded JSON if available
+             // Start scan from root
              try {
-                 scanFolder("/", preloadedJson = initialJsonResponse)
+                 scanFolder("/")
              } catch (e: Exception) {}
         }
 
