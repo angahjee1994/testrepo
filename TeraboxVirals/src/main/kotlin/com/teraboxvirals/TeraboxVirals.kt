@@ -281,7 +281,7 @@ class TeraboxVirals : MainAPI() {
             val fsid = parts.getOrElse(5) { "" }
             println("TERABOX_STREAM: domain=$domain surl=$surl uk=$uk shareid=$shareid fsid=$fsid")
 
-            val headers = mapOf(
+            var headers = mapOf(
                 "User-Agent" to userAgent,
                 "Referer" to "https://$domain/",
                 "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"
@@ -301,20 +301,41 @@ class TeraboxVirals : MainAPI() {
                 }
                 if (pageRes == null) pageRes = app.get(sharePageUrl, headers = headers).text
 
-                val sign = Regex("\"sign\":\"(.*?)\"").find(pageRes)?.groupValues?.get(1)
+                // Try to extract tokens from HTML
+                var sign = Regex("\"sign\":\"(.*?)\"").find(pageRes)?.groupValues?.get(1)
                     ?: Regex("sign=([a-zA-Z0-9]+)").find(pageRes)?.groupValues?.get(1)
-                val timestamp = Regex("\"timestamp\":(\\d+)").find(pageRes)?.groupValues?.get(1)
+                var timestamp = Regex("\"timestamp\":(\\d+)").find(pageRes)?.groupValues?.get(1)
                     ?: Regex("timestamp=(\\d+)").find(pageRes)?.groupValues?.get(1)
                 val jsToken = Regex("fn%28%22(.*?)%22%29").find(pageRes)?.groupValues?.get(1)
+                    ?: Regex("fn\\(\"(.*?)\"\\)").find(pageRes)?.groupValues?.get(1)
                     ?: Regex("\"jsToken\":\\s*\"(.*?)\"").find(pageRes)?.groupValues?.get(1)
                     ?: Regex("jsToken.*?=.*?\"(.*?)\"").find(pageRes)?.groupValues?.get(1)
 
                 println("Page tokens: sign=$sign timestamp=$timestamp jsToken=${jsToken?.take(10)}")
 
+                // Update headers with jsToken if found
+                if (jsToken != null) {
+                    headers = headers + ("Cookie" to "browserid=1; lang=en; ndus=$jsToken")
+                }
+
+                // If sign/timestamp missing, try fetching from API
+                if (sign == null || timestamp == null) {
+                    println("Sign/Timestamp missing, fetching /api/shorturlinfo...")
+                    val infoUrl = "https://$domain/api/shorturlinfo?shorturl=1$surl&root=1"
+                    try {
+                        val infoRes = app.get(infoUrl, headers = headers).text
+                        println("Info API response: ${infoRes.take(100)}")
+                        sign = Regex("\"sign\":\"(.*?)\"").find(infoRes)?.groupValues?.get(1)
+                        timestamp = Regex("\"timestamp\":(\\d+)").find(infoRes)?.groupValues?.get(1)
+                    } catch (e: Exception) {
+                        println("Info API failed: ${e.message}")
+                    }
+                }
+
                 if (sign != null && timestamp != null) {
                     val streamTypes = listOf("M3U8_AUTO_480", "M3U8_AUTO_720", "M3U8_FLV_264_480")
                     for (streamType in streamTypes) {
-                        val streamUrl = "https://$domain/share/streaming?shorturl=$surl&shareid=$shareid&uk=$uk&fid=$fsid&type=$streamType&sign=$sign&timestamp=$timestamp&channel=dubox&clienttype=0&web=1&app_id=250528"
+                        val streamUrl = "https://$domain/share/streaming?shorturl=$surl&shareid=$shareid&uk=$uk&fid=$fsid&type=$streamType&sign=$sign&timestamp=$timestamp&channel=dubox&clienttype=0&web=1&app_id=250528&jsToken=${jsToken ?: ""}"
                         try {
                             val streamRes = app.get(streamUrl, headers = headers).text
                             println("Stream response ($streamType): ${streamRes.take(200)}")
@@ -341,7 +362,7 @@ class TeraboxVirals : MainAPI() {
                     }
                 }
 
-                val dlinkFromPage = Regex("\"dlink\":\"(.*?)\"").find(pageRes)?.groupValues?.get(1)?.replace("\\/", "/")
+                val dlinkFromPage = Regex("\"dlink\":\"(.*?)\"").find(pageRes!!)?.groupValues?.get(1)?.replace("\\/", "/")
                 if (dlinkFromPage != null) {
                     println("Found dlink from page: $dlinkFromPage")
                     callback.invoke(
