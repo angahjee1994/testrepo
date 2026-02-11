@@ -53,19 +53,21 @@ class TeraboxVirals : MainAPI() {
         val href = linkElement.attr("href")
         
         // Robust poster selection: check src, data-src, and srcset for real images
-        var poster = element.selectFirst(".post-filter-link img, .snip-thumbnail, .post-filter-image img, img")?.let { img ->
-            listOf("data-src", "src", "srcset", "data-original").firstNotNullOfOrNull { attr ->
+        val watermarkPatterns = listOf("Join", "@TB", "@Tudung", "telegram", "channel", "@Mantap")
+        var poster = element.select(".post-filter-link img, .snip-thumbnail, .post-filter-image img, img").firstNotNullOfOrNull { img ->
+            val imgUrl = listOf("data-src", "src", "srcset", "data-original").firstNotNullOfOrNull { attr ->
                 val value = img.attr(attr).takeIf { it.isNotEmpty() && !it.contains("blank.gif") && !it.contains("pixel.gif") }
                 if (attr == "srcset" && value != null) value.split(",").last().trim().split(" ").first() else value
             }
+            val altText = img.attr("alt")
+            val isWatermark = watermarkPatterns.any { pattern -> imgUrl?.contains(pattern, ignoreCase = true) == true || altText.contains(pattern, ignoreCase = true) }
+            imgUrl?.takeIf { !isWatermark }
         }
-        
-        // Ensure absolute URL and remove Blogger thumbnail resizing
+
         if (poster != null) {
             if (!poster.startsWith("http")) poster = mainUrl + (if (poster.startsWith("/")) "" else "/") + poster
             poster = poster.replace(Regex("/s\\d+(-[bc])?/"), "/s1600/")
         }
-        println("Search Result Poster: $poster")
 
         return newMovieSearchResponse(title, href, TvType.NSFW) {
             this.posterUrl = poster
@@ -118,16 +120,16 @@ class TeraboxVirals : MainAPI() {
              }
         }
 
-        // More robust poster selection for detail page: prioritize high-res images
-        var poster = document.selectFirst(".post-body img, .post-filter-image img, meta[property='og:image']")?.let { img ->
-            if (img.tagName() == "meta") img.attr("content")
-            else {
-                listOf("data-src", "src", "srcset").firstNotNullOfOrNull { attr ->
-                    val value = img.attr(attr).takeIf { it.isNotEmpty() && !it.contains("blank.gif") }
-                    if (attr == "srcset" && value != null) value.split(",").last().trim().split(" ").first() else value
-                }
+        val watermarkPatterns = listOf("Join", "@TB", "@Tudung", "telegram", "channel", "@Mantap")
+        var poster = document.select(".post-body img").firstNotNullOfOrNull { img ->
+            val imgUrl = listOf("data-src", "src", "srcset").firstNotNullOfOrNull { attr ->
+                val value = img.attr(attr).takeIf { it.isNotEmpty() && !it.contains("blank.gif") && !it.contains("pixel.gif") }
+                if (attr == "srcset" && value != null) value.split(",").last().trim().split(" ").first() else value
             }
-        }
+            val altText = img.attr("alt")
+            val isWatermark = watermarkPatterns.any { pattern -> imgUrl?.contains(pattern, ignoreCase = true) == true || altText.contains(pattern, ignoreCase = true) }
+            imgUrl?.takeIf { !isWatermark }
+        } ?: document.selectFirst("meta[property='og:image']")?.attr("content")
         if (poster != null) {
             if (!poster.startsWith("http")) poster = mainUrl + (if (poster.startsWith("/")) "" else "/") + poster
             poster = poster.replace(Regex("/s\\d+(-[bc])?/"), "/s1600/")
@@ -158,65 +160,12 @@ class TeraboxVirals : MainAPI() {
              val surl = tempSurl
              println("Extracted surl: $surl (from temp: $tempSurl)")
 
-             // Initial tokens for streaming API
-             var sharedSign: String? = null
-             var sharedTimestamp: String? = null
              var initialUk: String? = null
              var initialShareid: String? = null
 
-             // Extract tokens from the actual Terabox sharing page to bypass shorturlinfo challenges
-             println("Fetching Terabox page for tokens: $cleanLink")
-             // Use systematic headers and try multiple site versions
-             val headers = mapOf(
-                 "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-                 "Cookie" to "browserid=1; lang=en",
-                 "Referer" to "https://www.terabox.app/"
-             )
-             
-             var sharingPageHtml = try { app.get(cleanLink, headers = headers).text } catch(e: Exception) { "" }
-             
-             // If desktop page fails, try mobile version which often has cleaner tokens
-             if (!sharingPageHtml.contains("sign")) {
-                 val mobileLink = cleanLink.replace("/s/", "/wap/sharing/link?surl=")
-                 println("Trying mobile tokens: $mobileLink")
-                 try { sharingPageHtml += app.get(mobileLink, headers = headers).text } catch(e: Exception) {}
-             }
-             
-             // Search for tokens in JSON strings or JS objects
-             sharedSign = Regex("[\"']sign[\"']\\s*[:=]\\s*[\"']([^\"']+)[\"']").find(sharingPageHtml)?.groupValues?.get(1)
-             sharedTimestamp = Regex("[\"']timestamp[\"']\\s*[:=]\\s*(?:[\"'](\\d+)[\"']|(\\d+))").find(sharingPageHtml)?.let { m -> 
-                 m.groupValues.getOrNull(1)?.takeIf { it.isNotEmpty() } ?: m.groupValues.getOrNull(2) 
-             }
-             initialUk = Regex("[\"']uk[\"']\\s*[:=]\\s*(?:[\"'](\\d+)[\"']|(\\d+))").find(sharingPageHtml)?.let { m -> 
-                 m.groupValues.getOrNull(1)?.takeIf { it.isNotEmpty() && it != "0" } ?: m.groupValues.getOrNull(2)?.takeIf { it != "0" }
-             }
-             initialShareid = Regex("[\"']shareid[\"']\\s*[:=]\\s*(?:[\"'](\\d+)[\"']|(\\d+))").find(sharingPageHtml)?.let { m -> 
-                 m.groupValues.getOrNull(1)?.takeIf { it.isNotEmpty() } ?: m.groupValues.getOrNull(2) 
-             }
-             
-             println("Terabox Page Tokens: sign=$sharedSign, timestamp=$sharedTimestamp, uk=$initialUk, shareid=$initialShareid")
-
-             // Fetch initial metadata and tokens via shorturlinfo API ONLY as a fallback
              val apiDomain = if (tbLink?.contains("1024tera") == true) "www.1024tera.com" else "www.terabox.com"
-             
-             if (initialUk == null || sharedSign == null) {
-                 val shortUrlInfoApi = "https://$apiDomain/api/shorturlinfo?app_id=250528&web=1&channel=dubox&clienttype=0&shorturl=1$surl&root=1"
-                 println("Calling Handshake API: $shortUrlInfoApi")
-                 try {
-                     val infoRes = app.get(shortUrlInfoApi, headers = mapOf("Referer" to "https://$apiDomain/")).text
-                     println("Handshake Response: ${infoRes.take(100)}...")
-                     if (sharedSign == null) sharedSign = Regex("\"sign\":\"(.*?)\"").find(infoRes)?.groupValues?.get(1)
-                     if (sharedTimestamp == null) sharedTimestamp = Regex("\"timestamp\":(\\d+)").find(infoRes)?.groupValues?.get(1)
-                     initialUk = Regex("\"uk\":(\\d+)").find(infoRes)?.groupValues?.get(1)
-                     initialShareid = Regex("\"shareid\":(\\d+)").find(infoRes)?.groupValues?.get(1)
-                     println("Handshake Tokens: sign=$sharedSign, uk=$initialUk, shareid=$initialShareid")
-                 } catch (e: Exception) {
-                     println("Handshake Error: ${e.message}")
-                 }
-             }
 
-             // Recursive function to scan folders
-             // Recursive function to scan folders
+             val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
              suspend fun scanFolder(dirPath: String) {
                  val referer = "https://$apiDomain/"
                  
@@ -245,13 +194,14 @@ class TeraboxVirals : MainAPI() {
                      }
                  }
 
-                 if (jsonResponse != null) {
-                      // Extract uk and shareid if we don't have them yet (share/list root provides these)
-                      if (initialUk == null) {
-                          initialUk = Regex("\"uk\":\\s*\"?(\\d+)\"?").find(jsonResponse)?.groupValues?.get(1)
-                          initialShareid = Regex("\"shareid\":\\s*\"?(\\d+)\"?").find(jsonResponse)?.groupValues?.get(1)
-                          println("Extracted Uk/ShareId from List: $initialUk / $initialShareid")
-                      }
+                  if (jsonResponse != null) {
+                       if (initialUk == null) {
+                           initialUk = Regex("\"uk\":\\s*\"?(\\d+)\"?").find(jsonResponse)?.groupValues?.get(1)?.takeIf { it != "0" }
+                       }
+                       val responseShareId = Regex("\"share_id\":\\s*\"?(\\d+)\"?").find(jsonResponse)?.groupValues?.get(1)
+                           ?: Regex("\"shareid\":\\s*\"?(\\d+)\"?").find(jsonResponse)?.groupValues?.get(1)
+                       if (responseShareId != null) initialShareid = responseShareId
+                       println("List Tokens: uk=$initialUk, shareid=$initialShareid")
 
                       val videoExtensions = setOf("mp4", "mkv", "avi", "mov", "webm", "flv", "m4v", "wmv")
                       
@@ -279,23 +229,24 @@ class TeraboxVirals : MainAPI() {
                                       println("Found Folder: $itemPath, scanning...")
                                       scanFolder(itemPath)
                                   }
-                              } else { // It's a file
+                              } else {
                                   val ext = filename.substringAfterLast(".", "").lowercase()
                                   if (videoExtensions.contains(ext)) {
-                                       val dlink = dlinkMatch?.groupValues?.get(1)?.replace("\\\\/", "/") 
-                                           ?: "TERABOX_STREAMING_FALLBACK|$fsid|$initialUk|$initialShareid|$sharedSign|$sharedTimestamp"
+                                       val rawDlink = dlinkMatch?.groupValues?.get(1)?.replace("\\\\/", "/")
+                                       val episodeData = if (rawDlink != null) {
+                                           "TERABOX_DLINK|$rawDlink|$apiDomain"
+                                       } else {
+                                           "TERABOX_STREAMING|$fsid|$surl|$apiDomain|${initialUk ?: ""}|${initialShareid ?: ""}"
+                                       }
                                            
                                        val thumbUrl = thumbsMatch.lastOrNull()?.groupValues?.get(1)?.replace("\\\\/", "/")
-                                       if (thumbUrl != null && (poster == null || poster?.contains("terabox") == false)) {
-                                           poster = thumbUrl
-                                       }
                                        
-                                       println("Found Video: $filename")
+                                       println("Found Video: $filename (has dlink: ${rawDlink != null})")
                                        episodes.add(
-                                           newEpisode(dlink) {
+                                           newEpisode(episodeData) {
                                                this.name = filename
                                                this.episode = episodes.size + 1
-                                               this.posterUrl = thumbUrl ?: poster
+                                               this.posterUrl = poster
                                            }
                                        )
                                   }
@@ -338,56 +289,41 @@ class TeraboxVirals : MainAPI() {
     }
 
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
-        // If data is a direct Terabox file link (from our load() episode logic), play it directly
-        // Also handle 1024tera links if they are passed as data
-        // Distinguish between direct file links and sharing links
-        val isDirectLink = (data.contains("terabox.com") || data.contains("1024tera.com") || data.contains("terabox.app") || data.contains("d.terabox.com")) &&
-                           (data.contains("file/") || data.contains("d.terabox.com") || data.contains(".mp4") || data.contains(".m3u8"))
-        
-        // If it's a sharing link (HTML page), we shouldn't treat it as a video directly
-        val isSharingLink = data.contains("sharing/link") || data.contains("/s/")
+        val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-        if (isDirectLink && !isSharingLink) {
-             val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-             
-             // If domain is 1024tera, change referer
-             val referer = if (data.contains("1024tera")) "https://www.1024tera.com/" else "https://www.terabox.com/"
-
-             callback.invoke(
-                 newExtractorLink(
-                     "Terabox",
-                     "Terabox",
-                     data,
-                     INFER_TYPE
-                 ) {
-                     this.headers = mapOf(
-                         "User-Agent" to userAgent,
-                         "Referer" to referer,
-                         "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"
-                     )
-                 }
-             )
-             return true
+        if (data.startsWith("TERABOX_DLINK|")) {
+            val parts = data.split("|")
+            val dlink = parts[1]
+            val domain = parts.getOrElse(2) { "www.terabox.com" }
+            println("Playing dlink: $dlink")
+            callback.invoke(
+                newExtractorLink(
+                    "Terabox",
+                    "Terabox",
+                    dlink,
+                    INFER_TYPE
+                ) {
+                    this.headers = mapOf(
+                        "User-Agent" to userAgent,
+                        "Referer" to "https://$domain/",
+                        "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"
+                    )
+                }
+            )
+            return true
         }
 
-        // Handle streaming fallback from scanFolder
-        if (data.startsWith("TERABOX_STREAMING_FALLBACK")) {
+        if (data.startsWith("TERABOX_STREAMING|")) {
             val parts = data.split("|")
-            if (parts.size >= 6) {
-                val fsid = parts[1]
-                val uk = parts[2]
-                val shareid = parts[3]
-                var sign = parts[4]
-                var timestamp = parts[5]
-                
-                val apiDomain = if (data.contains("1024tera")) "www.1024tera.com" else "www.terabox.com"
-                
-                // If sign/timestamp are missing, try to fetch them from the sharing info if we can, 
-                // but for now we'll assume they were passed or try a common fallback if available.
-                // share/streaming?uk=...&shareid=...&type=M3U8_FLV_264_480&fid=...&sign=...&timestamp=...
-                
-                val streamingUrl = "https://$apiDomain/share/streaming?uk=$uk&shareid=$shareid&type=M3U8_FLV_264_480&fid=$fsid&sign=$sign&timestamp=$timestamp&web=1&channel=dubox&clienttype=0"
-                
+            val fsid = parts[1]
+            val surl = parts[2]
+            val domain = parts[3]
+            val uk = parts.getOrElse(4) { "" }
+            val shareid = parts.getOrElse(5) { "" }
+
+            if (uk.isNotEmpty() && shareid.isNotEmpty()) {
+                val streamingUrl = "https://$domain/share/streaming?uk=$uk&shareid=$shareid&type=M3U8_FLV_264_480&fid=$fsid&web=1&channel=dubox&clienttype=0"
+                println("Trying streaming: $streamingUrl")
                 callback.invoke(
                     newExtractorLink(
                         "Terabox Streaming",
@@ -396,55 +332,103 @@ class TeraboxVirals : MainAPI() {
                         INFER_TYPE
                     ) {
                         this.headers = mapOf(
-                            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                            "Referer" to "https://$apiDomain/",
+                            "User-Agent" to userAgent,
+                            "Referer" to "https://$domain/",
                             "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"
                         )
                     }
                 )
-                return true
             }
+
+            println("Fetching dlink via share/list for fsid=$fsid")
+            try {
+                val listUrl = "https://$domain/share/list?shorturl=$surl&dir=%2F&root=1&web=1&channel=dubox&clienttype=0"
+                val listRes = app.get(listUrl, headers = mapOf(
+                    "User-Agent" to userAgent,
+                    "Referer" to "https://$domain/",
+                    "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"
+                )).text
+                Regex("\"dlink\":\"(.*?)\"").findAll(listRes).forEach { match ->
+                    val dlink = match.groupValues[1].replace("\\/", "/")
+                    if (dlink.isNotEmpty()) {
+                        callback.invoke(
+                            newExtractorLink(
+                                "Terabox",
+                                "Terabox",
+                                dlink,
+                                INFER_TYPE
+                            ) {
+                                this.headers = mapOf(
+                                    "User-Agent" to userAgent,
+                                    "Referer" to "https://$domain/",
+                                    "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"
+                                )
+                            }
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                println("Dlink fetch error: ${e.message}")
+            }
+            return true
         }
 
-        // Otherwise, scrape the page for links (Legacy/Movie behavior)
+        val isTeraboxUrl = data.contains("terabox", ignoreCase = true) || data.contains("1024tera", ignoreCase = true)
+        val isDirectFile = data.contains("file/") || data.contains(".mp4") || data.contains(".m3u8") || data.contains("d.terabox")
+        val isSharingPage = data.contains("/s/") || data.contains("sharing/link")
+
+        if (isTeraboxUrl && isDirectFile && !isSharingPage) {
+            val referer = if (data.contains("1024tera")) "https://www.1024tera.com/" else "https://www.terabox.com/"
+            callback.invoke(
+                newExtractorLink(
+                    "Terabox",
+                    "Terabox",
+                    data,
+                    INFER_TYPE
+                ) {
+                    this.headers = mapOf(
+                        "User-Agent" to userAgent,
+                        "Referer" to referer,
+                        "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"
+                    )
+                }
+            )
+            return true
+        }
+
+        if (isTeraboxUrl && isSharingPage) {
+            loadExtractor(data, subtitleCallback, callback)
+            return true
+        }
+
         val document = app.get(data).document
-        
-        // Find links in .dlbutton a
-        val buttons = document.select(".dlbutton a")
-        val allLinks = document.select("a")
-        
         val foundLinks = mutableSetOf<String>()
 
-        // Prioritize buttons
-        buttons.forEach { link ->
-             val href = link.attr("href")
-             if (href.isNotEmpty()) foundLinks.add(href)
+        document.select(".dlbutton a").forEach { link ->
+            val href = link.attr("href")
+            if (href.isNotEmpty()) foundLinks.add(href)
         }
 
-        // Add other a tags that look like terabox
-        allLinks.forEach { link ->
+        document.select("a").forEach { link ->
             val href = link.attr("href")
             if (href.contains("terabox", ignoreCase = true) || href.contains("1024tera", ignoreCase = true)) {
                 foundLinks.add(href)
             }
         }
-        
-        // Prioritize direct Terabox links over redirectors
-        val sortedLinks = foundLinks.sortedByDescending { 
-            it.contains("terabox", ignoreCase = true) || it.contains("1024tera", ignoreCase = true) 
-        }
 
-        sortedLinks.forEach { href ->
-             if (href.contains("terabox", ignoreCase = true) || href.contains("1024tera", ignoreCase = true)) {
-                 loadExtractor(href, subtitleCallback, callback)
-             } else if (href.contains("downloadkatsini.com", ignoreCase = true)) {
-                 try {
-                     val finalLink = app.get(href).document.selectFirst("a[href*=terabox], a[href*=1024tera]")?.attr("href")
-                     if (!finalLink.isNullOrEmpty()) {
-                         loadExtractor(finalLink, subtitleCallback, callback)
-                     }
-                 } catch (e: Exception) {}
-             }
+        foundLinks.sortedByDescending {
+            it.contains("terabox", ignoreCase = true) || it.contains("1024tera", ignoreCase = true)
+        }.forEach { href ->
+            if (href.contains("terabox", ignoreCase = true) || href.contains("1024tera", ignoreCase = true)) {
+                loadExtractor(href, subtitleCallback, callback)
+            } else if (href.contains("downloadkatsini.com", ignoreCase = true)) {
+                try {
+                    val finalLink = app.get(href).document.selectFirst("a[href*=terabox], a[href*=1024tera]")?.attr("href")
+                    if (!finalLink.isNullOrEmpty()) {
+                        loadExtractor(finalLink, subtitleCallback, callback)
+                    }
+                } catch (e: Exception) {}
+            }
         }
 
         return true
