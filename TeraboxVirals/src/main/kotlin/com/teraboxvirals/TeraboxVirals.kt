@@ -19,7 +19,6 @@ class TeraboxVirals : MainAPI() {
         "search/label/Viral" to "Viral"
     )
 
-    private val defaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     private val videoExtensions = setOf("mp4", "mkv", "avi", "mov", "webm", "flv", "m4v", "wmv")
     private val imageExtensions = setOf("jpg", "jpeg", "png", "webp", "gif")
 
@@ -58,19 +57,30 @@ class TeraboxVirals : MainAPI() {
     }
 
     private suspend fun callListApi(surl: String, apiDomain: String, dirPath: String): String? {
-        val folderApiUrl = "https://$apiDomain/share/list?shorturl=$surl&dir=${java.net.URLEncoder.encode(dirPath, "UTF-8")}&root=${if (dirPath == "/") "1" else "0"}&web=1&channel=dubox&clienttype=0"
+        val folderApiUrl = "https://$apiDomain/share/list?app_id=250528&shorturl=$surl&dir=${java.net.URLEncoder.encode(dirPath, "UTF-8")}&root=${if (dirPath == "/") "1" else "0"}&web=1&channel=dubox&clienttype=0"
+        val browserId = buildString {
+            val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+            repeat(48) { append(chars.random()) }
+            append("=")
+        }
         val headers = mapOf(
-            "Referer" to "https://$apiDomain/",
-            "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"
+            "accept" to "application/json, text/plain, */*",
+            "accept-language" to "en-US,en;q=0.9",
+            "user-agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            "sec-ch-ua" to "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"",
+            "sec-ch-ua-mobile" to "?0",
+            "sec-ch-ua-platform" to "\"Windows\"",
+            "sec-fetch-dest" to "empty",
+            "sec-fetch-mode" to "cors",
+            "sec-fetch-site" to "same-origin",
+            "referer" to "https://$apiDomain/",
+            "cookie" to "browserid=$browserId; lang=en"
         )
         for (attempt in 1..3) {
             try {
                 val res = app.get(folderApiUrl, headers = headers).text
                 if (res.contains("\"errno\":0") || res.contains("\"list\":[")) return res
-                if (res.contains("need verify")) {
-                    println("List API 'need verify', retry $attempt/3...")
-                    continue
-                }
+                if (res.contains("need verify")) continue
                 return null
             } catch (_: Exception) {}
         }
@@ -245,8 +255,6 @@ class TeraboxVirals : MainAPI() {
     }
 
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
-        val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-
         val isTeraboxUrl = data.contains("terabox", ignoreCase = true) || data.contains("1024tera", ignoreCase = true)
         if (!data.startsWith("http") || !isTeraboxUrl) {
             if (data.startsWith("http")) {
@@ -280,26 +288,41 @@ class TeraboxVirals : MainAPI() {
         var shareid = queryParams["shareid"] ?: ""
 
         try {
-            val initHeaders = mapOf(
-                "User-Agent" to userAgent,
-                "Referer" to "https://$domain/",
-                "Cookie" to "browserid=1; lang=en"
+            val browserId = buildString {
+                val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+                repeat(48) { append(chars.random()) }
+                append("=")
+            }
+
+            val browserHeaders = mapOf(
+                "accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+                "accept-language" to "en-US,en;q=0.9",
+                "user-agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                "sec-ch-ua" to "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"",
+                "sec-ch-ua-mobile" to "?0",
+                "sec-ch-ua-platform" to "\"Windows\"",
+                "sec-fetch-dest" to "document",
+                "sec-fetch-mode" to "navigate",
+                "sec-fetch-site" to "none",
+                "sec-fetch-user" to "?1",
+                "upgrade-insecure-requests" to "1",
+                "cookie" to "browserid=$browserId; lang=en"
             )
 
             var sharePageResponse: com.lagradost.nicehttp.NiceResponse? = null
             val sharePageUrl = "https://$domain/sharing/link?surl=$surl"
             for (attempt in 1..3) {
-                val res = app.get(sharePageUrl, headers = initHeaders)
+                val res = app.get(sharePageUrl, headers = browserHeaders)
                 if (res.text.contains("need verify")) continue
                 sharePageResponse = res
                 break
             }
-            if (sharePageResponse == null) sharePageResponse = app.get(sharePageUrl, headers = initHeaders)
+            if (sharePageResponse == null) sharePageResponse = app.get(sharePageUrl, headers = browserHeaders)
 
             val pageRes = sharePageResponse.text
             val responseCookies = sharePageResponse.headers.filter { it.first.equals("set-cookie", ignoreCase = true) }
                 .map { it.second.substringBefore(";") }
-            val cookieMap = mutableMapOf("lang" to "en")
+            val cookieMap = mutableMapOf("browserid" to browserId, "lang" to "en")
             responseCookies.forEach { cookie ->
                 val kv = cookie.split("=", limit = 2)
                 if (kv.size == 2) cookieMap[kv[0].trim()] = kv[1].trim()
@@ -327,9 +350,17 @@ class TeraboxVirals : MainAPI() {
 
             val cookieString = cookieMap.entries.joinToString("; ") { "${it.key}=${it.value}" }
             val headers = mapOf(
-                "User-Agent" to userAgent,
-                "Referer" to "https://$domain/",
-                "Cookie" to cookieString
+                "accept" to "application/json, text/plain, */*",
+                "accept-language" to "en-US,en;q=0.9",
+                "user-agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                "sec-ch-ua" to "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"",
+                "sec-ch-ua-mobile" to "?0",
+                "sec-ch-ua-platform" to "\"Windows\"",
+                "sec-fetch-dest" to "empty",
+                "sec-fetch-mode" to "cors",
+                "sec-fetch-site" to "same-origin",
+                "referer" to "https://$domain/sharing/link?surl=$surl",
+                "cookie" to cookieString
             )
 
             if (fsid.isEmpty()) {

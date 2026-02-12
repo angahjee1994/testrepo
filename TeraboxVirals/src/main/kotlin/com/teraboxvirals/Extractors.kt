@@ -28,14 +28,29 @@ class Terabox : ExtractorApi() {
         }
         val surl = if (rawSurl.startsWith("1")) rawSurl.substring(1) else rawSurl
         
-        val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
         
         val domain = if (url.contains("1024tera")) "www.1024tera.com" else "www.terabox.com"
 
+        val browserId = buildString {
+            val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+            repeat(48) { append(chars.random()) }
+            append("=")
+        }
+
         val initHeaders = mapOf(
-            "User-Agent" to userAgent,
-            "Referer" to "https://$domain/",
-            "Cookie" to "browserid=1; lang=en"
+            "accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "accept-language" to "en-US,en;q=0.9",
+            "user-agent" to userAgent,
+            "sec-ch-ua" to "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"",
+            "sec-ch-ua-mobile" to "?0",
+            "sec-ch-ua-platform" to "\"Windows\"",
+            "sec-fetch-dest" to "document",
+            "sec-fetch-mode" to "navigate",
+            "sec-fetch-site" to "none",
+            "sec-fetch-user" to "?1",
+            "upgrade-insecure-requests" to "1",
+            "cookie" to "browserid=$browserId; lang=en"
         )
 
         var sharePageResponse: com.lagradost.nicehttp.NiceResponse? = null
@@ -51,7 +66,7 @@ class Terabox : ExtractorApi() {
         val pageRes = sharePageResponse.text
         val responseCookies = sharePageResponse.headers.filter { it.first.equals("set-cookie", ignoreCase = true) }
             .map { it.second.substringBefore(";") }
-        val cookieMap = mutableMapOf("lang" to "en")
+        val cookieMap = mutableMapOf("browserid" to browserId, "lang" to "en")
         responseCookies.forEach { cookie ->
             val kv = cookie.split("=", limit = 2)
             if (kv.size == 2) cookieMap[kv[0].trim()] = kv[1].trim()
@@ -73,9 +88,17 @@ class Terabox : ExtractorApi() {
 
         val cookieString = cookieMap.entries.joinToString("; ") { "${it.key}=${it.value}" }
         val headers = mapOf(
-            "User-Agent" to userAgent,
-            "Referer" to "https://$domain/",
-            "Cookie" to cookieString
+            "accept" to "application/json, text/plain, */*",
+            "accept-language" to "en-US,en;q=0.9",
+            "user-agent" to userAgent,
+            "sec-ch-ua" to "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"",
+            "sec-ch-ua-mobile" to "?0",
+            "sec-ch-ua-platform" to "\"Windows\"",
+            "sec-fetch-dest" to "empty",
+            "sec-fetch-mode" to "cors",
+            "sec-fetch-site" to "same-origin",
+            "referer" to "https://$domain/sharing/link?surl=$surl",
+            "cookie" to cookieString
         )
 
         val foundDlinks = mutableSetOf<String>()
