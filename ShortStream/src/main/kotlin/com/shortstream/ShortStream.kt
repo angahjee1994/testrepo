@@ -2,6 +2,9 @@ package com.shortstream
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
+import com.lagradost.cloudstream3.utils.newExtractorLink
+import com.lagradost.cloudstream3.utils.INFER_TYPE
+import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import android.util.Base64
@@ -272,17 +275,17 @@ class ShortStream : MainAPI() {
         )
         
         fun addLink(name: String, url: String) {
-            val type = if (url.contains(".m3u8")) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
+            val type = if (url.contains(".m3u8")) ExtractorLinkType.M3U8 else INFER_TYPE
             callback.invoke(
-                ExtractorLink(
+                newExtractorLink(
                     source = "ShortStream",
                     name = name,
                     url = url,
-                    referer = "https://rishort.com/",
-                    quality = Qualities.Unknown.value,
-                    type = type,
-                    headers = headers
-                )
+                    type = type
+                ) {
+                    this.referer = "https://rishort.com/"
+                    this.headers = headers
+                }
             )
         }
 
