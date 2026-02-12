@@ -6,8 +6,6 @@ import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.utils.INFER_TYPE
 import com.lagradost.cloudstream3.utils.newExtractorLink
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 
 class TeraboxVirals : MainAPI() {
     override var mainUrl = "https://www.teraboxvirals.com"
@@ -125,16 +123,6 @@ class TeraboxVirals : MainAPI() {
         return fotoPoster
     }
 
-    private suspend fun fetchQuickPoster(surl: String, apiDomain: String): String? {
-        val json = callListApi(surl, apiDomain, "/") ?: return null
-        val items = json.split("\"fs_id\":")
-        items.drop(1).forEach { chunk ->
-            val thumb = parseThumbFromChunk(chunk)
-            if (thumb != null) return thumb
-        }
-        return null
-    }
-
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
         val url = if (request.data.isEmpty()) {
             if (page > 1) return null
@@ -146,36 +134,14 @@ class TeraboxVirals : MainAPI() {
 
         val document = app.get(url).document
         val articles = document.select("article.blog-post")
-
-        data class ArticleData(val title: String, val href: String, val blogPoster: String?)
-
-        val articleList = articles.mapNotNull { element ->
+        val home = articles.mapNotNull { element ->
             val linkElement = element.selectFirst(".post-filter-link") ?: element.selectFirst(".entry-title a") ?: return@mapNotNull null
             val title = element.selectFirst(".entry-title a")?.text() ?: element.selectFirst("img")?.attr("alt") ?: "Video"
             val href = linkElement.attr("href")
-            val blogPoster = element.selectFirst("img")?.attr("src")?.takeIf { it.isNotEmpty() && !it.contains("blank.gif") && !it.contains("pixel.gif") }
-            ArticleData(title, href, blogPoster)
-        }
-
-        val home = coroutineScope {
-            articleList.map { article ->
-                async {
-                    var poster: String? = null
-                    try {
-                        val detailDoc = app.get(article.href).document
-                        val tbLink = extractTeraboxLink(detailDoc)
-                        if (tbLink != null && (tbLink.contains("terabox", ignoreCase = true) || tbLink.contains("1024tera", ignoreCase = true))) {
-                            val surl = extractSurl(tbLink)
-                            val apiDomain = getApiDomain(tbLink)
-                            poster = fetchQuickPoster(surl, apiDomain)
-                        }
-                    } catch (_: Exception) {}
-                    if (poster == null) poster = article.blogPoster
-                    newMovieSearchResponse(article.title, article.href, TvType.NSFW) {
-                        this.posterUrl = poster
-                    }
-                }
-            }.mapNotNull { it.await() }
+            val poster = element.selectFirst("img")?.attr("src")?.takeIf { it.isNotEmpty() && !it.contains("blank.gif") && !it.contains("pixel.gif") }
+            newMovieSearchResponse(title, href, TvType.NSFW) {
+                this.posterUrl = poster
+            }
         }
         return newHomePageResponse(request.name, home)
     }
