@@ -6,5 +6,5 @@ cloudstream {
     authors = listOf("Botol")
     status = 3
     tvTypes = listOf("TvSeries")
-    iconUrl = "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/TeraboxVirals/logo.png"
+    iconUrl = "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/ShortStream/logo.png"
 }
