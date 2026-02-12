@@ -151,7 +151,38 @@ class Terabox : ExtractorApi() {
         }
 
         if (foundDlinks.isEmpty() && sign != null && timestamp != null && foundVideoFsids.isNotEmpty()) {
+            val sekey = java.net.URLDecoder.decode(randsk, "UTF-8")
             for (fsid in foundVideoFsids) {
+                val downloadUrl = "https://$domain/share/download?app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken ?: ""}"
+                try {
+                    val downloadBody = mapOf(
+                        "shareid" to shareid,
+                        "uk" to uk,
+                        "sign" to (sign ?: ""),
+                        "timestamp" to (timestamp ?: ""),
+                        "fid_list" to "[$fsid]",
+                        "extra" to "{\"sekey\":\"$sekey\"}",
+                        "primaryid" to shareid,
+                        "product" to "share"
+                    )
+                    val downloadRes = app.post(downloadUrl, headers = headers, data = downloadBody).text
+                    if (!downloadRes.contains("need verify") && !downloadRes.contains("\"errno\":400")) {
+                        val dlink = Regex("\"dlink\":\\s*\"(.*?)\"").find(downloadRes)?.groupValues?.get(1)?.replace("\\/", "/")
+                        if (dlink != null && dlink.isNotEmpty()) {
+                            callback.invoke(
+                                newExtractorLink(this.name, "$name Download", dlink, INFER_TYPE) {
+                                    this.headers = mapOf(
+                                        "user-agent" to userAgent,
+                                        "referer" to "https://$domain/",
+                                        "cookie" to cookieString
+                                    )
+                                }
+                            )
+                            return
+                        }
+                    }
+                } catch (_: Exception) {}
+
                 for (streamType in listOf("M3U8_AUTO_480", "M3U8_AUTO_720", "M3U8_AUTO_240", "M3U8_FLV_264_480")) {
                     val streamUrl = "https://$domain/share/streaming?uk=$uk&shareid=$shareid&type=$streamType&fid=$fsid&sign=$sign&timestamp=$timestamp&app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken ?: ""}"
                     try {
