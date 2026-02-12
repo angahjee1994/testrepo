@@ -277,15 +277,15 @@ class ShortStream : MainAPI() {
         fun addLink(name: String, url: String) {
             val type = if (url.contains(".m3u8")) ExtractorLinkType.M3U8 else INFER_TYPE
             callback.invoke(
-                newExtractorLink(
+                ExtractorLink(
                     source = "ShortStream",
                     name = name,
                     url = url,
-                    type = type
-                ) {
-                    this.referer = "https://rishort.com/"
-                    this.headers = headers
-                }
+                    referer = "https://rishort.com/",
+                    quality = Qualities.Unknown.value,
+                    type = type,
+                    headers = headers
+                )
             )
         }
 
