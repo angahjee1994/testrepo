@@ -205,10 +205,10 @@ class TeraboxVirals : MainAPI() {
                     } else {
                         val ext = filename.substringAfterLast(".", "").lowercase()
                         if (videoExtensions.contains(ext)) {
-                            val episodeData = "TERABOX_STREAM|$apiDomain|$surl|${initialUk ?: ""}|${initialShareid ?: ""}|${fsid ?: ""}"
+                            val episodeUrl = "https://$apiDomain/sharing/link?surl=$surl&uk=${initialUk ?: ""}&shareid=${initialShareid ?: ""}&fsid=${fsid ?: ""}"
                             if (poster == null && bestThumb != null) poster = bestThumb
                             episodes.add(
-                                newEpisode(episodeData) {
+                                newEpisode(episodeUrl) {
                                     this.name = filename
                                     this.episode = episodes.size + 1
                                     this.posterUrl = bestThumb ?: poster
@@ -247,13 +247,18 @@ class TeraboxVirals : MainAPI() {
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
         val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-        if (data.startsWith("TERABOX_STREAM|")) {
-            val parts = data.split("|")
-            val domain = parts.getOrElse(1) { "www.1024tera.com" }
-            val surl = parts.getOrElse(2) { "" }
-            val uk = parts.getOrElse(3) { "" }
-            val shareid = parts.getOrElse(4) { "" }
-            val fsid = parts.getOrElse(5) { "" }
+        val isTeraboxStream = data.contains("sharing/link") && data.contains("fsid=")
+        if (isTeraboxStream) {
+            val uri = java.net.URI(data)
+            val domain = uri.host ?: "www.1024tera.com"
+            val queryParams = uri.query?.split("&")?.associate {
+                val kv = it.split("=", limit = 2)
+                kv[0] to (kv.getOrElse(1) { "" })
+            } ?: emptyMap()
+            val surl = queryParams["surl"] ?: ""
+            val uk = queryParams["uk"] ?: ""
+            val shareid = queryParams["shareid"] ?: ""
+            val fsid = queryParams["fsid"] ?: ""
             println("TERABOX_STREAM: domain=$domain surl=$surl uk=$uk shareid=$shareid fsid=$fsid")
 
             try {
@@ -373,32 +378,6 @@ class TeraboxVirals : MainAPI() {
             } catch (e: Exception) {
                 println("Extractor fallback error: ${e.message}")
             }
-            return true
-        }
-
-        if (data.startsWith("TERABOX_DLINK|")) {
-            val parts = data.split("|")
-            val dlink = parts[1]
-            val domain = parts.getOrElse(2) { "www.terabox.com" }
-            callback.invoke(
-                newExtractorLink("Terabox", "Terabox", dlink, INFER_TYPE) {
-                    this.headers = mapOf(
-                        "User-Agent" to userAgent,
-                        "Referer" to "https://$domain/",
-                        "Cookie" to "browserid=1; lang=en"
-                    )
-                }
-            )
-            return true
-        }
-
-        if (data.startsWith("TERABOX_LINK|")) {
-            val parts = data.split("|")
-            val teraboxUrl = parts[1]
-            val domain = parts.getOrElse(2) { "www.terabox.com" }
-            try {
-                Terabox().getUrl(teraboxUrl, "https://$domain/", subtitleCallback, callback)
-            } catch (_: Exception) {}
             return true
         }
 
