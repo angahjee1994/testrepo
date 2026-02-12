@@ -18,5 +18,5 @@ cloudstream {
     authors = listOf("botol")
     status = 3
     tvTypes = listOf("NSFW")
-    iconUrl = "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/Hot51/logo.png"
+    iconUrl = "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/TeraboxVirals/logo.png"
 }

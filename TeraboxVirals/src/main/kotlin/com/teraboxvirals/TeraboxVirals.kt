@@ -212,7 +212,7 @@ class TeraboxVirals : MainAPI() {
             ?: document.selectFirst(".published")?.text()?.trim()
 
         val fullPlot = buildString {
-            if (!displayDate.isNullOrEmpty()) append("📅 Released: $displayDate\n\n")
+            if (!displayDate.isNullOrEmpty()) append("Released: $displayDate\n\n")
             if (!metaDesc.isNullOrEmpty()) append(metaDesc)
         }.trim().ifEmpty { null }
 
