@@ -479,34 +479,11 @@ class TeraboxVirals : MainAPI() {
             val directUrl = getMediafireDirectUrl(mediafirePageUrl)
             android.util.Log.d("TeraboxVirals", "MF directUrl=$directUrl")
             if (directUrl == null) return false
-            val entries = readZipCentralDirectory(directUrl)
-            android.util.Log.d("TeraboxVirals", "MF entries=${entries?.size}")
-            if (entries == null) return false
 
-            val videoEntries = entries.filter { entry ->
-                val ext = entry.fileName.substringAfterLast(".", "").lowercase()
-                videoExtensions.contains(ext) && !entry.fileName.startsWith("__MACOSX") && !entry.fileName.startsWith(".")
-            }
-            if (videoEntries.isEmpty()) return false
-
-            val normalizedTarget = normalizeFilename(targetFileName)
-            val targetEntry = videoEntries.firstOrNull {
-                normalizeFilename(it.fileName) == normalizedTarget
-            } ?: videoEntries.firstOrNull {
-                normalizeFilename(it.fileName).contains(normalizedTarget) || normalizedTarget.contains(normalizeFilename(it.fileName))
-            } ?: videoEntries.firstOrNull {
-                val targetBase = normalizeFilename(targetFileName.substringBeforeLast("."))
-                val entryBase = normalizeFilename(it.fileName.substringBeforeLast("."))
-                targetBase.contains(entryBase) || entryBase.contains(targetBase)
-            } ?: videoEntries.first()
-
-            val cachedFile = downloadZipEntry(directUrl, targetEntry)
-            if (cachedFile != null && cachedFile.exists() && cachedFile.length() > 0) {
-                callback.invoke(
-                    newExtractorLink("MediaFire", "MediaFire", "file://${cachedFile.absolutePath}", INFER_TYPE)
-                )
-                return true
-            }
+            callback.invoke(
+                newExtractorLink("MediaFire", "MediaFire", directUrl, INFER_TYPE)
+            )
+            return true
         } catch (e: Exception) {
             android.util.Log.e("TeraboxVirals", "MF error: ${e.message}", e)
         }
