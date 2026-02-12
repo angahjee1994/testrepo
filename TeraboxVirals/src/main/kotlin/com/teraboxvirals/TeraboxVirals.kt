@@ -380,18 +380,12 @@ class TeraboxVirals : MainAPI() {
             val parts = data.split("|")
             val dlink = parts[1]
             val domain = parts.getOrElse(2) { "www.terabox.com" }
-            println("Playing dlink: $dlink")
             callback.invoke(
-                newExtractorLink(
-                    "Terabox",
-                    "Terabox",
-                    dlink,
-                    INFER_TYPE
-                ) {
+                newExtractorLink("Terabox", "Terabox", dlink, INFER_TYPE) {
                     this.headers = mapOf(
                         "User-Agent" to userAgent,
                         "Referer" to "https://$domain/",
-                        "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"
+                        "Cookie" to "browserid=1; lang=en"
                     )
                 }
             )
@@ -402,72 +396,44 @@ class TeraboxVirals : MainAPI() {
             val parts = data.split("|")
             val teraboxUrl = parts[1]
             val domain = parts.getOrElse(2) { "www.terabox.com" }
-            println("Extracting via Terabox extractor: $teraboxUrl")
             try {
                 Terabox().getUrl(teraboxUrl, "https://$domain/", subtitleCallback, callback)
-            } catch (e: Exception) {
-                println("Terabox extractor error: ${e.message}")
-            }
+            } catch (_: Exception) {}
             return true
         }
+
+        if (!data.startsWith("http")) return true
 
         val isTeraboxUrl = data.contains("terabox", ignoreCase = true) || data.contains("1024tera", ignoreCase = true)
-        val isDirectFile = data.contains("file/") || data.contains(".mp4") || data.contains(".m3u8") || data.contains("d.terabox")
         val isSharingPage = data.contains("/s/") || data.contains("sharing/link")
-
-        if (isTeraboxUrl && isDirectFile && !isSharingPage) {
-            val referer = if (data.contains("1024tera")) "https://www.1024tera.com/" else "https://www.terabox.com/"
-            callback.invoke(
-                newExtractorLink(
-                    "Terabox",
-                    "Terabox",
-                    data,
-                    INFER_TYPE
-                ) {
-                    this.headers = mapOf(
-                        "User-Agent" to userAgent,
-                        "Referer" to referer,
-                        "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"
-                    )
-                }
-            )
-            return true
-        }
 
         if (isTeraboxUrl && isSharingPage) {
             loadExtractor(data, subtitleCallback, callback)
             return true
         }
 
-        val document = app.get(data).document
-        val foundLinks = mutableSetOf<String>()
-
-        document.select(".dlbutton a").forEach { link ->
-            val href = link.attr("href")
-            if (href.isNotEmpty()) foundLinks.add(href)
+        if (isTeraboxUrl) {
+            callback.invoke(
+                newExtractorLink("Terabox", "Terabox", data, INFER_TYPE) {
+                    this.headers = mapOf(
+                        "User-Agent" to userAgent,
+                        "Referer" to if (data.contains("1024tera")) "https://www.1024tera.com/" else "https://www.terabox.com/",
+                        "Cookie" to "browserid=1; lang=en"
+                    )
+                }
+            )
+            return true
         }
 
-        document.select("a").forEach { link ->
-            val href = link.attr("href")
-            if (href.contains("terabox", ignoreCase = true) || href.contains("1024tera", ignoreCase = true)) {
-                foundLinks.add(href)
+        try {
+            val document = app.get(data).document
+            document.select("a").forEach { link ->
+                val href = link.attr("href")
+                if (href.contains("terabox", ignoreCase = true) || href.contains("1024tera", ignoreCase = true)) {
+                    loadExtractor(href, subtitleCallback, callback)
+                }
             }
-        }
-
-        foundLinks.sortedByDescending {
-            it.contains("terabox", ignoreCase = true) || it.contains("1024tera", ignoreCase = true)
-        }.forEach { href ->
-            if (href.contains("terabox", ignoreCase = true) || href.contains("1024tera", ignoreCase = true)) {
-                loadExtractor(href, subtitleCallback, callback)
-            } else if (href.contains("downloadkatsini.com", ignoreCase = true)) {
-                try {
-                    val finalLink = app.get(href).document.selectFirst("a[href*=terabox], a[href*=1024tera]")?.attr("href")
-                    if (!finalLink.isNullOrEmpty()) {
-                        loadExtractor(finalLink, subtitleCallback, callback)
-                    }
-                } catch (e: Exception) {}
-            }
-        }
+        } catch (_: Exception) {}
 
         return true
     }
