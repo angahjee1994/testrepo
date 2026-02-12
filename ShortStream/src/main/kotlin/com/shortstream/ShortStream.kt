@@ -94,9 +94,7 @@ class ShortStream : MainAPI() {
         val pic: String?
     )
     
-    // ... (rest of logic)
-
-    // ... (data classes)
+    private val mapper = jacksonObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
         if (page > 1) return null
@@ -273,6 +271,21 @@ class ShortStream : MainAPI() {
             "Referer" to "https://rishort.com/"
         )
         
+        fun addLink(name: String, url: String) {
+            val type = if (url.contains(".m3u8")) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
+            callback.invoke(
+                ExtractorLink(
+                    source = "ShortStream",
+                    name = name,
+                    url = url,
+                    referer = "https://rishort.com/",
+                    quality = Qualities.Unknown.value,
+                    type = type,
+                    headers = headers
+                )
+            )
+        }
+
         if (style == "reelshort") {
              val playerUrl = "https://rishort.com/api/proxy/reelshort/play/$id?ep=$index&lang=id"
               try {
@@ -280,7 +293,7 @@ class ShortStream : MainAPI() {
                 val response = mapper.readValue<ReelShortPlayerResponse>(responseText)
                 val url = response.video_url
                 if (!url.isNullOrEmpty()) {
-                     callback.invoke(newExtractorLink("ShortStream", "ShortStream", url, ExtractorLinkType.M3U8) { this.headers = headers })
+                     addLink("ReelShort", url)
                 }
             } catch (e: Exception) { e.printStackTrace() }
             return true
@@ -300,7 +313,7 @@ class ShortStream : MainAPI() {
             // Collect main video
             val mainUrl = d?.videoUrl ?: d?.hls_url ?: d?.m3u8_url
             if (!mainUrl.isNullOrEmpty()) {
-                callback.invoke(newExtractorLink("ShortStream", "ShortStream", mainUrl, ExtractorLinkType.M3U8) { this.headers = headers })
+                addLink("ShortStream", mainUrl)
             }
             
             // Collect qualities if available
@@ -311,7 +324,7 @@ class ShortStream : MainAPI() {
                          val url = q["videoUrl"] as? String
                          val qual = q["quality"]?.toString() ?: "SD"
                          if (!url.isNullOrEmpty() && url != mainUrl) {
-                             callback.invoke(newExtractorLink("ShortStream", "ShortStream $qual", url, ExtractorLinkType.M3U8) { this.headers = headers })
+                             addLink("ShortStream $qual", url)
                          }
                      }
                  }
@@ -319,7 +332,7 @@ class ShortStream : MainAPI() {
                 for ((k, v) in qAny) {
                     val url = v as? String
                     if (!url.isNullOrEmpty() && url != mainUrl) {
-                        callback.invoke(newExtractorLink("ShortStream", "ShortStream $k", url, ExtractorLinkType.M3U8) { this.headers = headers })
+                        addLink("ShortStream $k", url)
                     }
                 }
             }
