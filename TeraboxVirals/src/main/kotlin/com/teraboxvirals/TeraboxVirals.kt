@@ -455,9 +455,10 @@ class TeraboxVirals : MainAPI() {
     }
 
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
-        android.util.Log.d("TeraboxVirals", "loadLinks data=$data")
-        if (data.startsWith("MF|")) {
-            val parts = data.split("|", limit = 4)
+        val cleanData = data.removePrefix("$mainUrl/").removePrefix(mainUrl)
+        android.util.Log.d("TeraboxVirals", "loadLinks data=$data cleanData=$cleanData")
+        if (cleanData.startsWith("MF|")) {
+            val parts = cleanData.split("|", limit = 4)
             if (parts.size >= 4) {
                 val mediafirePageUrl = parts[1]
                 val targetFileName = parts[2]
@@ -472,7 +473,7 @@ class TeraboxVirals : MainAPI() {
             }
         }
 
-        return loadTeraboxLinks(data, subtitleCallback, callback)
+        return loadTeraboxLinks(cleanData, subtitleCallback, callback)
     }
 
     private suspend fun tryMediafireZip(mediafirePageUrl: String, targetFileName: String, callback: (ExtractorLink) -> Unit): Boolean {
