@@ -474,20 +474,107 @@ class TeraboxVirals : MainAPI() {
         return loadTeraboxLinks(cleanData, subtitleCallback, callback)
     }
 
+    private var currentServer: SimpleWebServer? = null
+
     private suspend fun tryMediafireZip(mediafirePageUrl: String, targetFileName: String, callback: (ExtractorLink) -> Unit): Boolean {
         try {
             val directUrl = getMediafireDirectUrl(mediafirePageUrl)
             android.util.Log.d("TeraboxVirals", "MF directUrl=$directUrl")
             if (directUrl == null) return false
+            val entries = readZipCentralDirectory(directUrl)
+            android.util.Log.d("TeraboxVirals", "MF entries=${entries?.size}")
+            if (entries == null) return false
 
-            callback.invoke(
-                newExtractorLink("MediaFire", "MediaFire", directUrl, INFER_TYPE)
-            )
-            return true
+            val videoEntries = entries.filter { entry ->
+                val ext = entry.fileName.substringAfterLast(".", "").lowercase()
+                videoExtensions.contains(ext) && !entry.fileName.startsWith("__MACOSX") && !entry.fileName.startsWith(".")
+            }
+            if (videoEntries.isEmpty()) return false
+
+            val normalizedTarget = normalizeFilename(targetFileName)
+            val targetEntry = videoEntries.firstOrNull {
+                normalizeFilename(it.fileName) == normalizedTarget
+            } ?: videoEntries.firstOrNull {
+                normalizeFilename(it.fileName).contains(normalizedTarget) || normalizedTarget.contains(normalizeFilename(it.fileName))
+            } ?: videoEntries.firstOrNull {
+                val targetBase = normalizeFilename(targetFileName.substringBeforeLast("."))
+                val entryBase = normalizeFilename(it.fileName.substringBeforeLast("."))
+                targetBase.contains(entryBase) || entryBase.contains(targetBase)
+            } ?: videoEntries.first()
+
+            val cachedFile = downloadZipEntry(directUrl, targetEntry)
+            if (cachedFile != null && cachedFile.exists() && cachedFile.length() > 0) {
+                // Stop previous server if running
+                currentServer?.stopServer()
+                
+                // Start new server
+                val server = SimpleWebServer(cachedFile)
+                server.start()
+                currentServer = server
+                
+                // Give it a moment to bind
+                for (i in 0..10) {
+                    if (server.port > 0) break
+                    kotlinx.coroutines.delay(50)
+                }
+
+                if (server.port > 0) {
+                    val localUrl = "http://127.0.0.1:${server.port}/video.mp4"
+                    android.util.Log.d("TeraboxVirals", "Serving at $localUrl")
+                    callback.invoke(
+                        newExtractorLink("MediaFire", "MediaFire", localUrl, INFER_TYPE)
+                    )
+                    return true
+                }
+            }
         } catch (e: Exception) {
             android.util.Log.e("TeraboxVirals", "MF error: ${e.message}", e)
         }
         return false
+    }
+
+    class SimpleWebServer(private val file: java.io.File) : Thread() {
+        private var serverSocket: java.net.ServerSocket? = null
+        var port = 0
+
+        override fun run() {
+            try {
+                serverSocket = java.net.ServerSocket(0)
+                port = serverSocket?.localPort ?: 0
+                while (!isInterrupted) {
+                    val socket = serverSocket?.accept() ?: break
+                    handle(socket)
+                }
+            } catch (e: Exception) {
+                // Log or ignore
+            }
+        }
+
+        private fun handle(socket: java.net.Socket) {
+            kotlin.concurrent.thread {
+                try {
+                    socket.use {
+                        val out = it.getOutputStream()
+                        val input = it.getInputStream() // Just to consume, don't strictly need to parse
+                        
+                        // Basic 200 OK response
+                        val header = "HTTP/1.1 200 OK\r\n" +
+                                "Content-Type: video/mp4\r\n" +
+                                "Content-Length: ${file.length()}\r\n" +
+                                "Connection: close\r\n\r\n"
+                        out.write(header.toByteArray())
+                        file.inputStream().use { fileIn ->
+                            fileIn.copyTo(out)
+                        }
+                    }
+                } catch (e: Exception) {}
+            }
+        }
+
+        fun stopServer() {
+            interrupt()
+            try { serverSocket?.close() } catch (e: Exception) {}
+        }
     }
 
     private suspend fun loadTeraboxLinks(data: String, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
