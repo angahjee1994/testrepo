@@ -51,7 +51,8 @@ class ShortStream : MainAPI() {
     data class ChapterItem(
         val chapterId: String?,
         val chapterIndex: Int?,
-        val chapterName: String?
+        val chapterName: String?,
+        val cover: String? 
     )
 
     data class ChapterListResponse(
@@ -65,11 +66,17 @@ class ShortStream : MainAPI() {
 
     data class PlayerData(
         val videoUrl: String?,
-        val qualities: List<PlayerQuality>?
+        val hls_url: String?, // for ShortMax/Dramawave
+        val m3u8_url: String?, // for NetShort
+        val qualities: Any? // Can be List<PlayerQuality> or Map<String, String>
     )
 
     data class PlayerResponse(
         val data: PlayerData?
+    )
+
+    data class DetailResponse(
+        val data: DetailData?
     )
 
     data class DetailData(
@@ -82,19 +89,12 @@ class ShortStream : MainAPI() {
         val m3u8_url: String? // for NetShort
     )
 
-    data class ChapterItem(
-        val chapterId: String?,
-        val chapterIndex: Int?,
-        val chapterName: String?,
-        val cover: String? // Check if DramaBox has this
-    )
-
     data class ReelShortPlayerResponse(
         val video_url: String?,
         val pic: String?
     )
     
-    // ... (rest of data classes)
+    // ... (rest of logic)
 
     override suspend fun load(url: String): LoadResponse? {
         val cleanUrl = if (url.contains("shortstream://")) "shortstream://" + url.substringAfter("shortstream://") else url
@@ -178,7 +178,6 @@ class ShortStream : MainAPI() {
                         val idx = node.get("chapterIndex")?.asInt() ?: 0
                         val epNum = idx + 1 
                         val name = node.get("chapterName")?.asText() ?: "Episode $epNum"
-                        // Try to find image if available. DramaBox usually doesn't have it in list, but check.
                         val pic = node.get("cover")?.asText() ?: node.get("pic")?.asText()
                         
                         val epData = "$source|$bookId|$epNum|dramabox"
@@ -237,8 +236,6 @@ class ShortStream : MainAPI() {
              val playerUrl = "https://rishort.com/api/proxy/reelshort/play/$id?ep=$index&lang=id"
               try {
                 val responseText = app.get(playerUrl).text
-                // ReelShort returns direct root object, not wrapped in data?
-                // Content: {"duration":210,"episode":1,"pic":"...","title":"...","video_url":"..."}
                 val response = mapper.readValue<ReelShortPlayerResponse>(responseText)
                 val url = response.video_url
                 if (!url.isNullOrEmpty()) {
