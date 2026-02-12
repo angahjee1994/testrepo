@@ -281,64 +281,81 @@ class TeraboxVirals : MainAPI() {
             val fsid = parts.getOrElse(5) { "" }
             println("TERABOX_STREAM: domain=$domain surl=$surl uk=$uk shareid=$shareid fsid=$fsid")
 
-            var headers = mapOf(
-                "User-Agent" to userAgent,
-                "Referer" to "https://$domain/",
-                "Cookie" to "browserid=1; lang=en; ndus=YAAAAAA"
-            )
-
             try {
+                val initHeaders = mapOf(
+                    "User-Agent" to userAgent,
+                    "Referer" to "https://$domain/",
+                    "Cookie" to "browserid=1; lang=en"
+                )
+
+                var sharePageResponse: com.lagradost.nicehttp.NiceResponse? = null
                 val sharePageUrl = "https://$domain/sharing/link?surl=$surl"
-                var pageRes: String? = null
                 for (attempt in 1..3) {
-                    val res = app.get(sharePageUrl, headers = headers).text
-                    if (res.contains("need verify")) {
-                        println("Got 'need verify', retrying ($attempt/3)...")
+                    val res = app.get(sharePageUrl, headers = initHeaders)
+                    if (res.text.contains("need verify")) {
+                        println("Share page 'need verify', retry $attempt/3...")
                         continue
                     }
-                    pageRes = res
+                    sharePageResponse = res
                     break
                 }
-                if (pageRes == null) pageRes = app.get(sharePageUrl, headers = headers).text
+                if (sharePageResponse == null) sharePageResponse = app.get(sharePageUrl, headers = initHeaders)
 
-                // Try to extract tokens from HTML
-                var sign = Regex("\"sign\":\"(.*?)\"").find(pageRes)?.groupValues?.get(1)
-                    ?: Regex("sign=([a-zA-Z0-9]+)").find(pageRes)?.groupValues?.get(1)
-                var timestamp = Regex("\"timestamp\":(\\d+)").find(pageRes)?.groupValues?.get(1)
-                    ?: Regex("timestamp=(\\d+)").find(pageRes)?.groupValues?.get(1)
+                val pageRes = sharePageResponse.text
+                val responseCookies = sharePageResponse.headers.filter { it.first.equals("set-cookie", ignoreCase = true) }
+                    .map { it.second.substringBefore(";") }
+                val cookieMap = mutableMapOf("lang" to "en")
+                responseCookies.forEach { cookie ->
+                    val kv = cookie.split("=", limit = 2)
+                    if (kv.size == 2) cookieMap[kv[0].trim()] = kv[1].trim()
+                }
+
                 val jsToken = Regex("fn%28%22(.*?)%22%29").find(pageRes)?.groupValues?.get(1)
                     ?: Regex("fn\\(\"(.*?)\"\\)").find(pageRes)?.groupValues?.get(1)
                     ?: Regex("\"jsToken\":\\s*\"(.*?)\"").find(pageRes)?.groupValues?.get(1)
-                    ?: Regex("jsToken.*?=.*?\"(.*?)\"").find(pageRes)?.groupValues?.get(1)
 
-                println("Page tokens: sign=$sign timestamp=$timestamp jsToken=${jsToken?.take(10)}")
+                if (jsToken != null) cookieMap["ndus"] = jsToken
 
-                // Update headers with jsToken if found
-                if (jsToken != null) {
-                    headers = headers + ("Cookie" to "browserid=1; lang=en; ndus=$jsToken")
-                }
+                val cookieString = cookieMap.entries.joinToString("; ") { "${it.key}=${it.value}" }
+                val headers = mapOf(
+                    "User-Agent" to userAgent,
+                    "Referer" to "https://$domain/",
+                    "Cookie" to cookieString
+                )
 
-                // If sign/timestamp missing, try fetching from API
-                if (sign == null || timestamp == null) {
-                    println("Sign/Timestamp missing, fetching /api/shorturlinfo...")
-                    val infoUrl = "https://$domain/api/shorturlinfo?shorturl=1$surl&root=1"
+                println("Cookies: $cookieString")
+                println("jsToken: ${jsToken?.take(20)}")
+
+                var sign: String? = null
+                var timestamp: String? = null
+
+                val infoUrl = "https://$domain/api/shorturlinfo?shorturl=1$surl&root=1"
+                for (attempt in 1..3) {
                     try {
                         val infoRes = app.get(infoUrl, headers = headers).text
-                        println("Info API response: ${infoRes.take(100)}")
+                        println("Info API ($attempt): ${infoRes.take(200)}")
+                        if (infoRes.contains("need verify")) {
+                            println("Info API 'need verify', retry $attempt/3...")
+                            continue
+                        }
                         sign = Regex("\"sign\":\"(.*?)\"").find(infoRes)?.groupValues?.get(1)
                         timestamp = Regex("\"timestamp\":(\\d+)").find(infoRes)?.groupValues?.get(1)
+                        if (sign != null && timestamp != null) break
                     } catch (e: Exception) {
-                        println("Info API failed: ${e.message}")
+                        println("Info API error ($attempt): ${e.message}")
                     }
                 }
 
+                println("Final tokens: sign=$sign timestamp=$timestamp")
+
                 if (sign != null && timestamp != null) {
-                    val streamTypes = listOf("M3U8_AUTO_480", "M3U8_AUTO_720", "M3U8_FLV_264_480")
+                    val streamTypes = listOf("M3U8_AUTO_480", "M3U8_AUTO_720")
                     for (streamType in streamTypes) {
-                        val streamUrl = "https://$domain/share/streaming?shorturl=$surl&shareid=$shareid&uk=$uk&fid=$fsid&type=$streamType&sign=$sign&timestamp=$timestamp&channel=dubox&clienttype=0&web=1&app_id=250528&jsToken=${jsToken ?: ""}"
+                        val streamUrl = "https://$domain/share/streaming?shorturl=$surl&shareid=$shareid&uk=$uk&fid=$fsid&type=$streamType&sign=$sign&timestamp=$timestamp&channel=dubox&clienttype=0&web=1&app_id=250528"
                         try {
                             val streamRes = app.get(streamUrl, headers = headers).text
-                            println("Stream response ($streamType): ${streamRes.take(200)}")
+                            println("Stream ($streamType): ${streamRes.take(200)}")
+                            if (streamRes.contains("need verify") || streamRes.contains("\"errno\":400141")) continue
                             val m3u8Link = Regex("\"lurl\":\\s*\"(.*?)\"").find(streamRes)?.groupValues?.get(1)?.replace("\\/", "/")
                                 ?: Regex("\"mlink\":\\s*\"(.*?)\"").find(streamRes)?.groupValues?.get(1)?.replace("\\/", "/")
                                 ?: Regex("(https?://[^\"]+\\.m3u8[^\"]*)").find(streamRes)?.groupValues?.get(1)?.replace("\\/", "/")
@@ -357,21 +374,15 @@ class TeraboxVirals : MainAPI() {
                                 return true
                             }
                         } catch (e: Exception) {
-                            println("Stream attempt $streamType failed: ${e.message}")
+                            println("Stream $streamType error: ${e.message}")
                         }
                     }
                 }
 
-                val dlinkFromPage = Regex("\"dlink\":\"(.*?)\"").find(pageRes!!)?.groupValues?.get(1)?.replace("\\/", "/")
+                val dlinkFromPage = Regex("\"dlink\":\"(.*?)\"").find(pageRes)?.groupValues?.get(1)?.replace("\\/", "/")
                 if (dlinkFromPage != null) {
-                    println("Found dlink from page: $dlinkFromPage")
                     callback.invoke(
-                        newExtractorLink(
-                            "Terabox",
-                            "Terabox",
-                            dlinkFromPage,
-                            INFER_TYPE
-                        ) {
+                        newExtractorLink("Terabox", "Terabox", dlinkFromPage, INFER_TYPE) {
                             this.headers = headers
                         }
                     )
