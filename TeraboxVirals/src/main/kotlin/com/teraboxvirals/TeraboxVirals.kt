@@ -439,7 +439,7 @@ class TeraboxVirals : MainAPI() {
 
                         if (streamRes.trimStart().startsWith("#EXTM3U")) {
                             callback.invoke(
-                                newExtractorLink("Terabox", "Terabox $streamType", streamUrl, INFER_TYPE) {
+                                newExtractorLink("Terabox", "Terabox $streamType", streamUrl, ExtractorLinkType.M3U8) {
                                     this.headers = headers
                                 }
                             )
@@ -451,7 +451,7 @@ class TeraboxVirals : MainAPI() {
                             ?: Regex("(https?://[^\"]+\\.m3u8[^\"]*)").find(streamRes)?.groupValues?.get(1)?.replace("\\/", "/")
                         if (m3u8Link != null) {
                             callback.invoke(
-                                newExtractorLink("Terabox", "Terabox $streamType", m3u8Link, INFER_TYPE) {
+                                newExtractorLink("Terabox", "Terabox $streamType", m3u8Link, ExtractorLinkType.M3U8) {
                                     this.headers = headers
                                 }
                             )
