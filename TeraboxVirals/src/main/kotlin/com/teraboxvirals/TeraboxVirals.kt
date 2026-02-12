@@ -43,6 +43,24 @@ class TeraboxVirals : MainAPI() {
         return tbLink
     }
 
+    private suspend fun extractMediafireLink(doc: org.jsoup.nodes.Document): String? {
+        val directMf = doc.select("a").firstOrNull {
+            it.attr("href").contains("mediafire.com", ignoreCase = true)
+        }?.attr("href")
+        if (directMf != null) return directMf
+
+        val downloadPageUrl = doc.select("a").firstOrNull {
+            it.attr("href").contains("downloadkatsini.com", ignoreCase = true)
+        }?.attr("href") ?: return null
+
+        return try {
+            val downloadDoc = app.get(downloadPageUrl).document
+            downloadDoc.select("a").firstOrNull {
+                it.attr("href").contains("mediafire.com", ignoreCase = true)
+            }?.attr("href")
+        } catch (_: Exception) { null }
+    }
+
     private fun extractSurl(tbLink: String): String {
         val raw = if (tbLink.contains("surl=")) {
             tbLink.substringAfter("surl=").substringBefore("&")
@@ -56,8 +74,15 @@ class TeraboxVirals : MainAPI() {
         return if (tbLink.contains("1024tera")) "www.1024tera.com" else "www.terabox.com"
     }
 
+    private fun parseThumbFromChunk(chunk: String): String? {
+        val thumbs = Regex("\"thumbs\":\\s*\\{(.*?)\\}").find(chunk)?.groupValues?.get(1) ?: return null
+        return Regex("\"url3\":\\s*\"(.*?)\"").find(thumbs)?.groupValues?.get(1)?.replace("\\/", "/")
+            ?: Regex("\"url2\":\\s*\"(.*?)\"").find(thumbs)?.groupValues?.get(1)?.replace("\\/", "/")
+            ?: Regex("\"url1\":\\s*\"(.*?)\"").find(thumbs)?.groupValues?.get(1)?.replace("\\/", "/")
+            ?: Regex("\"icon\":\\s*\"(.*?)\"").find(thumbs)?.groupValues?.get(1)?.replace("\\/", "/")
+    }
+
     private suspend fun callListApi(surl: String, apiDomain: String, dirPath: String): String? {
-        val folderApiUrl = "https://$apiDomain/share/list?app_id=250528&shorturl=$surl&dir=${java.net.URLEncoder.encode(dirPath, "UTF-8")}&root=${if (dirPath == "/") "1" else "0"}&web=1&channel=dubox&clienttype=0"
         val browserId = buildString {
             val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
             repeat(48) { append(chars.random()) }
@@ -76,25 +101,21 @@ class TeraboxVirals : MainAPI() {
             "referer" to "https://$apiDomain/",
             "cookie" to "browserid=$browserId; lang=en"
         )
+        val root = if (dirPath == "/") "1" else "0"
+        val apiUrl = "https://$apiDomain/share/list?app_id=250528&web=1&channel=dubox&clienttype=0&shorturl=$surl&dir=${java.net.URLEncoder.encode(dirPath, "UTF-8")}&root=$root"
         for (attempt in 1..3) {
             try {
-                val res = app.get(folderApiUrl, headers = headers).text
-                if (res.contains("\"errno\":0") || res.contains("\"list\":[")) return res
+                val res = app.get(apiUrl, headers = headers).text
                 if (res.contains("need verify")) continue
-                return null
+                return res
             } catch (_: Exception) {}
         }
         return null
     }
 
-    private fun parseThumbFromChunk(chunk: String): String? {
-        return Regex("\"url3\":\\s*\"(.*?)\"").find(chunk)?.groupValues?.get(1)?.replace("\\/", "/")
-            ?: Regex("\"url2\":\\s*\"(.*?)\"").find(chunk)?.groupValues?.get(1)?.replace("\\/", "/")
-            ?: Regex("\"url1\":\\s*\"(.*?)\"").find(chunk)?.groupValues?.get(1)?.replace("\\/", "/")
-    }
-
-    private suspend fun fetchFotoPoster(surl: String, apiDomain: String, depthLimit: Int = 5): String? {
+    private suspend fun fetchFotoPoster(surl: String, apiDomain: String): String? {
         var fotoPoster: String? = null
+        val depthLimit = 3
 
         suspend fun scanForFoto(dirPath: String, depth: Int = 0) {
             if (depth > depthLimit || fotoPoster != null) return
@@ -116,20 +137,13 @@ class TeraboxVirals : MainAPI() {
                     val ext = filename.substringAfterLast(".", "").lowercase()
                     if (imageExtensions.contains(ext)) {
                         val thumb = parseThumbFromChunk(chunk)
-                        if (thumb != null) {
-                            fotoPoster = thumb
-                            println("Found Foto Poster: $thumb")
-                        }
+                        if (thumb != null) fotoPoster = thumb
                     }
                 }
             }
         }
 
-        try {
-            scanForFoto("/")
-        } catch (e: Exception) {
-            println("FotoPoster scan error: ${e.message}")
-        }
+        try { scanForFoto("/") } catch (_: Exception) {}
         return fotoPoster
     }
 
@@ -172,13 +186,31 @@ class TeraboxVirals : MainAPI() {
 
     override suspend fun load(url: String): LoadResponse? {
         val document = app.get(url).document
-        val title = document.selectFirst(".entry-title")?.text()?.trim() ?: "Video"
+        val title = document.selectFirst("meta[property=og:title]")?.attr("content")?.trim()?.takeIf { it.isNotEmpty() }
+            ?: document.selectFirst(".entry-title")?.text()?.trim()
+            ?: "Video"
         val tbLink = extractTeraboxLink(document)
+        val mediafireLink = extractMediafireLink(document)
         val isTerabox = !tbLink.isNullOrEmpty() && (tbLink.contains("terabox", ignoreCase = true) || tbLink.contains("1024tera", ignoreCase = true))
 
         var poster: String? = null
-        val plot = document.select(".post-body").text().trim()
-        val tags = document.select(".post-tag a").map { it.text() }
+        val metaDesc = document.selectFirst("meta[name=description]")?.attr("content")?.trim()
+            ?: document.selectFirst("meta[property=og:description]")?.attr("content")?.trim()
+        val tags = document.select(".post-labels a").map { it.text() }.filter { it.isNotEmpty() }.distinct()
+
+        val dateStr = document.selectFirst(".post-date.published")?.attr("datetime")
+            ?: document.selectFirst("time.published")?.attr("datetime")
+            ?: document.selectFirst(".published")?.attr("datetime")
+        val year = dateStr?.substringBefore("-")?.toIntOrNull()
+
+        val displayDate = document.selectFirst(".post-date.published")?.text()?.trim()
+            ?: document.selectFirst("time.published")?.text()?.trim()
+            ?: document.selectFirst(".published")?.text()?.trim()
+
+        val fullPlot = buildString {
+            if (!displayDate.isNullOrEmpty()) append("📅 Released: $displayDate\n\n")
+            if (!metaDesc.isNullOrEmpty()) append(metaDesc)
+        }.trim().ifEmpty { null }
 
         val episodes = mutableListOf<Episode>()
         if (isTerabox) {
@@ -215,10 +247,15 @@ class TeraboxVirals : MainAPI() {
                     } else {
                         val ext = filename.substringAfterLast(".", "").lowercase()
                         if (videoExtensions.contains(ext)) {
-                            val episodeUrl = "https://$apiDomain/sharing/link?surl=$surl&uk=${initialUk ?: ""}&shareid=${initialShareid ?: ""}&fsid=${fsid ?: ""}"
+                            val teraboxUrl = "https://$apiDomain/sharing/link?surl=$surl&uk=${initialUk ?: ""}&shareid=${initialShareid ?: ""}&fsid=${fsid ?: ""}"
+                            val episodeData = if (mediafireLink != null) {
+                                "MF|$mediafireLink|$filename|$teraboxUrl"
+                            } else {
+                                teraboxUrl
+                            }
                             if (poster == null && bestThumb != null) poster = bestThumb
                             episodes.add(
-                                newEpisode(episodeUrl) {
+                                newEpisode(episodeData) {
                                     this.name = filename
                                     this.episode = episodes.size + 1
                                     this.posterUrl = bestThumb ?: poster
@@ -229,32 +266,242 @@ class TeraboxVirals : MainAPI() {
                 }
             }
 
-            try {
-                scanForVideos("/")
-            } catch (e: Exception) {
-                println("Video scan error: ${e.message}")
-            }
+            try { scanForVideos("/") } catch (_: Exception) {}
         }
 
         if (episodes.isEmpty()) {
+            val episodeData = if (mediafireLink != null) {
+                "MF|$mediafireLink|$title|${tbLink ?: url}"
+            } else {
+                tbLink ?: url
+            }
             episodes.add(
-                newEpisode(url) {
+                newEpisode(episodeData) {
                     this.name = title
                     this.episode = 1
                     this.posterUrl = poster
-                    if (!tbLink.isNullOrEmpty()) this.data = tbLink
                 }
             )
         }
 
         return newTvSeriesLoadResponse(title, url, TvType.NSFW, episodes) {
             this.posterUrl = poster
-            this.plot = plot
+            this.plot = fullPlot
             this.tags = tags
+            this.year = year
         }
     }
 
+    private suspend fun getMediafireDirectUrl(mediafirePageUrl: String): String? {
+        try {
+            val pageHtml = app.get(mediafirePageUrl, headers = mapOf(
+                "user-agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+            )).text
+            return Regex("href=\"(https?://download[^\"]+)\"").find(pageHtml)?.groupValues?.get(1)
+                ?: Regex("(https?://download\\d+\\.mediafire\\.com/[^\"'\\s<>]+)").find(pageHtml)?.groupValues?.get(1)
+        } catch (_: Exception) {}
+        return null
+    }
+
+    private data class ZipEntry(
+        val fileName: String,
+        val compressionMethod: Int,
+        val compressedSize: Long,
+        val uncompressedSize: Long,
+        val localHeaderOffset: Long
+    )
+
+    private suspend fun readZipCentralDirectory(directUrl: String): List<ZipEntry>? {
+        try {
+            val headRes = app.head(directUrl, headers = mapOf(
+                "user-agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+            ))
+            val contentLength = headRes.size ?: headRes.headers["content-length"]?.toLongOrNull() ?: return null
+            val tailStart = maxOf(0L, contentLength - 65536)
+
+            val tailRes = app.get(directUrl, headers = mapOf(
+                "user-agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                "Range" to "bytes=$tailStart-${contentLength - 1}"
+            ))
+            val tailBytes = tailRes.body.bytes()
+
+            var eocdOffset = -1
+            for (i in tailBytes.size - 22 downTo 0) {
+                if (tailBytes[i] == 0x50.toByte() && tailBytes[i + 1] == 0x4B.toByte() &&
+                    tailBytes[i + 2] == 0x05.toByte() && tailBytes[i + 3] == 0x06.toByte()) {
+                    eocdOffset = i
+                    break
+                }
+            }
+            if (eocdOffset < 0) return null
+
+            val totalEntries = readUint16LE(tailBytes, eocdOffset + 10)
+            val centralDirSize = readUint32LE(tailBytes, eocdOffset + 12)
+            val centralDirOffset = readUint32LE(tailBytes, eocdOffset + 16)
+
+            val cdStartInTail = (centralDirOffset - tailStart).toInt()
+            val cdBytes: ByteArray
+            if (cdStartInTail >= 0 && cdStartInTail + centralDirSize.toInt() <= tailBytes.size) {
+                cdBytes = tailBytes.copyOfRange(cdStartInTail, cdStartInTail + centralDirSize.toInt())
+            } else {
+                val cdRes = app.get(directUrl, headers = mapOf(
+                    "user-agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                    "Range" to "bytes=$centralDirOffset-${centralDirOffset + centralDirSize - 1}"
+                ))
+                cdBytes = cdRes.body.bytes()
+            }
+
+            val entries = mutableListOf<ZipEntry>()
+            var pos = 0
+            for (i in 0 until totalEntries) {
+                if (pos + 46 > cdBytes.size) break
+                val sig = readUint32LE(cdBytes, pos)
+                if (sig != 0x02014B50L) break
+
+                val compressionMethod = readUint16LE(cdBytes, pos + 10)
+                val compressedSize = readUint32LE(cdBytes, pos + 20)
+                val uncompressedSize = readUint32LE(cdBytes, pos + 24)
+                val nameLength = readUint16LE(cdBytes, pos + 28)
+                val extraLength = readUint16LE(cdBytes, pos + 30)
+                val commentLength = readUint16LE(cdBytes, pos + 32)
+                val localHeaderOffset = readUint32LE(cdBytes, pos + 42)
+
+                val fileName = String(cdBytes, pos + 46, nameLength, Charsets.UTF_8)
+                entries.add(ZipEntry(fileName, compressionMethod, compressedSize, uncompressedSize, localHeaderOffset))
+                pos += 46 + nameLength + extraLength + commentLength
+            }
+            return entries
+        } catch (_: Exception) {}
+        return null
+    }
+
+    private fun readUint16LE(data: ByteArray, offset: Int): Int {
+        return (data[offset].toInt() and 0xFF) or ((data[offset + 1].toInt() and 0xFF) shl 8)
+    }
+
+    private fun readUint32LE(data: ByteArray, offset: Int): Long {
+        return (data[offset].toLong() and 0xFF) or
+                ((data[offset + 1].toLong() and 0xFF) shl 8) or
+                ((data[offset + 2].toLong() and 0xFF) shl 16) or
+                ((data[offset + 3].toLong() and 0xFF) shl 24)
+    }
+
+    private suspend fun downloadZipEntry(directUrl: String, entry: ZipEntry): java.io.File? {
+        try {
+            val localHeaderRes = app.get(directUrl, headers = mapOf(
+                "user-agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                "Range" to "bytes=${entry.localHeaderOffset}-${entry.localHeaderOffset + 29}"
+            ))
+            val headerBytes = localHeaderRes.body.bytes()
+            if (headerBytes.size < 30) return null
+
+            val nameLen = readUint16LE(headerBytes, 26)
+            val extraLen = readUint16LE(headerBytes, 28)
+            val dataOffset = entry.localHeaderOffset + 30 + nameLen + extraLen
+            val dataEnd = dataOffset + entry.compressedSize - 1
+
+            val dataRes = app.get(directUrl, headers = mapOf(
+                "user-agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                "Range" to "bytes=$dataOffset-$dataEnd"
+            ))
+            val compressedData = dataRes.body.bytes()
+
+            val cacheDir = java.io.File(
+                com.lagradost.cloudstream3.AcraApplication.context?.cacheDir ?: java.io.File(System.getProperty("java.io.tmpdir") ?: "/tmp"),
+                "terabox_cache"
+            )
+            cacheDir.mkdirs()
+            cleanOldCache(cacheDir, 2 * 60 * 60 * 1000L)
+
+            val safeFileName = entry.fileName.replace(Regex("[^a-zA-Z0-9._()-]"), "_")
+            val outFile = java.io.File(cacheDir, safeFileName)
+
+            if (entry.compressionMethod == 0) {
+                outFile.writeBytes(compressedData)
+            } else {
+                val inflater = java.util.zip.Inflater(true)
+                inflater.setInput(compressedData)
+                val buffer = ByteArray(8192)
+                outFile.outputStream().use { fos ->
+                    while (!inflater.finished()) {
+                        val count = inflater.inflate(buffer)
+                        if (count > 0) fos.write(buffer, 0, count)
+                    }
+                }
+                inflater.end()
+            }
+            return outFile
+        } catch (_: Exception) {}
+        return null
+    }
+
+    private fun cleanOldCache(cacheDir: java.io.File, maxAgeMs: Long) {
+        val now = System.currentTimeMillis()
+        cacheDir.listFiles()?.forEach { file ->
+            if (now - file.lastModified() > maxAgeMs) {
+                file.delete()
+            }
+        }
+    }
+
+    private fun normalizeFilename(name: String): String {
+        return name.lowercase()
+            .replace(Regex("\\s+"), "")
+            .replace(Regex("[^a-z0-9]"), "")
+    }
+
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
+        if (data.startsWith("MF|")) {
+            val parts = data.split("|", limit = 4)
+            if (parts.size >= 4) {
+                val mediafirePageUrl = parts[1]
+                val targetFileName = parts[2]
+                val teraboxFallbackUrl = parts[3]
+
+                val mediafireSuccess = tryMediafireZip(mediafirePageUrl, targetFileName, callback)
+                if (mediafireSuccess) return true
+
+                return loadTeraboxLinks(teraboxFallbackUrl, subtitleCallback, callback)
+            }
+        }
+
+        return loadTeraboxLinks(data, subtitleCallback, callback)
+    }
+
+    private suspend fun tryMediafireZip(mediafirePageUrl: String, targetFileName: String, callback: (ExtractorLink) -> Unit): Boolean {
+        try {
+            val directUrl = getMediafireDirectUrl(mediafirePageUrl) ?: return false
+            val entries = readZipCentralDirectory(directUrl) ?: return false
+
+            val videoEntries = entries.filter { entry ->
+                val ext = entry.fileName.substringAfterLast(".", "").lowercase()
+                videoExtensions.contains(ext) && !entry.fileName.startsWith("__MACOSX") && !entry.fileName.startsWith(".")
+            }
+            if (videoEntries.isEmpty()) return false
+
+            val normalizedTarget = normalizeFilename(targetFileName)
+            val targetEntry = videoEntries.firstOrNull {
+                normalizeFilename(it.fileName) == normalizedTarget
+            } ?: videoEntries.firstOrNull {
+                normalizeFilename(it.fileName).contains(normalizedTarget) || normalizedTarget.contains(normalizeFilename(it.fileName))
+            } ?: videoEntries.firstOrNull {
+                val targetBase = normalizeFilename(targetFileName.substringBeforeLast("."))
+                val entryBase = normalizeFilename(it.fileName.substringBeforeLast("."))
+                targetBase.contains(entryBase) || entryBase.contains(targetBase)
+            } ?: videoEntries.first()
+
+            val cachedFile = downloadZipEntry(directUrl, targetEntry)
+            if (cachedFile != null && cachedFile.exists() && cachedFile.length() > 0) {
+                callback.invoke(
+                    newExtractorLink("MediaFire", "MediaFire Full", "file://${cachedFile.absolutePath}", INFER_TYPE)
+                )
+                return true
+            }
+        } catch (_: Exception) {}
+        return false
+    }
+
+    private suspend fun loadTeraboxLinks(data: String, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
         val isTeraboxUrl = data.contains("terabox", ignoreCase = true) || data.contains("1024tera", ignoreCase = true)
         if (!data.startsWith("http") || !isTeraboxUrl) {
             if (data.startsWith("http")) {
@@ -429,37 +676,6 @@ class TeraboxVirals : MainAPI() {
             }
 
             if (sign != null && timestamp != null) {
-                val sekey = java.net.URLDecoder.decode(randsk, "UTF-8")
-                val downloadUrl = "https://$domain/share/download?app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken ?: ""}"
-                try {
-                    val downloadBody = mapOf(
-                        "shareid" to shareid,
-                        "uk" to uk,
-                        "sign" to (sign ?: ""),
-                        "timestamp" to (timestamp ?: ""),
-                        "fid_list" to "[$fsid]",
-                        "extra" to "{\"sekey\":\"$sekey\"}",
-                        "primaryid" to shareid,
-                        "product" to "share"
-                    )
-                    val downloadRes = app.post(downloadUrl, headers = headers, data = downloadBody).text
-                    if (!downloadRes.contains("need verify") && !downloadRes.contains("\"errno\":400")) {
-                        val dlink = Regex("\"dlink\":\\s*\"(.*?)\"").find(downloadRes)?.groupValues?.get(1)?.replace("\\/", "/")
-                        if (dlink != null && dlink.isNotEmpty()) {
-                            callback.invoke(
-                                newExtractorLink("Terabox", "Terabox Download", dlink, INFER_TYPE) {
-                                    this.headers = mapOf(
-                                        "user-agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                                        "referer" to "https://$domain/",
-                                        "cookie" to cookieString
-                                    )
-                                }
-                            )
-                            return true
-                        }
-                    }
-                } catch (_: Exception) {}
-
                 val streamTypes = listOf("M3U8_AUTO_480", "M3U8_AUTO_720", "M3U8_AUTO_240", "M3U8_FLV_264_480")
                 for (streamType in streamTypes) {
                     val streamUrl = "https://$domain/share/streaming?uk=$uk&shareid=$shareid&type=$streamType&fid=$fsid&sign=$sign&timestamp=$timestamp&app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken ?: ""}"
