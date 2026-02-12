@@ -97,9 +97,15 @@ class ShortStream : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse? {
-        if (!url.startsWith("shortstream://")) return null
+        val cleanUrl = if (url.contains("shortstream://")) {
+             "shortstream://" + url.substringAfter("shortstream://")
+        } else {
+             url
+        }
         
-        val base64Data = url.removePrefix("shortstream://")
+        if (!cleanUrl.startsWith("shortstream://")) return null
+        
+        val base64Data = cleanUrl.removePrefix("shortstream://")
         val json = String(Base64.decode(base64Data, Base64.DEFAULT))
         val item = mapper.readValue<TukucoinItem>(json)
         
