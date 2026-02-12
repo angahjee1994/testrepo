@@ -265,6 +265,7 @@ class ShortStream : MainAPI() {
         }
     }
 
+    @Suppress("DEPRECATION")
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
         val parts = data.split("|")
         if (parts.size < 4) return false
@@ -279,18 +280,18 @@ class ShortStream : MainAPI() {
             "Referer" to "https://rishort.com/"
         )
         
-        fun addLink(name: String, url: String) {
+        suspend fun addLink(name: String, url: String) {
             val type = if (url.contains(".m3u8")) ExtractorLinkType.M3U8 else INFER_TYPE
             callback.invoke(
-                ExtractorLink(
+                newExtractorLink(
                     source = "ShortStream",
                     name = name,
                     url = url,
-                    referer = "https://rishort.com/",
-                    quality = Qualities.Unknown.value,
-                    type = type,
-                    headers = headers
-                )
+                    type = type
+                ) {
+                    this.referer = "https://rishort.com/"
+                    this.headers = headers
+                }
             )
         }
 
