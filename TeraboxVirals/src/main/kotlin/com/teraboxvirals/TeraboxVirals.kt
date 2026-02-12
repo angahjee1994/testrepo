@@ -311,6 +311,20 @@ class TeraboxVirals : MainAPI() {
 
             if (jsToken != null) cookieMap["ndus"] = jsToken
 
+            val randsk = cookieMap["TSID"]?.let { java.net.URLEncoder.encode(it, "UTF-8") }
+                ?: cookieMap["randsk"]?.let { java.net.URLEncoder.encode(it, "UTF-8") }
+                ?: Regex("\"randsk\":\\s*\"(.*?)\"").find(pageRes)?.groupValues?.get(1)
+                ?: ""
+
+            if (uk.isEmpty()) uk = Regex("\"uk\":\\s*\"?(\\d+)\"?").find(pageRes)?.groupValues?.get(1) ?: ""
+            if (shareid.isEmpty()) {
+                shareid = Regex("\"shareid\":\\s*\"?(\\d+)\"?").find(pageRes)?.groupValues?.get(1)
+                    ?: Regex("\"share_id\":\\s*\"?(\\d+)\"?").find(pageRes)?.groupValues?.get(1) ?: ""
+            }
+
+            var sign = Regex("\"sign\":\\s*\"([a-f0-9]+)\"").find(pageRes)?.groupValues?.get(1)
+            var timestamp = Regex("\"timestamp\":\\s*(\\d+)").find(pageRes)?.groupValues?.get(1)
+
             val cookieString = cookieMap.entries.joinToString("; ") { "${it.key}=${it.value}" }
             val headers = mapOf(
                 "User-Agent" to userAgent,
@@ -319,10 +333,11 @@ class TeraboxVirals : MainAPI() {
             )
 
             if (fsid.isEmpty()) {
-                val listUrl = "https://$domain/share/list?app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken ?: ""}&shorturl=$surl&dir=%2F&root=1"
+                val listBaseParams = "app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken ?: ""}&shorturl=$surl&uk=$uk&shareid=$shareid"
+                val rootListUrl = "https://$domain/share/list?$listBaseParams&dir=%2F&root=1"
                 for (attempt in 1..3) {
                     try {
-                        val listRes = app.get(listUrl, headers = headers).text
+                        val listRes = app.get(rootListUrl, headers = headers).text
                         if (listRes.contains("need verify")) continue
                         if (uk.isEmpty()) uk = Regex("\"uk\":\\s*\"?(\\d+)\"?").find(listRes)?.groupValues?.get(1) ?: ""
                         if (shareid.isEmpty()) {
@@ -339,8 +354,8 @@ class TeraboxVirals : MainAPI() {
                                 val filename = Regex("\"server_filename\":\\s*\"(.*?)\"").find(chunk)?.groupValues?.get(1) ?: continue
                                 if (isDir == "1") {
                                     val itemPath = Regex("\"path\":\\s*\"(.*?)\"").find(chunk)?.groupValues?.get(1)?.replace("\\/", "/") ?: continue
-                                    val subUrl = "https://$domain/share/list?app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken ?: ""}&shorturl=$surl&dir=${java.net.URLEncoder.encode(itemPath, "UTF-8")}&root=0"
-                                    val subRes = app.get(subUrl, headers = headers).text
+                                    val subListUrl = "https://$domain/share/list?$listBaseParams&dir=${java.net.URLEncoder.encode(itemPath, "UTF-8")}&root=0&randsk=$randsk"
+                                    val subRes = app.get(subListUrl, headers = headers).text
                                     if (!subRes.contains("need verify")) {
                                         val found = findFirstVideo(subRes, depth + 1)
                                         if (found != null) return found
@@ -367,24 +382,23 @@ class TeraboxVirals : MainAPI() {
                 return true
             }
 
-            var sign: String? = null
-            var timestamp: String? = null
-
-            val infoUrl = "https://$domain/api/shorturlinfo?app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken ?: ""}&shorturl=1$surl&root=1"
-            for (attempt in 1..3) {
-                try {
-                    val infoRes = app.get(infoUrl, headers = headers).text
-                    if (infoRes.contains("need verify")) continue
-                    sign = Regex("\"sign\":\"(.*?)\"").find(infoRes)?.groupValues?.get(1)
-                    timestamp = Regex("\"timestamp\":(\\d+)").find(infoRes)?.groupValues?.get(1)
-                    if (uk.isEmpty()) uk = Regex("\"uk\":\\s*\"?(\\d+)\"?").find(infoRes)?.groupValues?.get(1) ?: ""
-                    if (shareid.isEmpty()) shareid = Regex("\"shareid\":\\s*\"?(\\d+)\"?").find(infoRes)?.groupValues?.get(1) ?: ""
-                    if (sign != null && timestamp != null) break
-                } catch (_: Exception) {}
+            if (sign == null || timestamp == null) {
+                val infoUrl = "https://$domain/api/shorturlinfo?app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken ?: ""}&shorturl=1$surl&root=1"
+                for (attempt in 1..3) {
+                    try {
+                        val infoRes = app.get(infoUrl, headers = headers).text
+                        if (infoRes.contains("need verify")) continue
+                        if (sign == null) sign = Regex("\"sign\":\"(.*?)\"").find(infoRes)?.groupValues?.get(1)
+                        if (timestamp == null) timestamp = Regex("\"timestamp\":(\\d+)").find(infoRes)?.groupValues?.get(1)
+                        if (uk.isEmpty()) uk = Regex("\"uk\":\\s*\"?(\\d+)\"?").find(infoRes)?.groupValues?.get(1) ?: ""
+                        if (shareid.isEmpty()) shareid = Regex("\"shareid\":\\s*\"?(\\d+)\"?").find(infoRes)?.groupValues?.get(1) ?: ""
+                        if (sign != null && timestamp != null) break
+                    } catch (_: Exception) {}
+                }
             }
 
             if (sign != null && timestamp != null) {
-                val streamTypes = listOf("M3U8_AUTO_480", "M3U8_AUTO_720")
+                val streamTypes = listOf("M3U8_AUTO_720", "M3U8_AUTO_480")
                 for (streamType in streamTypes) {
                     val streamUrl = "https://$domain/share/streaming?uk=$uk&shareid=$shareid&type=$streamType&fid=$fsid&sign=$sign&timestamp=$timestamp&app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken ?: ""}"
                     try {
