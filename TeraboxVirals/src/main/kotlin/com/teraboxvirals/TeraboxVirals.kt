@@ -493,7 +493,7 @@ class TeraboxVirals : MainAPI() {
             val cachedFile = downloadZipEntry(directUrl, targetEntry)
             if (cachedFile != null && cachedFile.exists() && cachedFile.length() > 0) {
                 callback.invoke(
-                    newExtractorLink("MediaFire", "MediaFire Full", "file://${cachedFile.absolutePath}", INFER_TYPE)
+                    newExtractorLink("MediaFire", "MediaFire", "file://${cachedFile.absolutePath}", INFER_TYPE)
                 )
                 return true
             }
@@ -686,7 +686,7 @@ class TeraboxVirals : MainAPI() {
 
                         if (streamRes.trimStart().startsWith("#EXTM3U")) {
                             callback.invoke(
-                                newExtractorLink("Terabox", "Terabox $streamType", streamUrl, ExtractorLinkType.M3U8) {
+                                newExtractorLink("Terabox", "Terabox", streamUrl, ExtractorLinkType.M3U8) {
                                     this.headers = headers
                                 }
                             )
@@ -698,7 +698,7 @@ class TeraboxVirals : MainAPI() {
                             ?: Regex("(https?://[^\"]+\\.m3u8[^\"]*)").find(streamRes)?.groupValues?.get(1)?.replace("\\/", "/")
                         if (m3u8Link != null) {
                             callback.invoke(
-                                newExtractorLink("Terabox", "Terabox $streamType", m3u8Link, ExtractorLinkType.M3U8) {
+                                newExtractorLink("Terabox", "Terabox", m3u8Link, ExtractorLinkType.M3U8) {
                                     this.headers = headers
                                 }
                             )
