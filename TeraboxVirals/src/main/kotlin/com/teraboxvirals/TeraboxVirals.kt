@@ -82,25 +82,7 @@ class TeraboxVirals : MainAPI() {
             ?: Regex("\"icon\":\\s*\"(.*?)\"").find(thumbs)?.groupValues?.get(1)?.replace("\\/", "/")
     }
 
-    private suspend fun callListApi(surl: String, apiDomain: String, dirPath: String): String? {
-        val browserId = buildString {
-            val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-            repeat(48) { append(chars.random()) }
-            append("=")
-        }
-        val headers = mapOf(
-            "accept" to "application/json, text/plain, */*",
-            "accept-language" to "en-US,en;q=0.9",
-            "user-agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-            "sec-ch-ua" to "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"",
-            "sec-ch-ua-mobile" to "?0",
-            "sec-ch-ua-platform" to "\"Windows\"",
-            "sec-fetch-dest" to "empty",
-            "sec-fetch-mode" to "cors",
-            "sec-fetch-site" to "same-origin",
-            "referer" to "https://$apiDomain/",
-            "cookie" to "browserid=$browserId; lang=en"
-        )
+    private suspend fun callListApi(surl: String, apiDomain: String, dirPath: String, headers: Map<String, String>): String? {
         val root = if (dirPath == "/") "1" else "0"
         val apiUrl = "https://$apiDomain/share/list?app_id=250528&web=1&channel=dubox&clienttype=0&shorturl=$surl&dir=${java.net.URLEncoder.encode(dirPath, "UTF-8")}&root=$root"
         for (attempt in 1..3) {
@@ -111,40 +93,6 @@ class TeraboxVirals : MainAPI() {
             } catch (_: Exception) {}
         }
         return null
-    }
-
-    private suspend fun fetchFotoPoster(surl: String, apiDomain: String): String? {
-        var fotoPoster: String? = null
-        val depthLimit = 3
-
-        suspend fun scanForFoto(dirPath: String, depth: Int = 0) {
-            if (depth > depthLimit || fotoPoster != null) return
-            val json = callListApi(surl, apiDomain, dirPath) ?: return
-
-            val isFotoFolder = dirPath.contains("Foto", ignoreCase = true)
-            val items = json.split("\"fs_id\":")
-            items.drop(1).forEach { chunk ->
-                if (fotoPoster != null) return@forEach
-                val isDir = Regex("\"isdir\":\\s*\"?(\\d+)\"?").find(chunk)?.groupValues?.get(1) ?: "0"
-                val filename = Regex("\"server_filename\":\\s*\"(.*?)\"").find(chunk)?.groupValues?.get(1) ?: return@forEach
-                val itemPath = Regex("\"path\":\\s*\"(.*?)\"").find(chunk)?.groupValues?.get(1)?.replace("\\/", "/")
-
-                if (isDir == "1") {
-                    if (!itemPath.isNullOrEmpty() && itemPath != dirPath) {
-                        scanForFoto(itemPath, depth + 1)
-                    }
-                } else if (isFotoFolder) {
-                    val ext = filename.substringAfterLast(".", "").lowercase()
-                    if (imageExtensions.contains(ext)) {
-                        val thumb = parseThumbFromChunk(chunk)
-                        if (thumb != null) fotoPoster = thumb
-                    }
-                }
-            }
-        }
-
-        try { scanForFoto("/") } catch (_: Exception) {}
-        return fotoPoster
     }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
@@ -223,11 +171,29 @@ class TeraboxVirals : MainAPI() {
             var initialUk: String? = null
             var initialShareid: String? = null
 
-            poster = fetchFotoPoster(surl, apiDomain)
+            // Consistent session for this load
+            val browserId = buildString {
+                val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+                repeat(48) { append(chars.random()) }
+                append("=")
+            }
+            val headers = mapOf(
+                "accept" to "application/json, text/plain, */*",
+                "accept-language" to "en-US,en;q=0.9",
+                "user-agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                "sec-ch-ua" to "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"",
+                "sec-ch-ua-mobile" to "?0",
+                "sec-ch-ua-platform" to "\"Windows\"",
+                "sec-fetch-dest" to "empty",
+                "sec-fetch-mode" to "cors",
+                "sec-fetch-site" to "same-origin",
+                "referer" to "https://$apiDomain/",
+                "cookie" to "browserid=$browserId; lang=en"
+            )
 
             suspend fun scanForVideos(dirPath: String, depth: Int = 0) {
                 if (depth > 5) return
-                val json = callListApi(surl, apiDomain, dirPath) ?: return
+                val json = callListApi(surl, apiDomain, dirPath, headers) ?: return
 
                 if (initialUk == null) {
                     initialUk = Regex("\"uk\":\\s*\"?(\\d+)\"?").find(json)?.groupValues?.get(1)?.takeIf { it != "0" }
@@ -265,12 +231,39 @@ class TeraboxVirals : MainAPI() {
                                     this.posterUrl = bestThumb ?: poster
                                 }
                             )
+                        } else if (imageExtensions.contains(ext) && poster == null) {
+                            // Check if in a 'Foto' folder, OR just use as poster if we have none yet
+                            if (dirPath.contains("Foto", ignoreCase = true) || bestThumb != null) {
+                                val thumb = parseThumbFromChunk(chunk)
+                                if (thumb != null) poster = thumb
+                            }
                         }
                     }
                 }
             }
 
             try { scanForVideos("/") } catch (_: Exception) {}
+        }
+
+        if (episodes.isEmpty() && mediafireLink != null) {
+            val directUrl = getMediafireDirectUrl(mediafireLink)
+            if (directUrl != null) {
+                val zipEntries = readZipCentralDirectory(directUrl)
+                zipEntries?.forEach { entry ->
+                    val ext = entry.fileName.substringAfterLast(".", "").lowercase()
+                    if (videoExtensions.contains(ext) && !entry.fileName.startsWith("__MACOSX") && !entry.fileName.startsWith(".")) {
+                        val filename = entry.fileName.substringAfterLast("/")
+                        val episodeData = "MF|$mediafireLink|$filename|${tbLink ?: url}"
+                        episodes.add(
+                            newEpisode(episodeData) {
+                                this.name = filename
+                                this.episode = episodes.size + 1
+                                this.posterUrl = poster // Use main post image
+                            }
+                        )
+                    }
+                }
+            }
         }
 
         if (episodes.isEmpty()) {
