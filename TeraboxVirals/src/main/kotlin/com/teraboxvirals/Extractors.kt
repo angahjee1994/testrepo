@@ -152,11 +152,22 @@ class Terabox : ExtractorApi() {
 
         if (foundDlinks.isEmpty() && sign != null && timestamp != null && foundVideoFsids.isNotEmpty()) {
             for (fsid in foundVideoFsids) {
-                for (streamType in listOf("M3U8_AUTO_720", "M3U8_AUTO_480")) {
+                for (streamType in listOf("M3U8_AUTO_480", "M3U8_AUTO_720", "M3U8_AUTO_240", "M3U8_FLV_264_480")) {
                     val streamUrl = "https://$domain/share/streaming?uk=$uk&shareid=$shareid&type=$streamType&fid=$fsid&sign=$sign&timestamp=$timestamp&app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken ?: ""}"
                     try {
                         val streamRes = app.get(streamUrl, headers = headers).text
                         if (streamRes.contains("need verify") || streamRes.contains("\"errno\":400141")) continue
+                        if (streamRes.contains("\"errno\"") && !streamRes.contains("\"errno\":0")) continue
+
+                        if (streamRes.trimStart().startsWith("#EXTM3U")) {
+                            callback.invoke(
+                                newExtractorLink(this.name, "$name $streamType", streamUrl, INFER_TYPE) {
+                                    this.headers = headers
+                                }
+                            )
+                            return
+                        }
+
                         val m3u8Link = Regex("\"lurl\":\\s*\"(.*?)\"").find(streamRes)?.groupValues?.get(1)?.replace("\\/", "/")
                             ?: Regex("\"mlink\":\\s*\"(.*?)\"").find(streamRes)?.groupValues?.get(1)?.replace("\\/", "/")
                             ?: Regex("(https?://[^\"]+\\.m3u8[^\"]*)").find(streamRes)?.groupValues?.get(1)?.replace("\\/", "/")
