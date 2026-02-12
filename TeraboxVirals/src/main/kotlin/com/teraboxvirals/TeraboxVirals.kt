@@ -196,7 +196,11 @@ class TeraboxVirals : MainAPI() {
         var poster: String? = null
         val metaDesc = document.selectFirst("meta[name=description]")?.attr("content")?.trim()
             ?: document.selectFirst("meta[property=og:description]")?.attr("content")?.trim()
-        val tags = document.select(".post-labels a").map { it.text() }.filter { it.isNotEmpty() }.distinct()
+        val tags = document.select("a[rel=tag]").map { it.text() }.filter { it.isNotEmpty() }.distinct()
+            .ifEmpty { document.select("a.label-link").map { it.text() }.filter { it.isNotEmpty() }.distinct() }
+            .ifEmpty {
+                document.select("a[href*=/search/label/]").map { it.text() }.filter { it.isNotEmpty() && it.length < 30 }.distinct()
+            }
 
         val dateStr = document.selectFirst(".post-date.published")?.attr("datetime")
             ?: document.selectFirst("time.published")?.attr("datetime")
@@ -451,6 +455,7 @@ class TeraboxVirals : MainAPI() {
     }
 
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
+        android.util.Log.d("TeraboxVirals", "loadLinks data=$data")
         if (data.startsWith("MF|")) {
             val parts = data.split("|", limit = 4)
             if (parts.size >= 4) {
@@ -458,7 +463,9 @@ class TeraboxVirals : MainAPI() {
                 val targetFileName = parts[2]
                 val teraboxFallbackUrl = parts[3]
 
+                android.util.Log.d("TeraboxVirals", "MF flow: mf=$mediafirePageUrl target=$targetFileName fallback=$teraboxFallbackUrl")
                 val mediafireSuccess = tryMediafireZip(mediafirePageUrl, targetFileName, callback)
+                android.util.Log.d("TeraboxVirals", "MF result=$mediafireSuccess")
                 if (mediafireSuccess) return true
 
                 return loadTeraboxLinks(teraboxFallbackUrl, subtitleCallback, callback)
@@ -470,8 +477,12 @@ class TeraboxVirals : MainAPI() {
 
     private suspend fun tryMediafireZip(mediafirePageUrl: String, targetFileName: String, callback: (ExtractorLink) -> Unit): Boolean {
         try {
-            val directUrl = getMediafireDirectUrl(mediafirePageUrl) ?: return false
-            val entries = readZipCentralDirectory(directUrl) ?: return false
+            val directUrl = getMediafireDirectUrl(mediafirePageUrl)
+            android.util.Log.d("TeraboxVirals", "MF directUrl=$directUrl")
+            if (directUrl == null) return false
+            val entries = readZipCentralDirectory(directUrl)
+            android.util.Log.d("TeraboxVirals", "MF entries=${entries?.size}")
+            if (entries == null) return false
 
             val videoEntries = entries.filter { entry ->
                 val ext = entry.fileName.substringAfterLast(".", "").lowercase()
@@ -497,7 +508,9 @@ class TeraboxVirals : MainAPI() {
                 )
                 return true
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            android.util.Log.e("TeraboxVirals", "MF error: ${e.message}", e)
+        }
         return false
     }
 
