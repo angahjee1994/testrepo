@@ -145,7 +145,12 @@ class ShortStream : MainAPI() {
         val item = mapper.readValue<TukucoinItem>(json)
         
         val episodes = mutableListOf<Episode>()
-        val source = item.source
+        val rawSource = item.source
+        val source = if (rawSource.startsWith("http")) {
+             rawSource.trimEnd('/').substringAfterLast('/')
+        } else {
+             rawSource
+        }
         val bookId = item.unique_id
         
         // Try Detail Endpoint first
