@@ -6,6 +6,8 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import android.util.Base64
 
+import com.fasterxml.jackson.databind.DeserializationFeature
+
 class ShortStream : MainAPI() {
     override var mainUrl = "https://cdn.tukucoin.my.id"
     override var name = "ShortStream"
@@ -46,7 +48,7 @@ class ShortStream : MainAPI() {
         val data: Map<String, List<TukucoinItem>>?
     )
     
-    private val mapper = jacksonObjectMapper()
+    private val mapper = jacksonObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
         if (page > 1) return null
