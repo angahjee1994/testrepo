@@ -247,172 +247,168 @@ class TeraboxVirals : MainAPI() {
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
         val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-        val isTeraboxStream = data.contains("sharing/link") && data.contains("fsid=")
-        if (isTeraboxStream) {
-            val uri = java.net.URI(data)
-            val domain = uri.host ?: "www.1024tera.com"
-            val queryParams = uri.query?.split("&")?.associate {
-                val kv = it.split("=", limit = 2)
-                kv[0] to (kv.getOrElse(1) { "" })
-            } ?: emptyMap()
-            val surl = queryParams["surl"] ?: ""
-            val uk = queryParams["uk"] ?: ""
-            val shareid = queryParams["shareid"] ?: ""
-            val fsid = queryParams["fsid"] ?: ""
-            println("TERABOX_STREAM: domain=$domain surl=$surl uk=$uk shareid=$shareid fsid=$fsid")
-
-            try {
-                val initHeaders = mapOf(
-                    "User-Agent" to userAgent,
-                    "Referer" to "https://$domain/",
-                    "Cookie" to "browserid=1; lang=en"
-                )
-
-                var sharePageResponse: com.lagradost.nicehttp.NiceResponse? = null
-                val sharePageUrl = "https://$domain/sharing/link?surl=$surl"
-                for (attempt in 1..3) {
-                    val res = app.get(sharePageUrl, headers = initHeaders)
-                    if (res.text.contains("need verify")) {
-                        println("Share page 'need verify', retry $attempt/3...")
-                        continue
-                    }
-                    sharePageResponse = res
-                    break
-                }
-                if (sharePageResponse == null) sharePageResponse = app.get(sharePageUrl, headers = initHeaders)
-
-                val pageRes = sharePageResponse.text
-                val responseCookies = sharePageResponse.headers.filter { it.first.equals("set-cookie", ignoreCase = true) }
-                    .map { it.second.substringBefore(";") }
-                val cookieMap = mutableMapOf("lang" to "en")
-                responseCookies.forEach { cookie ->
-                    val kv = cookie.split("=", limit = 2)
-                    if (kv.size == 2) cookieMap[kv[0].trim()] = kv[1].trim()
-                }
-
-                val jsToken = Regex("fn%28%22(.*?)%22%29").find(pageRes)?.groupValues?.get(1)
-                    ?: Regex("fn\\(\"(.*?)\"\\)").find(pageRes)?.groupValues?.get(1)
-                    ?: Regex("\"jsToken\":\\s*\"(.*?)\"").find(pageRes)?.groupValues?.get(1)
-
-                if (jsToken != null) cookieMap["ndus"] = jsToken
-
-                val cookieString = cookieMap.entries.joinToString("; ") { "${it.key}=${it.value}" }
-                val headers = mapOf(
-                    "User-Agent" to userAgent,
-                    "Referer" to "https://$domain/",
-                    "Cookie" to cookieString
-                )
-
-                println("Cookies: $cookieString")
-                println("jsToken: ${jsToken?.take(20)}")
-
-                var sign: String? = null
-                var timestamp: String? = null
-
-                val infoUrl = "https://$domain/api/shorturlinfo?shorturl=1$surl&root=1"
-                for (attempt in 1..3) {
-                    try {
-                        val infoRes = app.get(infoUrl, headers = headers).text
-                        println("Info API ($attempt): ${infoRes.take(200)}")
-                        if (infoRes.contains("need verify")) {
-                            println("Info API 'need verify', retry $attempt/3...")
-                            continue
-                        }
-                        sign = Regex("\"sign\":\"(.*?)\"").find(infoRes)?.groupValues?.get(1)
-                        timestamp = Regex("\"timestamp\":(\\d+)").find(infoRes)?.groupValues?.get(1)
-                        if (sign != null && timestamp != null) break
-                    } catch (e: Exception) {
-                        println("Info API error ($attempt): ${e.message}")
-                    }
-                }
-
-                println("Final tokens: sign=$sign timestamp=$timestamp")
-
-                if (sign != null && timestamp != null) {
-                    val streamTypes = listOf("M3U8_AUTO_480", "M3U8_AUTO_720")
-                    for (streamType in streamTypes) {
-                        val streamUrl = "https://$domain/share/streaming?shorturl=$surl&shareid=$shareid&uk=$uk&fid=$fsid&type=$streamType&sign=$sign&timestamp=$timestamp&channel=dubox&clienttype=0&web=1&app_id=250528"
-                        try {
-                            val streamRes = app.get(streamUrl, headers = headers).text
-                            println("Stream ($streamType): ${streamRes.take(200)}")
-                            if (streamRes.contains("need verify") || streamRes.contains("\"errno\":400141")) continue
-                            val m3u8Link = Regex("\"lurl\":\\s*\"(.*?)\"").find(streamRes)?.groupValues?.get(1)?.replace("\\/", "/")
-                                ?: Regex("\"mlink\":\\s*\"(.*?)\"").find(streamRes)?.groupValues?.get(1)?.replace("\\/", "/")
-                                ?: Regex("(https?://[^\"]+\\.m3u8[^\"]*)").find(streamRes)?.groupValues?.get(1)?.replace("\\/", "/")
-                            if (m3u8Link != null) {
-                                println("Found M3U8: $m3u8Link")
-                                callback.invoke(
-                                    newExtractorLink(
-                                        "Terabox",
-                                        "Terabox $streamType",
-                                        m3u8Link,
-                                        INFER_TYPE
-                                    ) {
-                                        this.headers = headers
-                                    }
-                                )
-                                return true
-                            }
-                        } catch (e: Exception) {
-                            println("Stream $streamType error: ${e.message}")
-                        }
-                    }
-                }
-
-                val dlinkFromPage = Regex("\"dlink\":\"(.*?)\"").find(pageRes)?.groupValues?.get(1)?.replace("\\/", "/")
-                if (dlinkFromPage != null) {
-                    callback.invoke(
-                        newExtractorLink("Terabox", "Terabox", dlinkFromPage, INFER_TYPE) {
-                            this.headers = headers
-                        }
-                    )
-                    return true
-                }
-            } catch (e: Exception) {
-                println("TERABOX_STREAM error: ${e.message}")
-            }
-
-            println("Stream failed, falling back to extractor")
-            try {
-                Terabox().getUrl("https://$domain/s/1$surl", "https://$domain/", subtitleCallback, callback)
-            } catch (e: Exception) {
-                println("Extractor fallback error: ${e.message}")
-            }
-            return true
-        }
-
-        if (!data.startsWith("http")) return true
-
         val isTeraboxUrl = data.contains("terabox", ignoreCase = true) || data.contains("1024tera", ignoreCase = true)
-        val isSharingPage = data.contains("/s/") || data.contains("sharing/link")
-
-        if (isTeraboxUrl && isSharingPage) {
-            loadExtractor(data, subtitleCallback, callback)
+        if (!data.startsWith("http") || !isTeraboxUrl) {
+            if (data.startsWith("http")) {
+                try {
+                    val document = app.get(data).document
+                    document.select("a").forEach { link ->
+                        val href = link.attr("href")
+                        if (href.contains("terabox", ignoreCase = true) || href.contains("1024tera", ignoreCase = true)) {
+                            loadExtractor(href, subtitleCallback, callback)
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
             return true
         }
 
-        if (isTeraboxUrl) {
-            callback.invoke(
-                newExtractorLink("Terabox", "Terabox", data, INFER_TYPE) {
-                    this.headers = mapOf(
-                        "User-Agent" to userAgent,
-                        "Referer" to if (data.contains("1024tera")) "https://www.1024tera.com/" else "https://www.terabox.com/",
-                        "Cookie" to "browserid=1; lang=en"
-                    )
-                }
-            )
+        val domain = if (data.contains("1024tera")) "www.1024tera.com" else "www.terabox.com"
+        val surl = extractSurl(data)
+        if (surl.isEmpty()) {
+            try { loadExtractor(data, subtitleCallback, callback) } catch (_: Exception) {}
             return true
         }
+
+        val uri = try { java.net.URI(data) } catch (_: Exception) { null }
+        val queryParams = uri?.query?.split("&")?.associate {
+            val kv = it.split("=", limit = 2)
+            kv[0] to (kv.getOrElse(1) { "" })
+        } ?: emptyMap()
+        var fsid = queryParams["fsid"] ?: ""
+        var uk = queryParams["uk"] ?: ""
+        var shareid = queryParams["shareid"] ?: ""
 
         try {
-            val document = app.get(data).document
-            document.select("a").forEach { link ->
-                val href = link.attr("href")
-                if (href.contains("terabox", ignoreCase = true) || href.contains("1024tera", ignoreCase = true)) {
-                    loadExtractor(href, subtitleCallback, callback)
+            val initHeaders = mapOf(
+                "User-Agent" to userAgent,
+                "Referer" to "https://$domain/",
+                "Cookie" to "browserid=1; lang=en"
+            )
+
+            var sharePageResponse: com.lagradost.nicehttp.NiceResponse? = null
+            val sharePageUrl = "https://$domain/sharing/link?surl=$surl"
+            for (attempt in 1..3) {
+                val res = app.get(sharePageUrl, headers = initHeaders)
+                if (res.text.contains("need verify")) continue
+                sharePageResponse = res
+                break
+            }
+            if (sharePageResponse == null) sharePageResponse = app.get(sharePageUrl, headers = initHeaders)
+
+            val pageRes = sharePageResponse.text
+            val responseCookies = sharePageResponse.headers.filter { it.first.equals("set-cookie", ignoreCase = true) }
+                .map { it.second.substringBefore(";") }
+            val cookieMap = mutableMapOf("lang" to "en")
+            responseCookies.forEach { cookie ->
+                val kv = cookie.split("=", limit = 2)
+                if (kv.size == 2) cookieMap[kv[0].trim()] = kv[1].trim()
+            }
+
+            val jsToken = Regex("fn%28%22(.*?)%22%29").find(pageRes)?.groupValues?.get(1)
+                ?: Regex("fn\\(\"(.*?)\"\\)").find(pageRes)?.groupValues?.get(1)
+                ?: Regex("\"jsToken\":\\s*\"(.*?)\"").find(pageRes)?.groupValues?.get(1)
+
+            if (jsToken != null) cookieMap["ndus"] = jsToken
+
+            val cookieString = cookieMap.entries.joinToString("; ") { "${it.key}=${it.value}" }
+            val headers = mapOf(
+                "User-Agent" to userAgent,
+                "Referer" to "https://$domain/",
+                "Cookie" to cookieString
+            )
+
+            if (fsid.isEmpty()) {
+                val listUrl = "https://$domain/share/list?app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken ?: ""}&shorturl=$surl&dir=%2F&root=1"
+                for (attempt in 1..3) {
+                    try {
+                        val listRes = app.get(listUrl, headers = headers).text
+                        if (listRes.contains("need verify")) continue
+                        if (uk.isEmpty()) uk = Regex("\"uk\":\\s*\"?(\\d+)\"?").find(listRes)?.groupValues?.get(1) ?: ""
+                        if (shareid.isEmpty()) {
+                            shareid = Regex("\"share_id\":\\s*\"?(\\d+)\"?").find(listRes)?.groupValues?.get(1)
+                                ?: Regex("\"shareid\":\\s*\"?(\\d+)\"?").find(listRes)?.groupValues?.get(1) ?: ""
+                        }
+
+                        suspend fun findFirstVideo(json: String, depth: Int = 0): String? {
+                            if (depth > 3) return null
+                            val items = json.split("\"fs_id\":")
+                            for (chunk in items.drop(1)) {
+                                val itemFsid = Regex("^\\s*\"?(\\d+)\"?").find(chunk)?.groupValues?.get(1) ?: continue
+                                val isDir = Regex("\"isdir\":\\s*\"?(\\d+)\"?").find(chunk)?.groupValues?.get(1) ?: "0"
+                                val filename = Regex("\"server_filename\":\\s*\"(.*?)\"").find(chunk)?.groupValues?.get(1) ?: continue
+                                if (isDir == "1") {
+                                    val itemPath = Regex("\"path\":\\s*\"(.*?)\"").find(chunk)?.groupValues?.get(1)?.replace("\\/", "/") ?: continue
+                                    val subUrl = "https://$domain/share/list?app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken ?: ""}&shorturl=$surl&dir=${java.net.URLEncoder.encode(itemPath, "UTF-8")}&root=0"
+                                    val subRes = app.get(subUrl, headers = headers).text
+                                    if (!subRes.contains("need verify")) {
+                                        val found = findFirstVideo(subRes, depth + 1)
+                                        if (found != null) return found
+                                    }
+                                } else {
+                                    val ext = filename.substringAfterLast(".", "").lowercase()
+                                    if (videoExtensions.contains(ext)) return itemFsid
+                                }
+                            }
+                            return null
+                        }
+
+                        val foundFsid = findFirstVideo(listRes)
+                        if (foundFsid != null) {
+                            fsid = foundFsid
+                            break
+                        }
+                    } catch (_: Exception) {}
                 }
             }
-        } catch (_: Exception) {}
+
+            if (fsid.isEmpty()) {
+                try { loadExtractor("https://$domain/s/1$surl", "https://$domain/", subtitleCallback, callback) } catch (_: Exception) {}
+                return true
+            }
+
+            var sign: String? = null
+            var timestamp: String? = null
+
+            val infoUrl = "https://$domain/api/shorturlinfo?app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken ?: ""}&shorturl=1$surl&root=1"
+            for (attempt in 1..3) {
+                try {
+                    val infoRes = app.get(infoUrl, headers = headers).text
+                    if (infoRes.contains("need verify")) continue
+                    sign = Regex("\"sign\":\"(.*?)\"").find(infoRes)?.groupValues?.get(1)
+                    timestamp = Regex("\"timestamp\":(\\d+)").find(infoRes)?.groupValues?.get(1)
+                    if (uk.isEmpty()) uk = Regex("\"uk\":\\s*\"?(\\d+)\"?").find(infoRes)?.groupValues?.get(1) ?: ""
+                    if (shareid.isEmpty()) shareid = Regex("\"shareid\":\\s*\"?(\\d+)\"?").find(infoRes)?.groupValues?.get(1) ?: ""
+                    if (sign != null && timestamp != null) break
+                } catch (_: Exception) {}
+            }
+
+            if (sign != null && timestamp != null) {
+                val streamTypes = listOf("M3U8_AUTO_480", "M3U8_AUTO_720")
+                for (streamType in streamTypes) {
+                    val streamUrl = "https://$domain/share/streaming?uk=$uk&shareid=$shareid&type=$streamType&fid=$fsid&sign=$sign&timestamp=$timestamp&app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken ?: ""}"
+                    try {
+                        val streamRes = app.get(streamUrl, headers = headers).text
+                        if (streamRes.contains("need verify") || streamRes.contains("\"errno\":400141")) continue
+                        val m3u8Link = Regex("\"lurl\":\\s*\"(.*?)\"").find(streamRes)?.groupValues?.get(1)?.replace("\\/", "/")
+                            ?: Regex("\"mlink\":\\s*\"(.*?)\"").find(streamRes)?.groupValues?.get(1)?.replace("\\/", "/")
+                            ?: Regex("(https?://[^\"]+\\.m3u8[^\"]*)").find(streamRes)?.groupValues?.get(1)?.replace("\\/", "/")
+                        if (m3u8Link != null) {
+                            callback.invoke(
+                                newExtractorLink("Terabox", "Terabox $streamType", m3u8Link, INFER_TYPE) {
+                                    this.headers = headers
+                                }
+                            )
+                            return true
+                        }
+                    } catch (_: Exception) {}
+                }
+            }
+
+            try { Terabox().getUrl("https://$domain/s/1$surl", "https://$domain/", subtitleCallback, callback) } catch (_: Exception) {}
+        } catch (_: Exception) {
+            try { loadExtractor(data, subtitleCallback, callback) } catch (_: Exception) {}
+        }
 
         return true
     }
