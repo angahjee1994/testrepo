@@ -539,14 +539,14 @@ class TeraboxVirals : MainAPI() {
 
         override fun run() {
             try {
-                serverSocket = java.net.ServerSocket(0)
+                serverSocket = java.net.ServerSocket(0, 0, java.net.InetAddress.getByName("127.0.0.1"))
                 port = serverSocket?.localPort ?: 0
                 while (!isInterrupted) {
                     val socket = serverSocket?.accept() ?: break
                     handle(socket)
                 }
             } catch (e: Exception) {
-                // Log or ignore
+                android.util.Log.e("TeraboxVirals", "Server error: ${e.message}", e)
             }
         }
 
@@ -554,20 +554,57 @@ class TeraboxVirals : MainAPI() {
             kotlin.concurrent.thread {
                 try {
                     socket.use {
+                        val input = it.getInputStream()
                         val out = it.getOutputStream()
-                        val input = it.getInputStream() // Just to consume, don't strictly need to parse
-                        
-                        // Basic 200 OK response
-                        val header = "HTTP/1.1 200 OK\r\n" +
-                                "Content-Type: video/mp4\r\n" +
-                                "Content-Length: ${file.length()}\r\n" +
-                                "Connection: close\r\n\r\n"
-                        out.write(header.toByteArray())
+                        val reader = java.io.BufferedReader(java.io.InputStreamReader(input))
+                        val requestLine = reader.readLine()
+                        if (requestLine == null) return@use
+
+                        var rangeStart: Long = 0
+                        var rangeEnd: Long = file.length() - 1
+
+                        var line = reader.readLine()
+                        while (line != null && line.isNotEmpty()) {
+                            if (line.startsWith("Range:", true)) {
+                                val rangeVal = line.substringAfter("bytes=").trim()
+                                val parts = rangeVal.split("-")
+                                rangeStart = parts[0].toLongOrNull() ?: 0
+                                if (parts.size > 1 && parts[1].isNotEmpty()) {
+                                    rangeEnd = parts[1].toLongOrNull() ?: (file.length() - 1)
+                                }
+                            }
+                            line = reader.readLine()
+                        }
+
+                        if (rangeEnd >= file.length()) rangeEnd = file.length() - 1
+                        val contentLength = rangeEnd - rangeStart + 1
+
+                        val headers = StringBuilder()
+                        headers.append("HTTP/1.1 206 Partial Content\r\n")
+                        headers.append("Content-Type: video/mp4\r\n")
+                        headers.append("Content-Range: bytes $rangeStart-$rangeEnd/${file.length()}\r\n")
+                        headers.append("Content-Length: $contentLength\r\n")
+                        headers.append("Accept-Ranges: bytes\r\n")
+                        headers.append("Connection: close\r\n")
+                        headers.append("\r\n")
+
+                        out.write(headers.toString().toByteArray())
+
+                        val buffer = ByteArray(8192)
                         file.inputStream().use { fileIn ->
-                            fileIn.copyTo(out)
+                            fileIn.skip(rangeStart)
+                            var bytesLeft = contentLength
+                            while (bytesLeft > 0) {
+                                val read = fileIn.read(buffer, 0, minOf(buffer.size.toLong(), bytesLeft).toInt())
+                                if (read == -1) break
+                                out.write(buffer, 0, read)
+                                bytesLeft -= read
+                            }
                         }
                     }
-                } catch (e: Exception) {}
+                } catch (e: Exception) {
+                    // Broken pipe is expected when player closes connection
+                }
             }
         }
 
