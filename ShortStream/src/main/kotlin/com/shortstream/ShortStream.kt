@@ -96,6 +96,45 @@ class ShortStream : MainAPI() {
     
     // ... (rest of logic)
 
+    // ... (data classes)
+
+    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
+        if (page > 1) return null
+        val url = "$mainUrl/api/movies"
+        val response = mapper.readValue<TukucoinResponse>(app.get(url).text)
+        val providerKey = request.data
+        val items = response.data?.get(providerKey) ?: emptyList()
+        
+        val home = items.map { item ->
+            val cleanTitle = item.title
+            val poster = item.cover
+            val json = mapper.writeValueAsString(item)
+            val href = "shortstream://${Base64.encodeToString(json.toByteArray(), Base64.NO_WRAP)}"
+            newTvSeriesSearchResponse(cleanTitle, href, TvType.TvSeries) {
+                this.posterUrl = poster
+                this.quality = SearchQuality.HD
+            }
+        }
+        return newHomePageResponse(request.name, home)
+    }
+
+    override suspend fun search(query: String): List<SearchResponse> {
+        val url = "$mainUrl/api/movies"
+        val response = mapper.readValue<TukucoinResponse>(app.get(url).text)
+        val allItems = response.data?.flatMap { it.value } ?: emptyList()
+        
+        return allItems.filter { it.title.contains(query, ignoreCase = true) }
+            .map { item ->
+                val cleanTitle = item.title
+                val poster = item.cover
+                val json = mapper.writeValueAsString(item)
+                val href = "shortstream://${Base64.encodeToString(json.toByteArray(), Base64.NO_WRAP)}"
+                newTvSeriesSearchResponse(cleanTitle, href, TvType.TvSeries) {
+                    this.posterUrl = poster
+                }
+            }
+    }
+
     override suspend fun load(url: String): LoadResponse? {
         val cleanUrl = if (url.contains("shortstream://")) "shortstream://" + url.substringAfter("shortstream://") else url
         if (!cleanUrl.startsWith("shortstream://")) return null
@@ -265,7 +304,7 @@ class ShortStream : MainAPI() {
             // Collect qualities if available
             val qAny = d?.qualities
             if (qAny is List<*>) {
-                 qAny.forEach { q ->
+                 for (q in qAny) {
                      if (q is Map<*, *>) { 
                          val url = q["videoUrl"] as? String
                          val qual = q["quality"]?.toString() ?: "SD"
@@ -275,7 +314,7 @@ class ShortStream : MainAPI() {
                      }
                  }
             } else if (qAny is Map<*, *>) {
-                qAny.forEach { (k, v) ->
+                for ((k, v) in qAny) {
                     val url = v as? String
                     if (!url.isNullOrEmpty() && url != mainUrl) {
                         callback.invoke(newExtractorLink("ShortStream", "ShortStream $k", url, ExtractorLinkType.M3U8) { this.headers = headers })
