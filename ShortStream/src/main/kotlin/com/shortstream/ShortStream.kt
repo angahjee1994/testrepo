@@ -153,7 +153,9 @@ class ShortStream : MainAPI() {
         try {
             val detailUrl = "https://rishort.com/api/proxy/$source/detail/$bookId?lang=id"
             val detailRes = app.get(detailUrl).text
-            val detail = mapper.readValue<DetailResponse>(detailRes).data
+            val jsonNode = mapper.readTree(detailRes)
+            val dataNode = if (jsonNode.has("data")) jsonNode.get("data") else jsonNode
+            val detail = mapper.treeToValue(dataNode, DetailData::class.java)
             
             val eps = detail?.episodes
             
