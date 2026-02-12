@@ -270,7 +270,12 @@ class ShortStream : MainAPI() {
         val parts = data.split("|")
         if (parts.size < 4) return false
         
-        val source = parts[0]
+        val rawSource = parts[0]
+        val source = if (rawSource.startsWith("http")) {
+            rawSource.trimEnd('/').substringAfterLast('/')
+        } else {
+            rawSource
+        }
         val id = parts[1] // playletId or bookId
         val index = parts[2]
         val style = parts[3]
