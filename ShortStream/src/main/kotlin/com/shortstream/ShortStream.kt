@@ -106,10 +106,19 @@ class ShortStream : MainAPI() {
         else -> item.path("cover").asText(null)
     }
 
+    private fun getPlayCount(source: String, item: JsonNode): String? = when (source) {
+        "dramabox", "dramawave", "melolo", "radreel", "flick", "viglo", "dramabite", "shortmax" ->
+            item.path("playCount").asText(null) ?: item.path("formatHeatScore").asText(null)
+        "stardusttv" -> item.path("plays_num").asText(null)
+        else -> null
+    }
+
     private fun toResult(source: String, item: JsonNode): SearchResponse? {
         val id = getId(source, item).ifEmpty { return null }
-        val title = getTitle(source, item).ifEmpty { return null }
-        return newAnimeSearchResponse(title, "$mainUrl/watch/$source/$id/1", TvType.AsianDrama, false) {
+        val rawTitle = getTitle(source, item).ifEmpty { return null }
+        val views = getPlayCount(source, item)
+        val displayTitle = if (views != null) "$rawTitle [$views]" else rawTitle
+        return newAnimeSearchResponse(displayTitle, "$mainUrl/watch/$source/$id/1", TvType.AsianDrama, false) {
             this.posterUrl = getCover(source, item)
         }
     }
@@ -232,7 +241,7 @@ class ShortStream : MainAPI() {
                 val node = if (source == "netshort" && data.has("data")) data.path("data") else data
 
                 title = getTitle(source, node)
-                cover = getCover(source, node)
+                if (cover.isNullOrEmpty()) cover = getCover(source, node)
 
                 plot = node.path("introduction").asText(null)
                     ?: node.path("summary").asText(null)
@@ -277,6 +286,20 @@ class ShortStream : MainAPI() {
                     if (resultArray.isArray && resultArray.size() > 0) {
                         epCount = maxOf(epCount, resultArray.size())
                     }
+                }
+            } catch (_: Exception) {}
+        }
+
+        if ((cover.isNullOrEmpty() || rating == null) && source !in searchMetaSources && source != "radreel") {
+            try {
+                val searchRes = app.get(searchUrl(source, ""), timeout = 10).text
+                val items = parseItems(source, searchRes)
+                val match = items.firstOrNull { getId(source, it) == id }
+                if (match != null) {
+                    if (cover.isNullOrEmpty()) cover = getCover(source, match)
+                    if (rating == null) rating = match.path("playCount").asText(null)
+                        ?: match.path("formatHeatScore").asText(null)
+                        ?: match.path("views").asText(null)
                 }
             } catch (_: Exception) {}
         }
