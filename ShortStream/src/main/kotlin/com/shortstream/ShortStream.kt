@@ -79,6 +79,7 @@ class ShortStream : MainAPI() {
         "dotdrama" -> item.path("dcup").asText("")
         "hishort" -> item.path("vidId").asText("")
         "starshort" -> item.path("compilationsId").asText("").ifEmpty { item.path("fakeId").asText("") }
+        "radreel" -> item.path("fakeId").asText("").ifEmpty { item.path("id").asText("") }
         else -> item.path("bookId").asText("").ifEmpty { item.path("id").asText("") }
     }
 
@@ -88,7 +89,8 @@ class ShortStream : MainAPI() {
             "dotdrama" -> item.path("nseri").asText("").ifEmpty { item.path("name").asText("") }
             "stardusttv" -> item.path("english_name").asText("").ifEmpty { item.path("name").asText("") }
             "hishort" -> item.path("vidName").asText("").ifEmpty { item.path("name").asText("") }
-            "dramabox", "goodshort", "melolo", "flick", "viglo" -> item.path("bookName").asText("").ifEmpty { item.path("name").asText("") }
+            "dramabox", "goodshort", "flick", "viglo" -> item.path("bookName").asText("").ifEmpty { item.path("name").asText("") }
+            "melolo" -> item.path("title").asText("").ifEmpty { item.path("bookName").asText("") }.ifEmpty { item.path("name").asText("") }
             "reelshort", "meloshort", "starshort", "dramawave", "radreel", "dramabite" -> item.path("title").asText("").ifEmpty { item.path("name").asText("") }
             "shortmax" -> item.path("name").asText("").ifEmpty { item.path("title").asText("") }
             else -> item.path("bookName").asText("").ifEmpty { item.path("name").asText("") }
@@ -217,7 +219,7 @@ class ShortStream : MainAPI() {
 
         if (source == "radreel") {
             try {
-                val searchRes = app.get(searchUrl(source, ""), timeout = 10).text
+                val searchRes = app.get(searchUrl(source, "a"), timeout = 10).text
                 val items = parseItems(source, searchRes)
                 val match = items.firstOrNull { getId(source, it) == id }
                 if (match != null) {
@@ -248,6 +250,7 @@ class ShortStream : MainAPI() {
                 plot = node.path("introduction").asText(null)
                     ?: node.path("summary").asText(null)
                     ?: node.path("shotIntroduce").asText(null)
+                    ?: node.path("intro").asText(null)
                     ?: node.path("desc").asText(null)
                     ?: node.path("description").asText(null)
 
@@ -423,6 +426,44 @@ class ShortStream : MainAPI() {
                     }
                 } catch (_: Exception) {}
             }
+            "radreel" -> {
+                try {
+                    val res = app.get("$mainUrl/api/proxy/radreel/detail/$id").text
+                    val root = mapper.readTree(res)
+                    val videos = root.path("videos")
+                    if (videos.isArray && videos.size() > 0) {
+                        return videos.mapIndexed { idx, v ->
+                            val epNum = idx + 1
+                            val vid = v.path("fakeId").asText("")
+                            val epThumb = v.path("cover").asText(null)
+                            val linkData = LinkData(source, id, vid, epNum).toJson()
+                            newEpisode(linkData) {
+                                this.name = "Episode $epNum"
+                                this.episode = epNum
+                                this.posterUrl = epThumb
+                            }
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+            "melolo" -> {
+                try {
+                    val res = app.get("$mainUrl/api/proxy/melolo/detail/$id").text
+                    val root = mapper.readTree(res)
+                    val videos = root.path("videos")
+                    if (videos.isArray && videos.size() > 0) {
+                        return videos.map { v ->
+                            val epNum = v.path("episode").asInt(1)
+                            val vid = v.path("vid").asText("")
+                            val linkData = LinkData(source, id, vid, epNum).toJson()
+                            newEpisode(linkData) {
+                                this.name = "Episode $epNum"
+                                this.episode = epNum
+                            }
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
             else -> {
                 try {
                     val res = app.get("$mainUrl/api/proxy/$source/chapters/$id").text
@@ -586,6 +627,50 @@ class ShortStream : MainAPI() {
             } catch (_: Exception) {}
         }
 
+        if (ld.source == "radreel") {
+            try {
+                val res = app.get("$mainUrl/api/proxy/radreel/video/${ld.videoId}", headers = headers).text
+                val root = mapper.readTree(res)
+                val vUrl = root.path("url").asText("")
+                if (vUrl.isNotEmpty()) {
+                    callback.invoke(newExtractorLink(
+                        name, "RADREEL", vUrl, INFER_TYPE
+                    ) { this.quality = Qualities.P720.value })
+                    return true
+                }
+            } catch (_: Exception) {}
+        }
+
+        if (ld.source == "melolo") {
+            try {
+                val res = app.get("$mainUrl/api/proxy/melolo/video/${ld.videoId}", headers = headers).text
+                val root = mapper.readTree(res)
+                val directUrl = root.path("url").asText("")
+                if (directUrl.isNotEmpty()) {
+                    callback.invoke(newExtractorLink(
+                        name, "MELOLO", directUrl, INFER_TYPE
+                    ) { this.quality = Qualities.P720.value })
+                }
+                val listArray = root.path("list")
+                if (listArray.isArray) {
+                    listArray.forEach { item ->
+                        val encoded = item.path("url").asText("")
+                        val def = item.path("definition").asText("720p")
+                        val qual = def.replace("p", "").toIntOrNull() ?: 720
+                        if (encoded.isNotEmpty()) {
+                            val decoded = String(android.util.Base64.decode(encoded, android.util.Base64.DEFAULT))
+                            if (decoded.startsWith("http")) {
+                                callback.invoke(newExtractorLink(
+                                    name, "MELOLO $def", decoded, INFER_TYPE
+                                ) { this.quality = qual })
+                            }
+                        }
+                    }
+                }
+                if (directUrl.isNotEmpty()) return true
+            } catch (_: Exception) {}
+        }
+
         if (ld.source == "dramabite") {
             try {
                 val res = app.get("$mainUrl/api/proxy/dramabite/drama/${ld.id}/episode/${ld.episode}", headers = headers).text
@@ -605,7 +690,7 @@ class ShortStream : MainAPI() {
             "shortmax" -> listOf(
                 "$mainUrl/api/proxy/shortmax-video/episode/${ld.videoId}/${ld.episode}?lang=in"
             )
-            "dramabite" -> emptyList()
+            "dramabite", "melolo", "radreel" -> emptyList()
             else -> listOf(
                 "$mainUrl/api/proxy/${ld.source}3/watch/player?bookId=${ld.id}&index=${ld.episode}&lang=in"
             )
