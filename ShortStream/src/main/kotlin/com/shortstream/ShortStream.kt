@@ -584,11 +584,26 @@ class ShortStream : MainAPI() {
             } catch (_: Exception) {}
         }
 
+        if (ld.source == "dramabite") {
+            try {
+                val res = app.get("$mainUrl/api/proxy/dramabite/drama/${ld.id}/episode/${ld.episode}", headers = headers).text
+                val root = mapper.readTree(res)
+                val linkInfo = root.path("data").path("link_info")
+                val vUrl = linkInfo.path("video_link_m3u8").asText("").ifEmpty { linkInfo.path("video_link").asText("") }
+                if (vUrl.isNotEmpty()) {
+                    callback.invoke(newExtractorLink(
+                        name, "DRAMABITE", vUrl, INFER_TYPE
+                    ) { this.quality = Qualities.P720.value })
+                    return true
+                }
+            } catch (_: Exception) {}
+        }
+
         val urls = when (ld.source) {
             "shortmax" -> listOf(
-                "$mainUrl/api/proxy/shortmax-video/episode/${ld.videoId}/${ld.episode}?lang=in",
-                "$mainUrl/api/proxy/shortmax3/watch/player?bookId=${ld.id}&index=${ld.episode}&lang=in"
+                "$mainUrl/api/proxy/shortmax-video/episode/${ld.videoId}/${ld.episode}?lang=in"
             )
+            "dramabite" -> emptyList()
             else -> listOf(
                 "$mainUrl/api/proxy/${ld.source}3/watch/player?bookId=${ld.id}&index=${ld.episode}&lang=in"
             )
@@ -611,6 +626,37 @@ class ShortStream : MainAPI() {
                             ) { this.quality = qual })
                         }
                     }
+                    return true
+                }
+
+                if (qualities.isObject && qualities.size() > 0) {
+                    qualities.fieldNames().forEach { qualLabel ->
+                        if (qualLabel == "default") return@forEach
+                        val vUrl = qualities.path(qualLabel).asText("")
+                        val qual = qualLabel.replace("p", "").toIntOrNull() ?: 720
+                        if (vUrl.isNotEmpty()) {
+                            callback.invoke(newExtractorLink(
+                                name, "${ld.source.uppercase()} $qualLabel", vUrl, INFER_TYPE
+                            ) { this.quality = qual })
+                        }
+                    }
+                    return true
+                }
+
+                val hlsUrl = node.path("hls_url").asText("")
+                if (hlsUrl.isNotEmpty() && hlsUrl.startsWith("http")) {
+                    callback.invoke(newExtractorLink(
+                        name, ld.source.uppercase(), hlsUrl, INFER_TYPE
+                    ) { this.quality = Qualities.P720.value })
+                    return true
+                }
+
+                val linkInfo = node.path("link_info")
+                val linkUrl = linkInfo.path("video_link_m3u8").asText("").ifEmpty { linkInfo.path("video_link").asText("") }
+                if (linkUrl.isNotEmpty()) {
+                    callback.invoke(newExtractorLink(
+                        name, ld.source.uppercase(), linkUrl, INFER_TYPE
+                    ) { this.quality = Qualities.P720.value })
                     return true
                 }
 
