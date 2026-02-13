@@ -340,6 +340,9 @@ class ShortStream : MainAPI() {
             "dramawave" -> simpleEpisodeExtract("$mainUrl/api/proxy/dramawave3/dramas/$id/episodes", "episodes") { _, ep ->
                 Quadruple(ep.path("index").asInt(1), "Episode", null, null)
             }
+            "dotdrama" -> simpleEpisodeExtract("$mainUrl/api/proxy/dotdrama/drama/$id", "funi") { idx, _ ->
+                Quadruple(idx + 1, "Episode", null, null)
+            }
             "radreel" -> simpleEpisodeExtract("$mainUrl/api/proxy/radreel/detail/$id", "videos") { idx, v ->
                 Quadruple(idx + 1, "Episode", v.path("cover").asText(null), v.path("fakeId").asText(""))
             }
@@ -420,7 +423,7 @@ class ShortStream : MainAPI() {
             "reelshort" -> listOf("$mainUrl/api/proxy/reelshort/play/${ld.id}?ep=${ld.episode}&lang=id")
             "starshort" -> listOf("$mainUrl/api/proxy/starshort/play/${ld.id}?ep=${ld.episode}&lang=4")
             "meloshort" -> listOf("$mainUrl/api/proxy/meloshort/play/${ld.id}/${ld.episode}")
-            "dramabite", "melolo", "radreel" -> emptyList()
+            "dramabite", "melolo", "radreel", "dotdrama" -> emptyList()
             else -> listOf("$mainUrl/api/proxy/${ld.source}3/watch/player?bookId=${ld.id}&index=${ld.episode}&lang=in")
         }
 
@@ -519,16 +522,15 @@ class ShortStream : MainAPI() {
             val res = app.get("$mainUrl/api/proxy/dotdrama/drama/${ld.id}", headers = headers).text
             val root = mapper.readTree(res)
             val funi = root.path("funi")
-            if (funi.isArray && funi.size() > 0) {
-                funi.forEach { vid ->
-                    val vUrl = vid.text("Mopp", "Bcold")
-                    if (vUrl.isNotEmpty()) {
-                         val qualType = vid.path("Dbag").asText("720P")
-                         val qual = qualType.replace("P", "").replace("p", "").toIntOrNull() ?: 720
-                         callback.invoke(newExtractorLink(name, "DOTDRAMA $qualType", vUrl, INFER_TYPE) { this.quality = qual })
-                    }
+            if (funi.isArray) {
+                val vid = funi.get(ld.episode - 1) ?: return false
+                val vUrl = vid.text("Mopp", "Bcold")
+                if (vUrl.isNotEmpty()) {
+                     val qualType = vid.path("Dbag").asText("720P")
+                     val qual = qualType.replace("P", "").replace("p", "").toIntOrNull() ?: 720
+                     callback.invoke(newExtractorLink(name, "DOTDRAMA $qualType", vUrl, INFER_TYPE) { this.quality = qual })
+                     return true
                 }
-                return true
             }
         } catch (_: Exception) {}
         return false
