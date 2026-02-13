@@ -84,13 +84,13 @@ class ShortStream : MainAPI() {
 
     private fun getTitle(source: String, item: JsonNode): String {
         val raw = when (source) {
-            "netshort" -> item.path("shortPlayName").asText("")
-            "reelshort" -> item.path("title").asText("")
-            "meloshort" -> item.path("title").asText("").ifEmpty { item.path("name").asText("") }
-            "dotdrama" -> item.path("nseri").asText("")
+            "netshort" -> item.path("shortPlayName").asText("").ifEmpty { item.path("name").asText("") }
+            "dotdrama" -> item.path("nseri").asText("").ifEmpty { item.path("name").asText("") }
             "stardusttv" -> item.path("english_name").asText("").ifEmpty { item.path("name").asText("") }
-            "hishort" -> item.path("vidName").asText("")
-            "starshort" -> item.path("title").asText("")
+            "hishort" -> item.path("vidName").asText("").ifEmpty { item.path("name").asText("") }
+            "dramabox", "goodshort", "melolo", "flick", "viglo" -> item.path("bookName").asText("").ifEmpty { item.path("name").asText("") }
+            "reelshort", "meloshort", "starshort", "dramawave", "radreel", "dramabite" -> item.path("title").asText("").ifEmpty { item.path("name").asText("") }
+            "shortmax" -> item.path("name").asText("").ifEmpty { item.path("title").asText("") }
             else -> item.path("bookName").asText("").ifEmpty { item.path("name").asText("") }
                 .ifEmpty { item.path("title").asText("") }
         }
@@ -98,11 +98,13 @@ class ShortStream : MainAPI() {
     }
 
     private fun getCover(source: String, item: JsonNode): String? = when (source) {
-        "netshort" -> item.path("shortPlayCover").asText(null)
-        "dotdrama" -> item.path("pday").asText(null)
-        "stardusttv" -> item.path("alioss_cover").asText(null) ?: item.path("cover_path").asText(null)
-        "hishort" -> item.path("coverUrl").asText(null)
-        "starshort" -> item.path("coverImgUrl").asText(null)
+        "netshort" -> item.path("shortPlayCover").asText(null) ?: item.path("cover").asText(null)
+        "dotdrama" -> item.path("pday").asText(null) ?: item.path("cover").asText(null)
+        "stardusttv" -> item.path("alioss_cover").asText(null) ?: item.path("cover_path").asText(null) ?: item.path("cover").asText(null)
+        "hishort" -> item.path("coverUrl").asText(null) ?: item.path("cover").asText(null)
+        "starshort" -> item.path("coverImgUrl").asText(null) ?: item.path("cover").asText(null)
+        "dramabite" -> item.path("cover_url").asText(null) ?: item.path("cover").asText(null)
+        "dramabox", "shortmax", "reelshort", "dramawave", "melolo", "radreel", "flick", "meloshort", "goodshort", "viglo" -> item.path("cover").asText(null)
         else -> item.path("cover").asText(null)
     }
 
