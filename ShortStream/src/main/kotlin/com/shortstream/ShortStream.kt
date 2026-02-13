@@ -51,6 +51,9 @@ class ShortStream : MainAPI() {
         return when {
             source == "netshort" -> data.path("data").path("searchCodeSearchResult").toList()
             source == "dramawave" -> data.path("items").toList()
+            source == "goodshort" -> data.path("searchResult").path("records").toList()
+                .ifEmpty { data.path("otherSearchResults").toList() }
+            source == "meloshort" -> if (data.isArray) data.toList() else listOf(data)
             data.isArray -> data.toList()
             data.has("list") -> data.path("list").toList()
             else -> emptyList()
@@ -62,6 +65,8 @@ class ShortStream : MainAPI() {
         "shortmax" -> item.path("code").asText("")
         "reelshort" -> item.path("id").asText("")
         "dramawave" -> item.path("id").asText("")
+        "meloshort" -> item.path("dramaId").asText("").ifEmpty { item.path("id").asText("") }
+        "goodshort" -> item.path("bookId").asText("")
         else -> item.path("bookId").asText("").ifEmpty { item.path("id").asText("") }
     }
 
@@ -69,6 +74,7 @@ class ShortStream : MainAPI() {
         val raw = when (source) {
             "netshort" -> item.path("shortPlayName").asText("")
             "reelshort" -> item.path("title").asText("")
+            "meloshort" -> item.path("title").asText("").ifEmpty { item.path("name").asText("") }
             else -> item.path("bookName").asText("").ifEmpty { item.path("name").asText("") }
                 .ifEmpty { item.path("title").asText("") }
         }
@@ -124,14 +130,61 @@ class ShortStream : MainAPI() {
         var epCount = 0
         var tags: List<String>? = null
         var videoId = id
+        var rating: String? = null
+        var year: Int? = null
 
         val detailUrls = when (source) {
             "netshort" -> listOf("$mainUrl/api/proxy/netshort/info/$id")
             "shortmax" -> listOf("$mainUrl/api/proxy/shortmax/detail/$id")
+            "goodshort" -> listOf("$mainUrl/api/proxy/goodshort/chapters/$id")
+            "meloshort" -> listOf("$mainUrl/api/proxy/meloshort/drama/$id")
             else -> listOf(
                 "$mainUrl/api/proxy/$source/drama/$id",
                 "$mainUrl/api/proxy/$source/detail/$id"
             )
+        }
+
+        if (source == "meloshort" || source == "goodshort") {
+            try {
+                val searchRes = app.get(searchUrl(source, ""), timeout = 10).text
+                val items = parseItems(source, searchRes)
+                val match = items.firstOrNull { getId(source, it) == id }
+                if (match != null) {
+                    title = getTitle(source, match)
+                    cover = getCover(source, match)
+                    plot = match.path("description").asText(null)
+                        ?: match.path("introduction").asText(null)
+                        ?: match.path("intro").asText(null)
+                    epCount = match.path("chapterTotal").asInt(0)
+                        .coerceAtLeast(match.path("chapterCount").asInt(0))
+                    rating = match.path("fav_count").asText(null)
+                        ?: match.path("viewCountDisplay").asText(null)
+                    val tagArray = match.path("subTags").let { if (it.isMissingNode || it.isNull) match.path("labels") else it }
+                    if (tagArray.isArray && tagArray.size() > 0) {
+                        tags = tagArray.map { it.path("title").asText("").ifEmpty { it.asText("") } }
+                            .filter { it.isNotEmpty() }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        if (source == "radreel") {
+            try {
+                val searchRes = app.get(searchUrl(source, ""), timeout = 10).text
+                val items = parseItems(source, searchRes)
+                val match = items.firstOrNull { getId(source, it) == id }
+                if (match != null) {
+                    title = getTitle(source, match)
+                    cover = getCover(source, match)
+                    plot = match.path("intro").asText(null)
+                    epCount = match.path("episodes").asInt(0)
+                    rating = match.path("views").let { if (it.isMissingNode || it.isNull) null else it.asText(null) }
+                    val tagArray = match.path("tags")
+                    if (tagArray.isArray && tagArray.size() > 0) {
+                        tags = tagArray.map { it.asText("") }.filter { it.isNotEmpty() }
+                    }
+                }
+            } catch (_: Exception) {}
         }
 
         for (dUrl in detailUrls) {
@@ -158,6 +211,18 @@ class ShortStream : MainAPI() {
                     node.path("totalEpisodeCount").asInt(0)
                 )
 
+                rating = node.path("playCount").asText(null)
+                    ?: node.path("formatHeatScore").asText(null)
+                    ?: node.path("views").asText(null)
+                    ?: node.path("view_count").asText(null)
+
+                val listingTime = node.path("listing_time").asLong(0)
+                if (listingTime > 0) {
+                    year = java.util.Calendar.getInstance().apply {
+                        timeInMillis = listingTime * 1000
+                    }.get(java.util.Calendar.YEAR)
+                }
+
                 val tagNode = node.path("tags").let {
                     if (it.isMissingNode || it.isNull) node.path("tagNames").let { tn ->
                         if (tn.isMissingNode || tn.isNull) node.path("series_tag").let { st ->
@@ -170,41 +235,156 @@ class ShortStream : MainAPI() {
                 }
 
                 if (source == "shortmax") videoId = node.path("id").asText(id)
+
+                if (source == "netshort") {
+                    val resultArray = root.path("result")
+                    if (resultArray.isArray && resultArray.size() > 0) {
+                        epCount = maxOf(epCount, resultArray.size())
+                    }
+                }
             } catch (_: Exception) {}
         }
 
-        if (epCount <= 0) epCount = fetchEpisodeCount(source, id) ?: 100
+        val episodes = fetchEpisodes(source, id, videoId, epCount)
+
         if (title.isEmpty()) title = "Drama"
 
-        val episodes = (1..epCount).map { ep ->
+        val plotWithRating = if (rating != null && plot != null) {
+            "Views: $rating\n\n$plot"
+        } else if (rating != null) {
+            "Views: $rating"
+        } else plot
+
+        return newTvSeriesLoadResponse(title, url, TvType.AsianDrama, episodes) {
+            this.posterUrl = cover
+            this.plot = plotWithRating
+            this.tags = tags
+            this.year = year
+        }
+    }
+
+    private suspend fun fetchEpisodes(source: String, id: String, videoId: String, detailEpCount: Int): List<Episode> {
+        when (source) {
+            "reelshort" -> {
+                try {
+                    val res = app.get("$mainUrl/api/proxy/reelshort/episodes/$id").text
+                    val root = mapper.readTree(res)
+                    val data = root.path("data")
+                    if (data.isArray && data.size() > 0) {
+                        return data.mapIndexed { idx, ep ->
+                            val epNum = ep.path("ep").asInt(idx)
+                            val epName = ep.path("name").asText("Episode $epNum")
+                            val epThumb = ep.path("pic").asText(null)
+                            val linkData = LinkData(source, id, videoId, epNum).toJson()
+                            newEpisode(linkData) {
+                                this.name = epName
+                                this.episode = epNum
+                                this.posterUrl = epThumb
+                            }
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+            "meloshort" -> {
+                try {
+                    val res = app.get("$mainUrl/api/proxy/meloshort/drama/$id").text
+                    val root = mapper.readTree(res)
+                    val data = root.path("data")
+                    if (data.isArray && data.size() > 0) {
+                        return data.map { ch ->
+                            val epNum = ch.path("chapter_index").asInt(1)
+                            val epThumb = ch.path("first_frame").asText(null)
+                            val linkData = LinkData(source, id, videoId, epNum).toJson()
+                            newEpisode(linkData) {
+                                this.name = "Episode $epNum"
+                                this.episode = epNum
+                                this.posterUrl = epThumb
+                            }
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+            "goodshort" -> {
+                try {
+                    val res = app.get("$mainUrl/api/proxy/goodshort/chapters/$id").text
+                    val root = mapper.readTree(res)
+                    val list = root.path("data").path("list")
+                    if (list.isArray && list.size() > 0) {
+                        return list.map { ch ->
+                            val epNum = ch.path("index").asInt(0) + 1
+                            val epThumb = ch.path("image").asText(null)
+                            val epName = ch.path("chapterName").asText("Episode $epNum")
+                            val linkData = LinkData(source, id, videoId, epNum).toJson()
+                            newEpisode(linkData) {
+                                this.name = epName
+                                this.episode = epNum
+                                this.posterUrl = epThumb
+                            }
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+            "netshort" -> {
+                try {
+                    val res = app.get("$mainUrl/api/proxy/netshort/info/$id").text
+                    val root = mapper.readTree(res)
+                    val resultArray = root.path("result")
+                    if (resultArray.isArray && resultArray.size() > 0) {
+                        return resultArray.map { ep ->
+                            val epNum = ep.path("episodeNo").asInt(1)
+                            val linkData = LinkData(source, id, videoId, epNum).toJson()
+                            newEpisode(linkData) {
+                                this.name = "Episode $epNum"
+                                this.episode = epNum
+                            }
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+            "dramawave" -> {
+                try {
+                    val res = app.get("$mainUrl/api/proxy/dramawave3/dramas/$id/episodes").text
+                    val root = mapper.readTree(res)
+                    val epArray = root.path("episodes")
+                    if (epArray.isArray && epArray.size() > 0) {
+                        return epArray.map { ep ->
+                            val epNum = ep.path("index").asInt(1)
+                            val linkData = LinkData(source, id, videoId, epNum).toJson()
+                            newEpisode(linkData) {
+                                this.name = "Episode $epNum"
+                                this.episode = epNum
+                            }
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+            else -> {
+                try {
+                    val res = app.get("$mainUrl/api/proxy/$source/chapters/$id").text
+                    val root = mapper.readTree(res)
+                    val chapterList = root.path("data").path("chapterList")
+                    if (chapterList.isArray && chapterList.size() > 0) {
+                        return chapterList.map { ch ->
+                            val chIdx = ch.path("chapterIndex").asInt(0)
+                            val epNum = chIdx + 1
+                            val linkData = LinkData(source, id, videoId, epNum).toJson()
+                            newEpisode(linkData) {
+                                this.name = "Episode $epNum"
+                                this.episode = epNum
+                            }
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+
+        val count = if (detailEpCount > 0) detailEpCount else 100
+        return (1..count).map { ep ->
             newEpisode(LinkData(source, id, videoId, ep).toJson()) {
                 this.name = "Episode $ep"
                 this.episode = ep
             }
         }
-
-        return newTvSeriesLoadResponse(title, url, TvType.AsianDrama, episodes) {
-            this.posterUrl = cover
-            this.plot = plot
-            this.tags = tags
-        }
-    }
-
-    private suspend fun fetchEpisodeCount(source: String, id: String): Int? {
-        val urls = when (source) {
-            "dramawave" -> listOf("$mainUrl/api/proxy/dramawave3/dramas/$id/episodes")
-            else -> listOf("$mainUrl/api/proxy/$source/chapters/$id")
-        }
-        for (u in urls) {
-            try {
-                val root = mapper.readTree(app.get(u).text)
-                val data = root.path("data")
-                if (data.isArray && data.size() > 0) return data.size()
-                val cl = data.path("chapterList")
-                if (cl.isArray && cl.size() > 0) return cl.size()
-            } catch (_: Exception) {}
-        }
-        return null
     }
 
     override suspend fun loadLinks(
@@ -215,6 +395,107 @@ class ShortStream : MainAPI() {
     ): Boolean {
         val ld = parseJson<LinkData>(data)
         val headers = mapOf("Referer" to "$mainUrl/", "User-Agent" to USER_AGENT)
+
+        if (ld.source == "netshort") {
+            try {
+                val res = app.get("$mainUrl/api/proxy/netshort/info/${ld.id}", headers = headers).text
+                val root = mapper.readTree(res)
+                val resultArray = root.path("result")
+                if (resultArray.isArray) {
+                    val ep = resultArray.firstOrNull { it.path("episodeNo").asInt(0) == ld.episode }
+                    if (ep != null) {
+                        val videoUrl = ep.path("videoUrl").asText("")
+                        if (videoUrl.isNotEmpty()) {
+                            callback.invoke(newExtractorLink(
+                                name, "NETSHORT", videoUrl, INFER_TYPE
+                            ) { this.quality = Qualities.P1080.value })
+                        }
+                        val subs = ep.path("subtitles")
+                        if (subs.isArray) {
+                            subs.forEach { sub ->
+                                val subUrl = sub.path("url").asText("")
+                                val subLang = sub.path("lang").asText("id_ID")
+                                if (subUrl.isNotEmpty()) {
+                                    subtitleCallback.invoke(SubtitleFile(subLang, subUrl))
+                                }
+                            }
+                        }
+                        if (videoUrl.isNotEmpty()) return true
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        if (ld.source == "dramawave") {
+            try {
+                val res = app.get("$mainUrl/api/proxy/dramawave3/dramas/${ld.id}/episodes", headers = headers).text
+                val root = mapper.readTree(res)
+                val epArray = root.path("episodes")
+                if (epArray.isArray) {
+                    val ep = epArray.firstOrNull { it.path("index").asInt(0) == ld.episode }
+                    if (ep != null) {
+                        val h264Url = ep.path("h264_url").asText("")
+                        val h265Url = ep.path("h265_url").asText("")
+                        if (h264Url.isNotEmpty()) {
+                            callback.invoke(newExtractorLink(
+                                name, "DRAMAWAVE H264", h264Url, INFER_TYPE
+                            ) { this.quality = Qualities.P1080.value })
+                        }
+                        if (h265Url.isNotEmpty()) {
+                            callback.invoke(newExtractorLink(
+                                name, "DRAMAWAVE H265", h265Url, INFER_TYPE
+                            ) { this.quality = Qualities.P1080.value })
+                        }
+                        val subs = ep.path("subtitles")
+                        if (subs.isArray) {
+                            subs.forEach { sub ->
+                                val subUrl = sub.path("subtitle").asText("")
+                                val subLang = sub.path("display_name").asText(sub.path("language").asText(""))
+                                if (subUrl.isNotEmpty()) {
+                                    subtitleCallback.invoke(SubtitleFile(subLang, subUrl))
+                                }
+                            }
+                        }
+                        if (h264Url.isNotEmpty()) return true
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        if (ld.source == "goodshort") {
+            try {
+                val res = app.get("$mainUrl/api/proxy/goodshort/chapters/${ld.id}", headers = headers).text
+                val root = mapper.readTree(res)
+                val list = root.path("data").path("list")
+                if (list.isArray) {
+                    val epIndex = ld.episode - 1
+                    val ch = list.firstOrNull { it.path("index").asInt(-1) == epIndex }
+                    if (ch != null) {
+                        val multiVideos = ch.path("multiVideos")
+                        if (multiVideos.isArray && multiVideos.size() > 0) {
+                            multiVideos.forEach { mv ->
+                                val vUrl = mv.path("filePath").asText("")
+                                val qualType = mv.path("type").asText("720p")
+                                val qual = qualType.replace("p", "").toIntOrNull() ?: 720
+                                if (vUrl.isNotEmpty()) {
+                                    callback.invoke(newExtractorLink(
+                                        name, "GOODSHORT $qualType", vUrl, INFER_TYPE
+                                    ) { this.quality = qual })
+                                }
+                            }
+                            return true
+                        }
+                        val cdn = ch.path("cdn").asText("")
+                        if (cdn.isNotEmpty()) {
+                            callback.invoke(newExtractorLink(
+                                name, "GOODSHORT", cdn, INFER_TYPE
+                            ) { this.quality = Qualities.P720.value })
+                            return true
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
 
         val urls = when (ld.source) {
             "shortmax" -> listOf(
