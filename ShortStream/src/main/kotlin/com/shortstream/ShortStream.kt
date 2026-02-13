@@ -407,6 +407,7 @@ class ShortStream : MainAPI() {
 
         val urls = when (ld.source) {
             "shortmax" -> listOf("$mainUrl/api/proxy/shortmax-video/episode/${ld.videoId}/${ld.episode}?lang=in")
+            "reelshort" -> listOf("$mainUrl/api/proxy/reelshort/play/${ld.id}?ep=${ld.episode}&lang=id")
             "dramabite", "melolo", "radreel" -> emptyList()
             else -> listOf("$mainUrl/api/proxy/${ld.source}3/watch/player?bookId=${ld.id}&index=${ld.episode}&lang=in")
         }
