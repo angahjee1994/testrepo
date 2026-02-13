@@ -206,7 +206,8 @@ class ShortStream : MainAPI() {
 
         val detailEndpoints = listOf(
             "$apiUrl/api/proxy/$source/detail/$bookId?lang=id",
-            "$apiUrl/api/proxy/$source/info/$bookId"
+            "$apiUrl/api/proxy/$source/info/$bookId",
+            "$apiUrl/api/proxy/$source/dramas/$bookId/episodes"
         )
 
         for (endpoint in detailEndpoints) {
@@ -215,51 +216,63 @@ class ShortStream : MainAPI() {
                 val detailRes = app.get(endpoint).text
                 val jsonNode = mapper.readTree(detailRes)
                 val dataNode = if (jsonNode.has("data")) jsonNode.get("data") else jsonNode
-                val detail = mapper.treeToValue(dataNode, DetailData::class.java)
                 
-                if (detail?.intro != null) plot = detail.intro
-                if (!detail?.tagList.isNullOrEmpty()) tags = detail?.tagList
-                
-                val eps = detail?.episodes
-
-                if (eps is List<*>) {
-                    eps.forEach { ep ->
-                        if (ep is Map<*, *>) {
-                            val epNum = (ep["ep"] as? Number)?.toInt() ?: (ep["chapterIndex"] as? Number)?.toInt() ?: 0
-                            if (epNum > 0) {
-                                 addEp(epNum, ep["name"] as? String, ep["pic"] as? String)
-                            }
+                if (dataNode.isArray) {
+                    dataNode.forEach { ep ->
+                        val epNum = ep.get("ep")?.asInt() ?: ep.get("chapterIndex")?.asInt() ?: ep.get("index")?.asInt() ?: 0
+                        val name = ep.get("name")?.asText() ?: ep.get("title")?.asText() ?: "Episode $epNum"
+                        val pic = ep.get("cover")?.asText() ?: ep.get("pic")?.asText() ?: ep.get("image")?.asText()
+                        if (epNum > 0) {
+                            addEp(epNum, name, pic)
                         }
-                    }
-                } else if (eps is Int) {
-                    val idToUse = detail.id ?: bookId
-                    for (i in 1..eps) {
-                         val epData = "$source|$idToUse|$i|generic"
-                         episodes.add(newEpisode(epData) {
-                            this.name = "Episode $i"
-                            this.episode = i
-                        })
-                    }
-                } else if (detail?.total_episodes != null) {
-                    for (i in 1..detail.total_episodes) {
-                        addEp(i)
                     }
                 } else {
-                   try {
-                        val chaptersUrl = "$apiUrl/api/proxy/$source/chapters/$bookId"
-                        val chapterRes = app.get(chaptersUrl).text
-                        val chNode = mapper.readTree(chapterRes).get("data")?.get("chapterList")
-                        
-                        if (chNode != null && chNode.isArray) {
-                            chNode.forEach { node ->
-                                val idx = node.get("chapterIndex")?.asInt() ?: 0
-                                val epNum = idx + 1 
-                                val name = node.get("chapterName")?.asText() ?: "Episode $epNum"
-                                val pic = node.get("cover")?.asText() ?: node.get("pic")?.asText()
-                                addEp(epNum, name, pic)
+                    val detail = mapper.treeToValue(dataNode, DetailData::class.java)
+                    
+                    if (detail?.intro != null) plot = detail.intro
+                    if (!detail?.tagList.isNullOrEmpty()) tags = detail?.tagList
+                    
+                    val eps = detail?.episodes
+    
+                    if (eps is List<*>) {
+                        eps.forEach { ep ->
+                            if (ep is Map<*, *>) {
+                                val epNum = (ep["ep"] as? Number)?.toInt() ?: (ep["chapterIndex"] as? Number)?.toInt() ?: 0
+                                if (epNum > 0) {
+                                     addEp(epNum, ep["name"] as? String, ep["pic"] as? String)
+                                }
                             }
                         }
-                   } catch (e: Exception) {}
+                    } else if (eps is Int) {
+                        val idToUse = detail.id ?: bookId
+                        for (i in 1..eps) {
+                             val epData = "$source|$idToUse|$i|generic"
+                             episodes.add(newEpisode(epData) {
+                                this.name = "Episode $i"
+                                this.episode = i
+                            })
+                        }
+                    } else if (detail?.total_episodes != null) {
+                        for (i in 1..detail.total_episodes) {
+                            addEp(i)
+                        }
+                    } else {
+                       try {
+                            val chaptersUrl = "$apiUrl/api/proxy/$source/chapters/$bookId"
+                            val chapterRes = app.get(chaptersUrl).text
+                            val chNode = mapper.readTree(chapterRes).get("data")?.get("chapterList")
+                            
+                            if (chNode != null && chNode.isArray) {
+                                chNode.forEach { node ->
+                                    val idx = node.get("chapterIndex")?.asInt() ?: 0
+                                    val epNum = idx + 1 
+                                    val name = node.get("chapterName")?.asText() ?: "Episode $epNum"
+                                    val pic = node.get("cover")?.asText() ?: node.get("pic")?.asText()
+                                    addEp(epNum, name, pic)
+                                }
+                            }
+                       } catch (e: Exception) {}
+                    }
                 }
                 if (episodes.isNotEmpty()) detailSuccess = true
             } catch (e: Exception) {}
