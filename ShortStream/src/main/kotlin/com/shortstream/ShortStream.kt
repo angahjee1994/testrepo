@@ -331,6 +331,9 @@ class ShortStream : MainAPI() {
             "meloshort" -> simpleEpisodeExtract("$mainUrl/api/proxy/meloshort/drama/$id", "data") { _, ch ->
                 Quadruple(ch.path("chapter_index").asInt(1), "Episode", ch.path("first_frame").asText(null), null)
             }
+            "dotdrama" -> simpleEpisodeExtract("$mainUrl/api/proxy/dotdrama/drama/$id", "dgiv.ebeer") { idx, ep ->
+                Quadruple(ep.path("ewheel").asInt(idx + 1), "Episode", null, null)
+            }
             "goodshort" -> simpleEpisodeExtract("$mainUrl/api/proxy/goodshort/chapters/$id", "data.list") { _, ch ->
                 Quadruple(ch.path("index").asInt(0) + 1, ch.path("chapterName").asText("Episode"), ch.path("image").asText(null), null)
             }
@@ -521,15 +524,23 @@ class ShortStream : MainAPI() {
          try {
             val res = app.get("$mainUrl/api/proxy/dotdrama/drama/${ld.id}", headers = headers).text
             val root = mapper.readTree(res)
-            val funi = root.path("funi")
-            if (funi.isArray) {
-                val vid = funi.get(ld.episode - 1) ?: return false
-                val vUrl = vid.text("Mopp", "Bcold")
-                if (vUrl.isNotEmpty()) {
-                     val qualType = vid.path("Dbag").asText("720P")
-                     val qual = qualType.replace("P", "").replace("p", "").toIntOrNull() ?: 720
-                     callback.invoke(newExtractorLink(name, "DOTDRAMA $qualType", vUrl, INFER_TYPE) { this.quality = qual })
-                     return true
+            val episodes = root.path("dgiv").path("ebeer")
+            if (episodes.isArray) {
+                val episode = episodes.firstOrNull { it.path("ewheel").asInt(0) == ld.episode } 
+                    ?: episodes.get(ld.episode - 1) 
+                    ?: return false
+                
+                val videos = episode.path("pphys")
+                if (videos.isArray && videos.size() > 0) {
+                    videos.forEach { vid ->
+                        val vUrl = vid.text("Mopp", "Bcold")
+                        if (vUrl.isNotEmpty()) {
+                             val qualType = vid.path("Dbag").asText("720P")
+                             val qual = qualType.replace("P", "").replace("p", "").toIntOrNull() ?: 720
+                             callback.invoke(newExtractorLink(name, "DOTDRAMA $qualType", vUrl, INFER_TYPE) { this.quality = qual })
+                        }
+                    }
+                    return true
                 }
             }
         } catch (_: Exception) {}
