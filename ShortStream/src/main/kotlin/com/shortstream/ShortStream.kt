@@ -291,17 +291,21 @@ class ShortStream : MainAPI() {
         }
 
         if ((cover.isNullOrEmpty() || rating == null) && source !in searchMetaSources && source != "radreel") {
-            try {
-                val searchRes = app.get(searchUrl(source, ""), timeout = 10).text
-                val items = parseItems(source, searchRes)
-                val match = items.firstOrNull { getId(source, it) == id }
-                if (match != null) {
-                    if (cover.isNullOrEmpty()) cover = getCover(source, match)
-                    if (rating == null) rating = match.path("playCount").asText(null)
-                        ?: match.path("formatHeatScore").asText(null)
-                        ?: match.path("views").asText(null)
-                }
-            } catch (_: Exception) {}
+            val searchQuery = title.split(" ").firstOrNull()?.take(20) ?: ""
+            for (q in listOf(searchQuery, "")) {
+                if (cover?.isNotEmpty() == true && rating != null) break
+                try {
+                    val searchRes = app.get(searchUrl(source, q), timeout = 10).text
+                    val items = parseItems(source, searchRes)
+                    val match = items.firstOrNull { getId(source, it) == id }
+                    if (match != null) {
+                        if (cover.isNullOrEmpty()) cover = getCover(source, match)
+                        if (rating == null) rating = match.path("playCount").asText(null)
+                            ?: match.path("formatHeatScore").asText(null)
+                            ?: match.path("views").asText(null)
+                    }
+                } catch (_: Exception) {}
+            }
         }
 
         val episodes = fetchEpisodes(source, id, videoId, epCount)
