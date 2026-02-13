@@ -182,6 +182,8 @@ class ShortStream : MainAPI() {
             "shortmax" -> listOf("$mainUrl/api/proxy/shortmax/detail/$id")
             "goodshort" -> listOf("$mainUrl/api/proxy/goodshort/chapters/$id")
             "meloshort" -> listOf("$mainUrl/api/proxy/meloshort/drama/$id")
+            "dotdrama" -> listOf("$mainUrl/api/proxy/dotdrama/drama/$id")
+            "starshort" -> listOf("$mainUrl/api/proxy/starshort/drama/$id?lang=4")
             else -> listOf(
                 "$mainUrl/api/proxy/$source/drama/$id",
                 "$mainUrl/api/proxy/$source/detail/$id"
@@ -239,16 +241,24 @@ class ShortStream : MainAPI() {
                 val node = if (source == "netshort" && data.has("data")) data.path("data") else data
 
                 title = getTitle(source, node)
+                if (title.isEmpty()) title = getTitle(source, root)
+
                 if (cover.isNullOrEmpty()) cover = getCover(source, node)
+                if (cover.isNullOrEmpty()) cover = getCover(source, root)
 
                 if (plot == null) plot = node.text("introduction", "summary", "shotIntroduce", "intro", "desc", "description").let { if (it.isEmpty()) null else it }
+                if (plot == null) plot = root.text("introduction", "summary", "shotIntroduce", "intro", "desc", "description").let { if (it.isEmpty()) null else it }
 
                 epCount = maxOf(
                     epCount,
                     node.path("chapterCount").asInt(0),
                     node.path("episodes").asInt(0),
                     node.path("episode_count").asInt(0),
-                    node.path("totalEpisodeCount").asInt(0)
+                    node.path("totalEpisodeCount").asInt(0),
+                    root.path("chapterCount").asInt(0),
+                    root.path("episodes").asInt(0),
+                    root.path("episode_count").asInt(0),
+                    root.path("totalEpisodeCount").asInt(0)
                 )
 
                 if (rating == null) rating = node.text("playCount", "formatHeatScore", "views", "view_count").let { if (it.isEmpty()) null else it }
@@ -408,6 +418,8 @@ class ShortStream : MainAPI() {
         val urls = when (ld.source) {
             "shortmax" -> listOf("$mainUrl/api/proxy/shortmax-video/episode/${ld.videoId}/${ld.episode}?lang=in")
             "reelshort" -> listOf("$mainUrl/api/proxy/reelshort/play/${ld.id}?ep=${ld.episode}&lang=id")
+            "starshort" -> listOf("$mainUrl/api/proxy/starshort/play/${ld.id}?ep=${ld.episode}&lang=4")
+            "meloshort" -> listOf("$mainUrl/api/proxy/meloshort/play/${ld.id}/${ld.episode}")
             "dramabite", "melolo", "radreel" -> emptyList()
             else -> listOf("$mainUrl/api/proxy/${ld.source}3/watch/player?bookId=${ld.id}&index=${ld.episode}&lang=in")
         }
@@ -504,10 +516,9 @@ class ShortStream : MainAPI() {
 
     private suspend fun checkDotdrama(ld: LinkData, headers: Map<String, String>, callback: (ExtractorLink) -> Unit): Boolean {
          try {
-            val res = app.get(searchUrl("dotdrama", ""), headers = headers).text
-            val items = parseItems("dotdrama", res)
-            val match = items.firstOrNull { getId("dotdrama", it) == ld.id } ?: return false
-            val funi = match.path("funi")
+            val res = app.get("$mainUrl/api/proxy/dotdrama/drama/${ld.id}", headers = headers).text
+            val root = mapper.readTree(res)
+            val funi = root.path("funi")
             if (funi.isArray && funi.size() > 0) {
                 funi.forEach { vid ->
                     val vUrl = vid.text("Mopp", "Bcold")
