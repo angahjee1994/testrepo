@@ -32,41 +32,53 @@ class ShortStream : MainAPI() {
         "viglo" to "Viglo",
         "stardusttv" to "StardustTV",
         "dramabite" to "DramaBite",
-        "hishort" to "HiShort",
-        "dramadash" to "DramaDash"
+        "hishort" to "HiShort"
     )
 
     override val mainPage = mainPageOf(
         *providerLabels.map { (k, v) -> k to v }.toTypedArray()
     )
 
+    private val noLangSources = setOf("starshort", "dotdrama", "hishort")
+
     private fun searchUrl(source: String, query: String): String {
         if (source == "netshort") return "$mainUrl/api/proxy/netshort/find?q=$query"
+        if (source in noLangSources) return "$mainUrl/api/proxy/$source/search?q=$query"
         return "$mainUrl/api/proxy/$source/search?q=$query&lang=id"
     }
 
     private fun parseItems(source: String, json: String): List<JsonNode> {
         val root = mapper.readTree(json)
-        val data = root.path("data")
-        return when {
-            source == "netshort" -> data.path("data").path("searchCodeSearchResult").toList()
-            source == "dramawave" -> data.path("items").toList()
-            source == "goodshort" -> data.path("searchResult").path("records").toList()
-                .ifEmpty { data.path("otherSearchResults").toList() }
-            source == "meloshort" -> if (data.isArray) data.toList() else listOf(data)
-            data.isArray -> data.toList()
-            data.has("list") -> data.path("list").toList()
-            else -> emptyList()
+        return when (source) {
+            "netshort" -> root.path("data").path("data").path("searchCodeSearchResult").toList()
+            "dramawave" -> root.path("data").path("items").toList()
+            "goodshort" -> root.path("data").path("searchResult").path("records").toList()
+                .ifEmpty { root.path("data").path("otherSearchResults").toList() }
+            "meloshort" -> root.path("data").let { if (it.isArray) it.toList() else listOf(it) }
+            "dotdrama" -> root.path("results").toList()
+            "stardusttv" -> root.path("data").path("data").toList()
+            "hishort" -> root.path("source").toList()
+            "starshort" -> root.path("data").toList()
+            else -> {
+                val data = root.path("data")
+                when {
+                    data.isArray -> data.toList()
+                    data.has("list") -> data.path("list").toList()
+                    else -> emptyList()
+                }
+            }
         }
     }
 
     private fun getId(source: String, item: JsonNode): String = when (source) {
         "netshort" -> item.path("shortPlayId").asText("")
         "shortmax" -> item.path("code").asText("")
-        "reelshort" -> item.path("id").asText("")
-        "dramawave" -> item.path("id").asText("")
+        "reelshort", "dramawave", "stardusttv" -> item.path("id").asText("")
         "meloshort" -> item.path("dramaId").asText("").ifEmpty { item.path("id").asText("") }
         "goodshort" -> item.path("bookId").asText("")
+        "dotdrama" -> item.path("dcup").asText("")
+        "hishort" -> item.path("vidId").asText("")
+        "starshort" -> item.path("compilationsId").asText("").ifEmpty { item.path("fakeId").asText("") }
         else -> item.path("bookId").asText("").ifEmpty { item.path("id").asText("") }
     }
 
@@ -75,6 +87,10 @@ class ShortStream : MainAPI() {
             "netshort" -> item.path("shortPlayName").asText("")
             "reelshort" -> item.path("title").asText("")
             "meloshort" -> item.path("title").asText("").ifEmpty { item.path("name").asText("") }
+            "dotdrama" -> item.path("nseri").asText("")
+            "stardusttv" -> item.path("english_name").asText("").ifEmpty { item.path("name").asText("") }
+            "hishort" -> item.path("vidName").asText("")
+            "starshort" -> item.path("title").asText("")
             else -> item.path("bookName").asText("").ifEmpty { item.path("name").asText("") }
                 .ifEmpty { item.path("title").asText("") }
         }
@@ -83,6 +99,10 @@ class ShortStream : MainAPI() {
 
     private fun getCover(source: String, item: JsonNode): String? = when (source) {
         "netshort" -> item.path("shortPlayCover").asText(null)
+        "dotdrama" -> item.path("pday").asText(null)
+        "stardusttv" -> item.path("alioss_cover").asText(null) ?: item.path("cover_path").asText(null)
+        "hishort" -> item.path("coverUrl").asText(null)
+        "starshort" -> item.path("coverImgUrl").asText(null)
         else -> item.path("cover").asText(null)
     }
 
@@ -144,7 +164,8 @@ class ShortStream : MainAPI() {
             )
         }
 
-        if (source == "meloshort" || source == "goodshort") {
+        val searchMetaSources = setOf("meloshort", "goodshort", "dotdrama", "stardusttv", "hishort", "starshort")
+        if (source in searchMetaSources) {
             try {
                 val searchRes = app.get(searchUrl(source, ""), timeout = 10).text
                 val items = parseItems(source, searchRes)
@@ -155,14 +176,29 @@ class ShortStream : MainAPI() {
                     plot = match.path("description").asText(null)
                         ?: match.path("introduction").asText(null)
                         ?: match.path("intro").asText(null)
-                    epCount = match.path("chapterTotal").asInt(0)
-                        .coerceAtLeast(match.path("chapterCount").asInt(0))
+                        ?: match.path("dwill").asText(null)
+                        ?: match.path("introduce").asText(null)
+                        ?: match.path("vidDescribe").asText(null)
+                    epCount = maxOf(
+                        match.path("chapterTotal").asInt(0),
+                        match.path("chapterCount").asInt(0),
+                        match.path("ewood").asInt(0),
+                        match.path("episode_total").asInt(0),
+                        match.path("totalNum").asInt(0)
+                    )
                     rating = match.path("fav_count").asText(null)
                         ?: match.path("viewCountDisplay").asText(null)
-                    val tagArray = match.path("subTags").let { if (it.isMissingNode || it.isNull) match.path("labels") else it }
+                        ?: match.path("plays_num").asText(null)
+                    val tagArray = match.path("subTags")
+                        .let { if (it.isMissingNode || it.isNull) match.path("labels") else it }
+                        .let { if (it.isMissingNode || it.isNull) match.path("tagList") else it }
+                        .let { if (it.isMissingNode || it.isNull) match.path("search_label") else it }
                     if (tagArray.isArray && tagArray.size() > 0) {
-                        tags = tagArray.map { it.path("title").asText("").ifEmpty { it.asText("") } }
-                            .filter { it.isNotEmpty() }
+                        tags = tagArray.map {
+                            it.path("english_name").asText("").ifEmpty {
+                                it.path("title").asText("").ifEmpty { it.asText("") }
+                            }
+                        }.filter { it.isNotEmpty() }
                     }
                 }
             } catch (_: Exception) {}
@@ -492,6 +528,30 @@ class ShortStream : MainAPI() {
                             ) { this.quality = Qualities.P720.value })
                             return true
                         }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        if (ld.source == "dotdrama") {
+            try {
+                val res = app.get(searchUrl("dotdrama", ""), headers = headers).text
+                val items = parseItems("dotdrama", res)
+                val match = items.firstOrNull { getId("dotdrama", it) == ld.id }
+                if (match != null) {
+                    val funi = match.path("funi")
+                    if (funi.isArray && funi.size() > 0) {
+                        funi.forEach { vid ->
+                            val vUrl = vid.path("Mopp").asText("").ifEmpty { vid.path("Bcold").asText("") }
+                            val qualType = vid.path("Dbag").asText("720P")
+                            val qual = qualType.replace("P", "").replace("p", "").toIntOrNull() ?: 720
+                            if (vUrl.isNotEmpty()) {
+                                callback.invoke(newExtractorLink(
+                                    name, "DOTDRAMA $qualType", vUrl, INFER_TYPE
+                                ) { this.quality = qual })
+                            }
+                        }
+                        return true
                     }
                 }
             } catch (_: Exception) {}
