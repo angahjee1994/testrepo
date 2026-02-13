@@ -217,11 +217,11 @@ class ShortStream : MainAPI() {
             } catch (_: Exception) {}
         }
 
-        if (source == "radreel") {
+        if (source == "radreel" || source == "starshort" || source == "hishort" || source == "stardusttv") {
             try {
                 val searchRes = app.get(searchUrl(source, "a"), timeout = 10).text
                 val items = parseItems(source, searchRes)
-                val match = items.firstOrNull { getId(source, it) == id }
+                val match = items.firstOrNull { getId(source, it) == id || it.path("fakeId").asText("") == id || it.path("id").asText("") == id }
                 if (match != null) {
                     title = getTitle(source, match)
                     cover = getCover(source, match)
@@ -302,7 +302,7 @@ class ShortStream : MainAPI() {
                 try {
                     val searchRes = app.get(searchUrl(source, q), timeout = 10).text
                     val items = parseItems(source, searchRes)
-                    val match = items.firstOrNull { getId(source, it) == id }
+                    val match = items.firstOrNull { getId(source, it) == id || it.path("fakeId").asText("") == id || it.path("id").asText("") == id }
                     if (match != null) {
                         if (cover.isNullOrEmpty()) cover = getCover(source, match)
                         if (rating == null) rating = match.path("playCount").asText(null)
