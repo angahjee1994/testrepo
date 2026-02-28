@@ -27,22 +27,19 @@ class ShortStream : MainAPI() {
         "dramawave" to "DramaWave",
         "melolo" to "Melolo",
         "radreel" to "RadReel",
-        "flick" to "Flick",
         "dotdrama" to "DotDrama",
         "starshort" to "StarShort",
         "meloshort" to "MeloShort",
         "goodshort" to "GoodShort",
         "viglo" to "Viglo",
-        "stardusttv" to "StardustTV",
-        "dramabite" to "DramaBite",
-        "hishort" to "HiShort"
+        "stardusttv" to "StardustTV"
     )
 
     override val mainPage = mainPageOf(
         *providerLabels.map { (k, v) -> k to v }.toTypedArray()
     )
 
-    private val noLangSources = setOf("starshort", "dotdrama", "hishort")
+    private val noLangSources = setOf("starshort", "dotdrama")
 
     private fun searchUrl(source: String, query: String): String {
         return if (source == "netshort") "$mainUrl/api/proxy/netshort/find?q=$query"
@@ -84,11 +81,9 @@ class ShortStream : MainAPI() {
     private fun getId(source: String, item: JsonNode): String = when (source) {
         "netshort" -> item.text("shortPlayId", "id")
         "shortmax" -> item.text("code", "id")
-        "reelshort", "dramawave", "stardusttv" -> item.text("id")
-        "meloshort" -> item.text("dramaId", "id")
-        "goodshort" -> item.text("bookId", "id")
+        "reelshort", "dramawave", "stardusttv", "viglo", "goodshort" -> item.text("id")
+        "meloshort" -> item.text("drama_id", "dramaId", "id")
         "dotdrama" -> item.text("dcup", "id")
-        "hishort" -> item.text("vidId", "id")
         "starshort" -> item.text("compilationsId", "fakeId", "id")
         "radreel" -> item.text("fakeId", "id")
         else -> item.text("bookId", "id")
@@ -99,10 +94,9 @@ class ShortStream : MainAPI() {
             "netshort" -> item.text("shortPlayName", "name")
             "dotdrama" -> item.text("nseri", "name")
             "stardusttv" -> item.text("english_name", "name")
-            "hishort" -> item.text("vidName", "name")
-            "dramabox", "goodshort", "flick", "viglo" -> item.text("bookName", "name")
+            "dramabox", "goodshort", "viglo" -> item.text("bookName", "name", "title")
             "melolo" -> item.text("title", "bookName", "name")
-            "reelshort", "meloshort", "starshort", "dramawave", "radreel", "dramabite" -> item.text("title", "name")
+            "reelshort", "meloshort", "starshort", "dramawave", "radreel" -> item.text("drama_title", "title", "name")
             "shortmax" -> item.text("name", "title")
             else -> item.text("bookName", "name", "title")
         }
@@ -113,15 +107,14 @@ class ShortStream : MainAPI() {
         "netshort" -> item.text("shortPlayCover", "cover").let { if (it.isEmpty()) null else it }
         "dotdrama" -> item.text("pday", "cover").let { if (it.isEmpty()) null else it }
         "stardusttv" -> item.text("alioss_cover", "cover_path", "cover").let { if (it.isEmpty()) null else it }
-        "hishort" -> item.text("coverUrl", "cover").let { if (it.isEmpty()) null else it }
         "starshort" -> item.text("coverImgUrl", "cover").let { if (it.isEmpty()) null else it }
-        "dramabite" -> item.text("cover_url", "cover").let { if (it.isEmpty()) null else it }
+        "meloshort" -> item.text("drama_cover", "cover").let { if (it.isEmpty()) null else it }
         else -> item.path("cover").asText(null)
     }
 
     private fun getPlayCount(source: String, item: JsonNode): String? = when (source) {
-        "dramabox", "dramawave", "melolo", "radreel", "flick", "viglo", "dramabite", "shortmax" ->
-            item.text("playCount", "formatHeatScore").let { if (it.isEmpty()) null else it }
+        "dramabox", "dramawave", "melolo", "radreel", "viglo", "shortmax", "meloshort" ->
+            item.text("playCount", "formatHeatScore", "fav_count").let { if (it.isEmpty()) null else it }
         "stardusttv" -> item.path("plays_num").asText(null)
         else -> null
     }
@@ -201,7 +194,9 @@ class ShortStream : MainAPI() {
             try {
                 val q = if (source in searchMetaSources) "" else "a"
                 val searchRes = app.get(searchUrl(source, q), timeout = 10).text
-                val items = parseItems(source, searchRes)
+                val root = mapper.readTree(searchRes)
+                val itemsNode = if (root.has("items")) root.path("items") else root.path("data")
+                val items = if (itemsNode.isArray) itemsNode.toList() else parseItems(source, searchRes)
                 val match = items.firstOrNull { getId(source, it) == id || it.text("fakeId", "id") == id }
 
                 if (match != null) {
