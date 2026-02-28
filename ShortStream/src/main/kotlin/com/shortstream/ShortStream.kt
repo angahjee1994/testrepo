@@ -36,7 +36,7 @@ class ShortStream : MainAPI() {
     )
 
     override val mainPage = mainPageOf(
-        *providerLabels.map { (k, v) -> k to v }.toTypedArray()
+        *providerLabels.map { (k, v) -> v to k }.toTypedArray()
     )
 
     private val noLangSources = setOf("starshort", "dotdrama")
@@ -79,7 +79,7 @@ class ShortStream : MainAPI() {
     }
 
     private fun getId(item: JsonNode): String {
-        return item.text("shortPlayId", "code", "id", "drama_id", "dramaId", "dcup", "compilationsId", "fakeId", "bookId")
+        return item.text("shortPlayId", "code", "key", "id", "drama_id", "dramaId", "dcup", "compilationsId", "fakeId", "bookId")
     }
 
     private fun getTitle(item: JsonNode): String {
