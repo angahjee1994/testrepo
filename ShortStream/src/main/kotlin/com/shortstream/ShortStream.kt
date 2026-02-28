@@ -82,14 +82,14 @@ class ShortStream : MainAPI() {
     }
 
     private fun getId(source: String, item: JsonNode): String = when (source) {
-        "netshort" -> item.path("shortPlayId").asText("")
-        "shortmax" -> item.path("code").asText("")
-        "reelshort", "dramawave", "stardusttv" -> item.path("id").asText("")
+        "netshort" -> item.text("shortPlayId", "id")
+        "shortmax" -> item.text("code", "id")
+        "reelshort", "dramawave", "stardusttv" -> item.text("id")
         "meloshort" -> item.text("dramaId", "id")
-        "goodshort" -> item.path("bookId").asText("")
-        "dotdrama" -> item.path("dcup").asText("")
-        "hishort" -> item.path("vidId").asText("")
-        "starshort" -> item.text("compilationsId", "fakeId")
+        "goodshort" -> item.text("bookId", "id")
+        "dotdrama" -> item.text("dcup", "id")
+        "hishort" -> item.text("vidId", "id")
+        "starshort" -> item.text("compilationsId", "fakeId", "id")
         "radreel" -> item.text("fakeId", "id")
         else -> item.text("bookId", "id")
     }
@@ -137,16 +137,21 @@ class ShortStream : MainAPI() {
     }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        if (page > 1) return newHomePageResponse(request.name, emptyList())
         val source = request.data
-        for (query in listOf("", "a")) {
-            try {
-                val res = app.get(searchUrl(source, query)).text
-                val items = parseItems(source, res)
-                val home = items.mapNotNull { toResult(source, it) }
-                if (home.isNotEmpty()) return newHomePageResponse(request.name, home)
-            } catch (_: Exception) {}
-        }
+        try {
+            val url = "$mainUrl/api/vendors/explore/$source?page=$page&size=50"
+            val res = app.get(url).text
+            val root = mapper.readTree(res)
+            
+            val itemsNode = if (root.has("items")) root.path("items") else root.path("data")
+            val items = if (itemsNode.isArray) itemsNode.toList() else emptyList()
+            
+            val home = items.mapNotNull { toResult(source, it) }
+            val hasNext = root.path("hasMore").asBoolean(false)
+            
+            if (home.isNotEmpty()) return newHomePageResponse(request.name, home, hasNext)
+        } catch (_: Exception) {}
+
         return newHomePageResponse(request.name, emptyList())
     }
 
