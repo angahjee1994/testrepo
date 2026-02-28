@@ -78,54 +78,37 @@ class ShortStream : MainAPI() {
         return ""
     }
 
-    private fun getId(source: String, item: JsonNode): String = when (source) {
-        "netshort" -> item.text("shortPlayId", "id")
-        "shortmax" -> item.text("code", "id")
-        "reelshort", "dramawave", "stardusttv", "viglo", "goodshort" -> item.text("id")
-        "meloshort" -> item.text("drama_id", "dramaId", "id")
-        "dotdrama" -> item.text("dcup", "id")
-        "starshort" -> item.text("compilationsId", "fakeId", "id")
-        "radreel" -> item.text("fakeId", "id")
-        else -> item.text("bookId", "id")
+    private fun getId(item: JsonNode): String {
+        return item.text("shortPlayId", "code", "id", "drama_id", "dramaId", "dcup", "compilationsId", "fakeId", "bookId")
     }
 
-    private fun getTitle(source: String, item: JsonNode): String {
-        val raw = when (source) {
-            "netshort" -> item.text("shortPlayName", "name")
-            "dotdrama" -> item.text("nseri", "name")
-            "stardusttv" -> item.text("english_name", "name")
-            "dramabox", "goodshort", "viglo" -> item.text("bookName", "name", "title")
-            "melolo" -> item.text("title", "bookName", "name")
-            "reelshort", "meloshort", "starshort", "dramawave", "radreel" -> item.text("drama_title", "title", "name")
-            "shortmax" -> item.text("name", "title")
-            else -> item.text("bookName", "name", "title")
-        }
+    private fun getTitle(item: JsonNode): String {
+        val raw = item.text(
+            "shortPlayName", "nseri", "english_name", "bookName", 
+            "drama_title", "title", "name"
+        )
         return raw.replace(Regex("<[^>]+>"), "")
     }
 
-    private fun getCover(source: String, item: JsonNode): String? = when (source) {
-        "netshort" -> item.text("shortPlayCover", "cover").let { if (it.isEmpty()) null else it }
-        "dotdrama" -> item.text("pday", "cover").let { if (it.isEmpty()) null else it }
-        "stardusttv" -> item.text("alioss_cover", "cover_path", "cover").let { if (it.isEmpty()) null else it }
-        "starshort" -> item.text("coverImgUrl", "cover").let { if (it.isEmpty()) null else it }
-        "meloshort" -> item.text("drama_cover", "cover").let { if (it.isEmpty()) null else it }
-        else -> item.path("cover").asText(null)
+    private fun getCover(item: JsonNode): String? {
+        return item.text(
+            "shortPlayCover", "pday", "alioss_cover", "cover_path", 
+            "coverImgUrl", "drama_cover", "cover"
+        ).let { if (it.isEmpty()) null else it }
     }
 
-    private fun getPlayCount(source: String, item: JsonNode): String? = when (source) {
-        "dramabox", "dramawave", "melolo", "radreel", "viglo", "shortmax", "meloshort" ->
-            item.text("playCount", "formatHeatScore", "fav_count").let { if (it.isEmpty()) null else it }
-        "stardusttv" -> item.path("plays_num").asText(null)
-        else -> null
+    private fun getPlayCount(item: JsonNode): String? {
+        return item.text("playCount", "formatHeatScore", "fav_count", "plays_num")
+            .let { if (it.isEmpty()) null else it }
     }
 
     private fun toResult(source: String, item: JsonNode): SearchResponse? {
-        val id = getId(source, item).ifEmpty { return null }
-        val rawTitle = getTitle(source, item).ifEmpty { return null }
-        val views = getPlayCount(source, item)
+        val id = getId(item).ifEmpty { return null }
+        val rawTitle = getTitle(item).ifEmpty { return null }
+        val views = getPlayCount(item)
         val displayTitle = if (views != null) "$rawTitle [$views]" else rawTitle
         return newAnimeSearchResponse(displayTitle, "$mainUrl/watch/$source/$id/1", TvType.AsianDrama, false) {
-            this.posterUrl = getCover(source, item)
+            this.posterUrl = getCover(item)
         }
     }
 
@@ -197,11 +180,11 @@ class ShortStream : MainAPI() {
                 val root = mapper.readTree(searchRes)
                 val itemsNode = if (root.has("items")) root.path("items") else root.path("data")
                 val items = if (itemsNode.isArray) itemsNode.toList() else parseItems(source, searchRes)
-                val match = items.firstOrNull { getId(source, it) == id || it.text("fakeId", "id") == id }
+                val match = items.firstOrNull { getId(it) == id || it.text("fakeId", "id") == id }
 
                 if (match != null) {
-                    title = getTitle(source, match)
-                    cover = getCover(source, match)
+                    title = getTitle(match)
+                    cover = getCover(match)
                     plot = match.text("description", "introduction", "intro", "dwill", "introduce", "vidDescribe").let { if (it.isEmpty()) null else it }
                     epCount = maxOf(
                         match.path("chapterTotal").asInt(0),
@@ -213,16 +196,13 @@ class ShortStream : MainAPI() {
                     )
                     rating = match.text("fav_count", "viewCountDisplay", "plays_num", "views").let { if (it.isEmpty()) null else it }
                     
-                    val tagArray = when {
-                        !match.path("subTags").let { it.isMissingNode || it.isNull } -> match.path("subTags")
-                        !match.path("labels").let { it.isMissingNode || it.isNull } -> match.path("labels")
-                        !match.path("tagList").let { it.isMissingNode || it.isNull } -> match.path("tagList")
-                        !match.path("search_label").let { it.isMissingNode || it.isNull } -> match.path("search_label")
-                        !match.path("tags").let { it.isMissingNode || it.isNull } -> match.path("tags")
-                        else -> null
-                    }
-                    
-                    if (tagArray != null && tagArray.isArray && tagArray.size() > 0) {
+                    val tagArray = match.path("subTags")
+                        .let { if (it.isMissingNode || it.isNull) match.path("labels") else it }
+                        .let { if (it.isMissingNode || it.isNull) match.path("tagList") else it }
+                        .let { if (it.isMissingNode || it.isNull) match.path("search_label") else it }
+                        .let { if (it.isMissingNode || it.isNull) match.path("tags") else it }
+                        
+                    if (tagArray.isArray && tagArray.size() > 0) {
                          tags = tagArray.map { 
                              if (it.isObject) it.text("english_name", "title").ifEmpty { it.asText("") } else it.asText("")
                          }.filter { it.isNotEmpty() }
@@ -240,11 +220,11 @@ class ShortStream : MainAPI() {
                 if (data.isMissingNode) data = root
                 val node = if (source == "netshort" && data.has("data")) data.path("data") else data
 
-                title = getTitle(source, node)
-                if (title.isEmpty()) title = getTitle(source, root)
+                title = getTitle(node)
+                if (title.isEmpty()) title = getTitle(root)
 
-                if (cover.isNullOrEmpty()) cover = getCover(source, node)
-                if (cover.isNullOrEmpty()) cover = getCover(source, root)
+                if (cover.isNullOrEmpty()) cover = getCover(node)
+                if (cover.isNullOrEmpty()) cover = getCover(root)
 
                 if (plot == null) plot = node.text("introduction", "summary", "shotIntroduce", "intro", "desc", "description").let { if (it.isEmpty()) null else it }
                 if (plot == null) plot = root.text("introduction", "summary", "shotIntroduce", "intro", "desc", "description").let { if (it.isEmpty()) null else it }
@@ -269,10 +249,10 @@ class ShortStream : MainAPI() {
                 }
 
                  if (tags == null) {
-                    var tagNode = node.path("tags")
-                    if (tagNode.isMissingNode || tagNode.isNull) tagNode = node.path("tagNames")
-                    if (tagNode.isMissingNode || tagNode.isNull) tagNode = node.path("series_tag")
-                    if (tagNode.isMissingNode || tagNode.isNull) tagNode = node.path("labelNameList")
+                    val tagNode = node.path("tags")
+                        .let { if (it.isMissingNode || it.isNull) node.path("tagNames") else it }
+                        .let { if (it.isMissingNode || it.isNull) node.path("series_tag") else it }
+                        .let { if (it.isMissingNode || it.isNull) node.path("labelNameList") else it }
                     
                     if (tagNode.isArray && tagNode.size() > 0) {
                         tags = tagNode.map { it.asText().replace(Regex("<[^>]+>"), "") }
@@ -297,9 +277,9 @@ class ShortStream : MainAPI() {
                 try {
                     val searchRes = app.get(searchUrl(source, q), timeout = 10).text
                     val items = parseItems(source, searchRes)
-                    val match = items.firstOrNull { getId(source, it) == id || it.text("fakeId", "id") == id }
+                    val match = items.firstOrNull { getId(it) == id || it.text("fakeId", "id") == id }
                     if (match != null) {
-                        if (cover.isNullOrEmpty()) cover = getCover(source, match)
+                        if (cover.isNullOrEmpty()) cover = getCover(match)
                         if (rating == null) rating = match.text("playCount", "formatHeatScore", "views").let { if (it.isEmpty()) null else it }
                     }
                 } catch (_: Exception) {}
@@ -324,51 +304,6 @@ class ShortStream : MainAPI() {
     }
 
     private suspend fun fetchEpisodes(source: String, id: String, videoId: String, detailEpCount: Int): List<Episode> {
-        val extractedEpisodes = when (source) {
-            "reelshort" -> simpleEpisodeExtract("$mainUrl/api/proxy/reelshort/episodes/$id", "data") { idx, ep ->
-                Quadruple(ep.path("ep").asInt(idx), ep.path("name").asText("Episode"), ep.path("pic").asText(null), null)
-            }
-            "meloshort" -> simpleEpisodeExtract("$mainUrl/api/proxy/meloshort/drama/$id", "data") { _, ch ->
-                Quadruple(ch.path("chapter_index").asInt(1), "Episode", ch.path("first_frame").asText(null), null)
-            }
-            "dotdrama" -> simpleEpisodeExtract("$mainUrl/api/proxy/dotdrama/drama/$id", "dgiv.ebeer") { idx, ep ->
-                Quadruple(ep.path("ewheel").asInt(idx + 1), "Episode", null, null)
-            }
-            "goodshort" -> simpleEpisodeExtract("$mainUrl/api/proxy/goodshort/chapters/$id", "data.list") { _, ch ->
-                Quadruple(ch.path("index").asInt(0) + 1, ch.path("chapterName").asText("Episode"), ch.path("image").asText(null), null)
-            }
-            "netshort" -> simpleEpisodeExtract("$mainUrl/api/proxy/netshort/info/$id", "result") { _, ep ->
-                Quadruple(ep.path("episodeNo").asInt(1), "Episode", null, null)
-            }
-            "dramawave" -> simpleEpisodeExtract("$mainUrl/api/proxy/dramawave3/dramas/$id/episodes", "episodes") { _, ep ->
-                Quadruple(ep.path("index").asInt(1), "Episode", null, null)
-            }
-            "dotdrama" -> simpleEpisodeExtract("$mainUrl/api/proxy/dotdrama/drama/$id", "funi") { idx, _ ->
-                Quadruple(idx + 1, "Episode", null, null)
-            }
-            "radreel" -> simpleEpisodeExtract("$mainUrl/api/proxy/radreel/detail/$id", "videos") { idx, v ->
-                Quadruple(idx + 1, "Episode", v.path("cover").asText(null), v.path("fakeId").asText(""))
-            }
-            "melolo" -> simpleEpisodeExtract("$mainUrl/api/proxy/melolo/detail/$id", "videos") { _, v ->
-                Quadruple(v.path("episode").asInt(1), "Episode", null, v.path("vid").asText(""))
-            }
-            else -> simpleEpisodeExtract("$mainUrl/api/proxy/$source/chapters/$id", "data.chapterList") { _, ch ->
-                Quadruple(ch.path("chapterIndex").asInt(0) + 1, "Episode", null, null)
-            }
-        } ?: emptyList()
-
-        if (extractedEpisodes.isNotEmpty()) {
-             return extractedEpisodes.map { (epNum, epName, epThumb, customVideoId) ->
-                 val vidId = customVideoId ?: videoId
-                 val linkData = LinkData(source, id, vidId, epNum).toJson()
-                 newEpisode(linkData) {
-                     this.name = if (epName == "Episode") "Episode $epNum" else epName
-                     this.episode = epNum
-                     this.posterUrl = epThumb
-                 }
-             }
-        }
-
         val count = if (detailEpCount > 0) detailEpCount else 100
         return (1..count).map { ep ->
             newEpisode(LinkData(source, id, videoId, ep).toJson()) {
@@ -411,11 +346,6 @@ class ShortStream : MainAPI() {
         val handled = when (ld.source) {
             "netshort" -> checkNetshort(ld, headers, subtitleCallback, callback)
             "dramawave" -> checkDramawave(ld, headers, subtitleCallback, callback)
-            "goodshort" -> checkGoodshort(ld, headers, callback)
-            "dotdrama" -> checkDotdrama(ld, headers, callback)
-            "radreel" -> checkRadreel(ld, headers, callback)
-            "melolo" -> checkMelolo(ld, headers, callback)
-            "dramabite" -> checkDramabite(ld, headers, callback)
             else -> false
         }
         
@@ -426,7 +356,12 @@ class ShortStream : MainAPI() {
             "reelshort" -> listOf("$mainUrl/api/proxy/reelshort/play/${ld.id}?ep=${ld.episode}&lang=id")
             "starshort" -> listOf("$mainUrl/api/proxy/starshort/play/${ld.id}?ep=${ld.episode}&lang=4")
             "meloshort" -> listOf("$mainUrl/api/proxy/meloshort/play/${ld.id}/${ld.episode}")
-            "dramabite", "melolo", "radreel", "dotdrama" -> emptyList()
+            "goodshort" -> listOf("$mainUrl/api/proxy/goodshort/chapters/${ld.id}")
+            "dotdrama" -> listOf("$mainUrl/api/proxy/dotdrama/drama/${ld.id}")
+            "radreel" -> listOf("$mainUrl/api/proxy/radreel/video/${ld.videoId}")
+            "melolo" -> listOf("$mainUrl/api/proxy/melolo/video/${ld.videoId}")
+            "dramawave" -> listOf("$mainUrl/api/proxy/dramawave3/dramas/${ld.id}/episodes", "$mainUrl/api/proxy/dramawave/dramas/${ld.id}/episodes")
+            "dramabite" -> emptyList()
             else -> listOf("$mainUrl/api/proxy/${ld.source}3/watch/player?bookId=${ld.id}&index=${ld.episode}&lang=in")
         }
 
@@ -435,7 +370,7 @@ class ShortStream : MainAPI() {
                 val res = app.get(playerUrl, headers = headers).text
                 val root = mapper.readTree(res)
                 val node = root.path("data").let { if (it.isMissingNode) root else it }
-                if (extractGenericLinks(node, ld.source, callback)) return true
+                if (extractGenericLinks(node, ld, callback)) return true
              } catch (_: Exception) {}
         }
         
@@ -493,122 +428,93 @@ class ShortStream : MainAPI() {
         return false
     }
 
-    private suspend fun checkGoodshort(ld: LinkData, headers: Map<String, String>, callback: (ExtractorLink) -> Unit): Boolean {
-        try {
-            val res = app.get("$mainUrl/api/proxy/goodshort/chapters/${ld.id}", headers = headers).text
-            val list = mapper.readTree(res).path("data").path("list")
-            val ch = list.firstOrNull { it.path("index").asInt(-1) == ld.episode - 1 } ?: return false
+    private suspend fun extractGenericLinks(node: JsonNode, ld: LinkData, callback: (ExtractorLink) -> Unit): Boolean {
+        var found = false
+        val sourceName = ld.source.uppercase()
+
+        // Handle Array structures first (like DotDrama, GoodShort)
+        if (node.isArray || node.has("list") || node.has("dgiv") || node.has("episodes")) {
+            val list = when {
+                node.isArray -> node
+                node.has("list") -> node.path("list")
+                node.has("episodes") -> node.path("episodes")
+                ld.source == "dotdrama" -> {
+                    val episodes = node.path("dgiv").path("ebeer")
+                    if (episodes.isArray) {
+                        episodes.firstOrNull { it.path("ewheel").asInt(0) == ld.episode } 
+                            ?: episodes.get(ld.episode - 1) ?: node
+                    } else node
+                }
+                else -> node
+            }
             
-            val multiVideos = ch.path("multiVideos")
-            if (multiVideos.isArray && multiVideos.size() > 0) {
-                multiVideos.forEach { mv ->
-                    val vUrl = mv.path("filePath").asText("")
-                    if (vUrl.isNotEmpty()) {
-                        val qualType = mv.path("type").asText("720p")
-                        val qual = qualType.replace("p", "").toIntOrNull() ?: 720
-                        callback.invoke(newExtractorLink(name, "GOODSHORT $qualType", vUrl, INFER_TYPE) { this.quality = qual })
-                    }
-                }
-                return true
-            }
-            val cdn = ch.path("cdn").asText("")
-            if (cdn.isNotEmpty()) {
-                 callback.invoke(newExtractorLink(name, "GOODSHORT", cdn, INFER_TYPE) { this.quality = Qualities.P720.value })
-                 return true
-            }
-        } catch (_: Exception) {}
-        return false
-    }
-
-    private suspend fun checkDotdrama(ld: LinkData, headers: Map<String, String>, callback: (ExtractorLink) -> Unit): Boolean {
-         try {
-            val res = app.get("$mainUrl/api/proxy/dotdrama/drama/${ld.id}", headers = headers).text
-            val root = mapper.readTree(res)
-            val episodes = root.path("dgiv").path("ebeer")
-            if (episodes.isArray) {
-                val episode = episodes.firstOrNull { it.path("ewheel").asInt(0) == ld.episode } 
-                    ?: episodes.get(ld.episode - 1) 
-                    ?: return false
+            // GoodShort array check
+            if (list.isArray) {
+                val ch = list.firstOrNull { it.path("index").asInt(-1) == ld.episode }
+                    ?: list.firstOrNull { it.path("index").asInt(-1) == ld.episode - 1 }
                 
-                val videos = episode.path("pphys")
-                if (videos.isArray && videos.size() > 0) {
-                    videos.forEach { vid ->
-                        val vUrl = vid.text("Mopp", "Bcold")
-                        if (vUrl.isNotEmpty()) {
-                             val qualType = vid.path("Dbag").asText("720P")
-                             val qual = qualType.replace("P", "").replace("p", "").toIntOrNull() ?: 720
-                             callback.invoke(newExtractorLink(name, "DOTDRAMA $qualType", vUrl, INFER_TYPE) { this.quality = qual })
-                        }
-                    }
-                    return true
-                }
-            }
-        } catch (_: Exception) {}
-        return false
-    }
-
-    private suspend fun checkRadreel(ld: LinkData, headers: Map<String, String>, callback: (ExtractorLink) -> Unit): Boolean {
-        try {
-            val res = app.get("$mainUrl/api/proxy/radreel/video/${ld.videoId}", headers = headers).text
-            val vUrl = mapper.readTree(res).path("url").asText("")
-            if (vUrl.isNotEmpty()) {
-                callback.invoke(newExtractorLink(name, "RADREEL", vUrl, INFER_TYPE) { this.quality = Qualities.P720.value })
-                return true
-            }
-        } catch (_: Exception) {}
-        return false
-    }
-
-    private suspend fun checkMelolo(ld: LinkData, headers: Map<String, String>, callback: (ExtractorLink) -> Unit): Boolean {
-        try {
-            val res = app.get("$mainUrl/api/proxy/melolo/video/${ld.videoId}", headers = headers).text
-            val root = mapper.readTree(res)
-            var found = false
-            val directUrl = root.path("url").asText("")
-            if (directUrl.isNotEmpty()) {
-                callback.invoke(newExtractorLink(name, "MELOLO", directUrl, INFER_TYPE) { this.quality = Qualities.P720.value })
-                found = true
-            }
-            root.path("list").forEach { item ->
-                val encoded = item.path("url").asText("")
-                if (encoded.isNotEmpty()) {
-                    val decoded = String(android.util.Base64.decode(encoded, android.util.Base64.DEFAULT))
-                    if (decoded.startsWith("http")) {
-                        val def = item.path("definition").asText("720p")
-                        callback.invoke(newExtractorLink(name, "MELOLO $def", decoded, INFER_TYPE) { 
-                            this.quality = def.replace("p", "").toIntOrNull() ?: 720 
-                        })
+                if (ch != null) {
+                    var innerNode = ch
+                    if (ch.has("chapter")) innerNode = ch.path("chapter")
+                    
+                    val cdn = innerNode.path("cdn").asText("")
+                    if (cdn.isNotEmpty()) {
+                        callback.invoke(newExtractorLink(name, sourceName, cdn, INFER_TYPE) { this.quality = Qualities.P720.value })
                         found = true
                     }
+                    val multiVideos = innerNode.path("multiVideos")
+                    if (multiVideos.isArray && multiVideos.size() > 0) {
+                        multiVideos.forEach { mv ->
+                            val vUrl = mv.path("filePath").asText("")
+                            if (vUrl.isNotEmpty()) {
+                                val qualType = mv.path("type").asText("720p")
+                                val qual = qualType.replace("p", "").toIntOrNull() ?: 720
+                                callback.invoke(newExtractorLink(name, "$sourceName $qualType", vUrl, INFER_TYPE) { this.quality = qual })
+                                found = true
+                            }
+                        }
+                    }
+                    if (found) return true
+                }
+
+                // Melolo array check
+                list.forEach { item ->
+                    val encoded = item.path("url").asText("")
+                    if (encoded.isNotEmpty()) {
+                        val decoded = String(android.util.Base64.decode(encoded, android.util.Base64.DEFAULT))
+                        if (decoded.startsWith("http")) {
+                            val def = item.path("definition").asText("720p")
+                            callback.invoke(newExtractorLink(name, "$sourceName $def", decoded, INFER_TYPE) { 
+                                this.quality = def.replace("p", "").toIntOrNull() ?: 720 
+                            })
+                            found = true
+                        }
+                    }
                 }
             }
-            return found
-        } catch (_: Exception) {}
-        return false
-    }
 
-    private suspend fun checkDramabite(ld: LinkData, headers: Map<String, String>, callback: (ExtractorLink) -> Unit): Boolean {
-         try {
-            val res = app.get("$mainUrl/api/proxy/dramabite/drama/${ld.id}/episode/${ld.episode}", headers = headers).text
-            val linkInfo = mapper.readTree(res).path("data").path("link_info")
-            val vUrl = linkInfo.text("video_link_m3u8", "video_link")
-            if (vUrl.isNotEmpty()) {
-                callback.invoke(newExtractorLink(name, "DRAMABITE", vUrl, INFER_TYPE) { this.quality = Qualities.P720.value })
-                return true
+            // Dotdrama `pphys` array
+            val pphys = list.path("pphys")
+            if (pphys.isArray && pphys.size() > 0) {
+                pphys.forEach { vid ->
+                    val vUrl = vid.text("Mopp", "Bcold")
+                    if (vUrl.isNotEmpty()) {
+                         val qualType = vid.path("Dbag").asText("720P")
+                         val qual = qualType.replace("P", "").replace("p", "").toIntOrNull() ?: 720
+                         callback.invoke(newExtractorLink(name, "$sourceName $qualType", vUrl, INFER_TYPE) { this.quality = qual })
+                         found = true
+                    }
+                }
             }
-        } catch (_: Exception) {}
-        return false
-    }
-
-    private suspend fun extractGenericLinks(node: JsonNode, source: String, callback: (ExtractorLink) -> Unit): Boolean {
-        var found = false
+            if (found) return true
+        }
         val qualities = node.path("qualities")
         if (qualities.isArray && qualities.size() > 0) {
             qualities.forEach { q ->
                 val vUrl = q.text("videoUrl", "url")
                 val qual = q.path("quality").asInt(720)
                 if (vUrl.isNotEmpty()) {
-                    callback.invoke(newExtractorLink(name, "${source.uppercase()} ${qual}p", vUrl, INFER_TYPE) { this.quality = qual })
+                    callback.invoke(newExtractorLink(name, "$sourceName ${qual}p", vUrl, INFER_TYPE) { this.quality = qual })
                     found = true
                 }
             }
@@ -621,7 +527,7 @@ class ShortStream : MainAPI() {
                     val vUrl = qualities.path(qualLabel).asText("")
                     val qual = qualLabel.replace("p", "").toIntOrNull() ?: 720
                     if (vUrl.isNotEmpty()) {
-                        callback.invoke(newExtractorLink(name, "${source.uppercase()} $qualLabel", vUrl, INFER_TYPE) { this.quality = qual })
+                        callback.invoke(newExtractorLink(name, "$sourceName $qualLabel", vUrl, INFER_TYPE) { this.quality = qual })
                         found = true
                     }
                 }
@@ -631,21 +537,21 @@ class ShortStream : MainAPI() {
 
         val hlsUrl = node.path("hls_url").asText("")
         if (hlsUrl.startsWith("http")) {
-            callback.invoke(newExtractorLink(name, source.uppercase(), hlsUrl, INFER_TYPE) { this.quality = Qualities.P720.value })
+            callback.invoke(newExtractorLink(name, sourceName, hlsUrl, INFER_TYPE) { this.quality = Qualities.P720.value })
             return true
         }
 
         val linkInfo = node.path("link_info")
         val linkUrl = linkInfo.text("video_link_m3u8", "video_link")
         if (linkUrl.isNotEmpty()) {
-             callback.invoke(newExtractorLink(name, source.uppercase(), linkUrl, INFER_TYPE) { this.quality = Qualities.P720.value })
+             callback.invoke(newExtractorLink(name, sourceName, linkUrl, INFER_TYPE) { this.quality = Qualities.P720.value })
              return true
         }
 
         listOf("videoUrl", "video_url", "m3u8_url", "url", "playUrl", "external_audio_h264_m3u8").forEach { field ->
             val vUrl = node.path(field).asText("")
             if (vUrl.isNotEmpty() && vUrl.startsWith("http")) {
-                callback.invoke(newExtractorLink(name, source.uppercase(), vUrl, INFER_TYPE) { this.quality = Qualities.P1080.value })
+                callback.invoke(newExtractorLink(name, sourceName, vUrl, INFER_TYPE) { this.quality = Qualities.P1080.value })
                 found = true
             }
         }
