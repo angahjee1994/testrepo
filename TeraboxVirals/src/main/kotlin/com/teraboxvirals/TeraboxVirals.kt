@@ -96,12 +96,11 @@ class TeraboxVirals : MainAPI() {
     }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
+        val start = (page - 1) * 20 + 1
         val url = if (request.data.isEmpty()) {
-            if (page > 1) return null
-            mainUrl
+            if (page == 1) mainUrl else "$mainUrl/search?max-results=20&start=$start"
         } else {
-            if (page > 1) return null
-            "$mainUrl/${request.data}"
+            if (page == 1) "$mainUrl/${request.data}" else "$mainUrl/${request.data}?max-results=20&start=$start"
         }
 
         val document = app.get(url).document
