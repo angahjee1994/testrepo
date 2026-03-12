@@ -95,12 +95,14 @@ class TeraboxVirals : MainAPI() {
         return null
     }
 
+    private val nextPageUrlCache = mutableMapOf<String, String?>()
+
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
-        val start = (page - 1) * 20 + 1
-        val url = if (request.data.isEmpty()) {
-            if (page == 1) mainUrl else "$mainUrl/search?max-results=20&start=$start"
+        val url = if (page == 1) {
+            nextPageUrlCache.remove(request.name)
+            if (request.data.isEmpty()) mainUrl else "$mainUrl/${request.data}"
         } else {
-            if (page == 1) "$mainUrl/${request.data}" else "$mainUrl/${request.data}?max-results=20&start=$start"
+            nextPageUrlCache[request.name] ?: return null
         }
 
         val document = app.get(url).document
@@ -114,7 +116,14 @@ class TeraboxVirals : MainAPI() {
                 this.posterUrl = poster
             }
         }
-        return newHomePageResponse(HomePageList(request.name, home, home.isNotEmpty()))
+
+        if (home.isEmpty()) return null
+
+        val nextUrl = document.selectFirst("a[data-load]")?.attr("data-load")
+        nextPageUrlCache[request.name] = nextUrl
+        val hasNext = !nextUrl.isNullOrEmpty()
+
+        return newHomePageResponse(request.name, home, hasNext)
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
