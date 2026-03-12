@@ -114,7 +114,7 @@ class TeraboxVirals : MainAPI() {
                 this.posterUrl = poster
             }
         }
-        return newHomePageResponse(request.name, home)
+        return newHomePageResponse(HomePageList(request.name, home, home.isNotEmpty()))
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
@@ -382,26 +382,16 @@ class TeraboxVirals : MainAPI() {
                 ((data[offset + 3].toLong() and 0xFF) shl 24)
     }
 
-    private suspend fun downloadZipEntry(directUrl: String, entry: ZipEntry): java.io.File? {
+    class ProgressiveFile(
+        val file: java.io.File,
+        val totalSize: Long,
+        val bytesWritten: java.util.concurrent.atomic.AtomicLong = java.util.concurrent.atomic.AtomicLong(0),
+        val isComplete: java.util.concurrent.atomic.AtomicBoolean = java.util.concurrent.atomic.AtomicBoolean(false),
+        val hasError: java.util.concurrent.atomic.AtomicBoolean = java.util.concurrent.atomic.AtomicBoolean(false)
+    )
+
+    private fun startProgressiveDownload(directUrl: String, entry: ZipEntry): ProgressiveFile? {
         try {
-            val localHeaderRes = app.get(directUrl, headers = mapOf(
-                "user-agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                "Range" to "bytes=${entry.localHeaderOffset}-${entry.localHeaderOffset + 29}"
-            ))
-            val headerBytes = localHeaderRes.body.bytes()
-            if (headerBytes.size < 30) return null
-
-            val nameLen = readUint16LE(headerBytes, 26)
-            val extraLen = readUint16LE(headerBytes, 28)
-            val dataOffset = entry.localHeaderOffset + 30 + nameLen + extraLen
-            val dataEnd = dataOffset + entry.compressedSize - 1
-
-            val dataRes = app.get(directUrl, headers = mapOf(
-                "user-agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                "Range" to "bytes=$dataOffset-$dataEnd"
-            ))
-            val compressedData = dataRes.body.bytes()
-
             val cacheDir = java.io.File(
                 com.lagradost.cloudstream3.AcraApplication.context?.cacheDir ?: java.io.File(System.getProperty("java.io.tmpdir") ?: "/tmp"),
                 "terabox_cache"
@@ -411,22 +401,80 @@ class TeraboxVirals : MainAPI() {
 
             val safeFileName = entry.fileName.replace(Regex("[^a-zA-Z0-9._()-]"), "_")
             val outFile = java.io.File(cacheDir, safeFileName)
+            val progressive = ProgressiveFile(outFile, entry.uncompressedSize)
 
-            if (entry.compressionMethod == 0) {
-                outFile.writeBytes(compressedData)
-            } else {
-                val inflater = java.util.zip.Inflater(true)
-                inflater.setInput(compressedData)
-                val buffer = ByteArray(8192)
-                outFile.outputStream().use { fos ->
-                    while (!inflater.finished()) {
-                        val count = inflater.inflate(buffer)
-                        if (count > 0) fos.write(buffer, 0, count)
+            kotlin.concurrent.thread {
+                try {
+                    val conn = java.net.URL(directUrl).openConnection() as java.net.HttpURLConnection
+                    conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+                    conn.setRequestProperty("Range", "bytes=${entry.localHeaderOffset}-${entry.localHeaderOffset + 29}")
+                    val headerBytes = conn.inputStream.use { it.readBytes() }
+                    conn.disconnect()
+                    if (headerBytes.size < 30) {
+                        progressive.hasError.set(true)
+                        progressive.isComplete.set(true)
+                        return@thread
                     }
+
+                    val nameLen = readUint16LE(headerBytes, 26)
+                    val extraLen = readUint16LE(headerBytes, 28)
+                    val dataOffset = entry.localHeaderOffset + 30 + nameLen + extraLen
+                    val dataEnd = dataOffset + entry.compressedSize - 1
+
+                    val dataConn = java.net.URL(directUrl).openConnection() as java.net.HttpURLConnection
+                    dataConn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+                    dataConn.setRequestProperty("Range", "bytes=$dataOffset-$dataEnd")
+
+                    val inputStream = java.io.BufferedInputStream(dataConn.inputStream, 65536)
+
+                    if (entry.compressionMethod == 0) {
+                        val buffer = ByteArray(65536)
+                        outFile.outputStream().use { fos ->
+                            while (true) {
+                                val read = inputStream.read(buffer)
+                                if (read == -1) break
+                                fos.write(buffer, 0, read)
+                                fos.flush()
+                                progressive.bytesWritten.addAndGet(read.toLong())
+                            }
+                        }
+                    } else {
+                        val inflater = java.util.zip.Inflater(true)
+                        val compressedBuffer = ByteArray(65536)
+                        val decompressedBuffer = ByteArray(65536)
+                        outFile.outputStream().use { fos ->
+                            while (true) {
+                                if (inflater.needsInput()) {
+                                    val read = inputStream.read(compressedBuffer)
+                                    if (read == -1) break
+                                    inflater.setInput(compressedBuffer, 0, read)
+                                }
+                                while (!inflater.needsInput() && !inflater.finished()) {
+                                    val count = inflater.inflate(decompressedBuffer)
+                                    if (count > 0) {
+                                        fos.write(decompressedBuffer, 0, count)
+                                        fos.flush()
+                                        progressive.bytesWritten.addAndGet(count.toLong())
+                                    }
+                                }
+                                if (inflater.finished()) break
+                            }
+                            inflater.end()
+                        }
+                    }
+
+                    inputStream.close()
+                    dataConn.disconnect()
+                    progressive.isComplete.set(true)
+                    android.util.Log.d("TeraboxVirals", "Progressive download complete: ${progressive.bytesWritten.get()} bytes")
+                } catch (e: Exception) {
+                    android.util.Log.e("TeraboxVirals", "Progressive download error: ${e.message}", e)
+                    progressive.hasError.set(true)
+                    progressive.isComplete.set(true)
                 }
-                inflater.end()
             }
-            return outFile
+
+            return progressive
         } catch (_: Exception) {}
         return null
     }
@@ -466,7 +514,7 @@ class TeraboxVirals : MainAPI() {
         return loadTeraboxLinks(cleanData, subtitleCallback, callback)
     }
 
-    private var currentServer: SimpleWebServer? = null
+    private var currentServer: ProgressiveWebServer? = null
 
     private suspend fun tryMediafireZip(mediafirePageUrl: String, targetFileName: String, callback: (ExtractorLink) -> Unit): Boolean {
         try {
@@ -494,30 +542,36 @@ class TeraboxVirals : MainAPI() {
                 targetBase.contains(entryBase) || entryBase.contains(targetBase)
             } ?: videoEntries.first()
 
-            val cachedFile = downloadZipEntry(directUrl, targetEntry)
-            if (cachedFile != null && cachedFile.exists() && cachedFile.length() > 0) {
-                // Stop previous server if running
-                currentServer?.stopServer()
-                
-                // Start new server
-                val server = SimpleWebServer(cachedFile)
-                server.start()
-                currentServer = server
-                
-                // Give it a moment to bind
-                for (i in 0..10) {
-                    if (server.port > 0) break
-                    kotlinx.coroutines.delay(50)
-                }
+            val progressive = startProgressiveDownload(directUrl, targetEntry)
+            if (progressive == null) return false
 
-                if (server.port > 0) {
-                    val localUrl = "http://127.0.0.1:${server.port}/video.mp4"
-                    android.util.Log.d("TeraboxVirals", "Serving at $localUrl")
-                    callback.invoke(
-                        newExtractorLink("MediaFire", "MediaFire", localUrl, INFER_TYPE)
-                    )
-                    return true
-                }
+            val initialBufferSize = 2 * 1024 * 1024L
+            val maxWaitMs = 60_000L
+            val startTime = System.currentTimeMillis()
+            while (progressive.bytesWritten.get() < initialBufferSize && !progressive.isComplete.get()) {
+                if (System.currentTimeMillis() - startTime > maxWaitMs) break
+                kotlinx.coroutines.delay(200)
+            }
+
+            if (progressive.hasError.get() && progressive.bytesWritten.get() == 0L) return false
+
+            currentServer?.stopServer()
+            val server = ProgressiveWebServer(progressive)
+            server.start()
+            currentServer = server
+
+            for (i in 0..10) {
+                if (server.port > 0) break
+                kotlinx.coroutines.delay(50)
+            }
+
+            if (server.port > 0) {
+                val localUrl = "http://127.0.0.1:${server.port}/video.mp4"
+                android.util.Log.d("TeraboxVirals", "Progressive serving at $localUrl (buffered=${progressive.bytesWritten.get()} / ${progressive.totalSize})")
+                callback.invoke(
+                    newExtractorLink("MediaFire", "MediaFire", localUrl, INFER_TYPE)
+                )
+                return true
             }
         } catch (e: Exception) {
             android.util.Log.e("TeraboxVirals", "MF error: ${e.message}", e)
@@ -525,7 +579,7 @@ class TeraboxVirals : MainAPI() {
         return false
     }
 
-    class SimpleWebServer(private val file: java.io.File) : Thread() {
+    class ProgressiveWebServer(private val progressive: ProgressiveFile) : Thread() {
         private var serverSocket: java.net.ServerSocket? = null
         var port = 0
 
@@ -549,11 +603,11 @@ class TeraboxVirals : MainAPI() {
                         val input = it.getInputStream()
                         val out = it.getOutputStream()
                         val reader = java.io.BufferedReader(java.io.InputStreamReader(input))
-                        val requestLine = reader.readLine()
-                        if (requestLine == null) return@use
+                        val requestLine = reader.readLine() ?: return@use
 
                         var rangeStart: Long = 0
-                        var rangeEnd: Long = file.length() - 1
+                        val reportedSize = progressive.totalSize
+                        var rangeEnd: Long = reportedSize - 1
 
                         var line = reader.readLine()
                         while (line != null && line.isNotEmpty()) {
@@ -562,19 +616,19 @@ class TeraboxVirals : MainAPI() {
                                 val parts = rangeVal.split("-")
                                 rangeStart = parts[0].toLongOrNull() ?: 0
                                 if (parts.size > 1 && parts[1].isNotEmpty()) {
-                                    rangeEnd = parts[1].toLongOrNull() ?: (file.length() - 1)
+                                    rangeEnd = parts[1].toLongOrNull() ?: (reportedSize - 1)
                                 }
                             }
                             line = reader.readLine()
                         }
 
-                        if (rangeEnd >= file.length()) rangeEnd = file.length() - 1
+                        if (rangeEnd >= reportedSize) rangeEnd = reportedSize - 1
                         val contentLength = rangeEnd - rangeStart + 1
 
                         val headers = StringBuilder()
                         headers.append("HTTP/1.1 206 Partial Content\r\n")
                         headers.append("Content-Type: video/mp4\r\n")
-                        headers.append("Content-Range: bytes $rangeStart-$rangeEnd/${file.length()}\r\n")
+                        headers.append("Content-Range: bytes $rangeStart-$rangeEnd/$reportedSize\r\n")
                         headers.append("Content-Length: $contentLength\r\n")
                         headers.append("Accept-Ranges: bytes\r\n")
                         headers.append("Connection: close\r\n")
@@ -582,27 +636,52 @@ class TeraboxVirals : MainAPI() {
 
                         out.write(headers.toString().toByteArray())
 
-                        val buffer = ByteArray(8192)
-                        file.inputStream().use { fileIn ->
-                            fileIn.skip(rangeStart)
-                            var bytesLeft = contentLength
-                            while (bytesLeft > 0) {
-                                val read = fileIn.read(buffer, 0, minOf(buffer.size.toLong(), bytesLeft).toInt())
-                                if (read == -1) break
-                                out.write(buffer, 0, read)
-                                bytesLeft -= read
+                        val buffer = ByteArray(65536)
+                        var bytesSent = 0L
+                        var filePosition = rangeStart
+
+                        while (bytesSent < contentLength) {
+                            val needed = filePosition + 1
+                            var waited = 0
+                            while (progressive.bytesWritten.get() < needed && !progressive.isComplete.get()) {
+                                Thread.sleep(100)
+                                waited += 100
+                                if (waited > 30_000) break
                             }
+
+                            if (progressive.bytesWritten.get() < needed && progressive.isComplete.get()) break
+
+                            val available = progressive.bytesWritten.get()
+                            val canRead = minOf(contentLength - bytesSent, available - filePosition, buffer.size.toLong())
+                            if (canRead <= 0) {
+                                if (progressive.isComplete.get()) break
+                                Thread.sleep(100)
+                                continue
+                            }
+
+                            val raf = java.io.RandomAccessFile(progressive.file, "r")
+                            raf.seek(filePosition)
+                            val read = raf.read(buffer, 0, canRead.toInt())
+                            raf.close()
+
+                            if (read <= 0) {
+                                if (progressive.isComplete.get()) break
+                                Thread.sleep(100)
+                                continue
+                            }
+
+                            out.write(buffer, 0, read)
+                            bytesSent += read
+                            filePosition += read
                         }
                     }
-                } catch (e: Exception) {
-                    // Broken pipe is expected when player closes connection
-                }
+                } catch (_: Exception) {}
             }
         }
 
         fun stopServer() {
             interrupt()
-            try { serverSocket?.close() } catch (e: Exception) {}
+            try { serverSocket?.close() } catch (_: Exception) {}
         }
     }
 
