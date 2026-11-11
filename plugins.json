@@ -315,7 +315,7 @@
         "name": "Moviebox"
     },
     {
-        "iconUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/Netflix/logo.png",
+        "iconUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/Moviebox/logo.png",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/angahjee1994/testrepo",
         "fileSize": 36235,
@@ -329,10 +329,10 @@
             "TvSeries"
         ],
         "version": 1,
-        "internalName": "Netflix",
-        "description": "Netflix Contents in Multiple Languages",
-        "url": "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds/Netflix.cs3",
-        "name": "Netflix"
+        "internalName": "Moviebox",
+        "description": "Moviebox Contents in Multiple Languages",
+        "url": "https://github.com/NivinCNC/CNCVerse-Cloud-Stream-Extension/raw/refs/heads/builds/MovieBoxProvider.cs3",
+        "name": "Moviebox"
     },
     {
         "iconUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/Pencurimovie/logo.png",
