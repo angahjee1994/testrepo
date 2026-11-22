@@ -102,7 +102,7 @@
     "iconUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/Dramabox/logo.png",
     "apiVersion": 1,
     "repositoryUrl": "https://github.com/angahjee1994/testrepo",
-    "fileSize": 105186,
+    "fileSize": 109043,
     "status": 1,
     "language": "en",
     "authors": [
@@ -111,7 +111,7 @@
     "tvTypes": [
       "AsianDrama"
     ],
-    "version": 9,
+    "version": 10,
     "internalName": "Dramabox",
     "description": "Streaming Drama Pendek",
     "url": "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds/Dramabox.cs3",
