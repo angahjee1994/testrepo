@@ -571,23 +571,5 @@
     ],
     "iconUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/AstroGo/logo.png",
     "apiVersion": 1
-  },
-  {
-    "name": "HDrama",
-    "version": 1,
-    "fileSize": 67779,
-    "internalName": "HDrama",
-    "url": "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds/HDrama.cs3",
-    "description": "HDrama vertical short dramas from hdrama.net \u2014 all 92 sources, on-device decrypt",
-    "authors": [
-      "angahjee1994"
-    ],
-    "language": "en",
-    "status": 1,
-    "tvTypes": [
-      "AsianDrama"
-    ],
-    "iconUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/HDrama/logo.png",
-    "apiVersion": 1
   }
 ]
