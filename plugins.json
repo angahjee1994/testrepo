@@ -552,5 +552,24 @@
     "description": "#1 best extention based on MultiAPI",
     "url": "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds/XX1.cs3",
     "name": "XX1"
+  },
+  {
+    "name": "AstroGo",
+    "version": 1,
+    "fileSize": 48164,
+    "internalName": "AstroGo",
+    "url": "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds/AstroGo.cs3",
+    "description": "Astro GO (MY) - requires Astro ID login via extension Settings",
+    "authors": [
+      "angahjee1994"
+    ],
+    "language": "en",
+    "status": 3,
+    "tvTypes": [
+      "Movie",
+      "TvSeries"
+    ],
+    "iconUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/AstroGo/logo.png",
+    "apiVersion": 1
   }
 ]
