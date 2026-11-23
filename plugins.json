@@ -372,12 +372,12 @@
     "apiVersion": 1
   },
   {
-    "name": "StreamPK",
-    "version": 2,
-    "fileSize": 73547,
-    "internalName": "StreamPK",
-    "url": "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds/StreamPK.cs3",
-    "description": "StreamPK: free live sports streams from streampk.net \u2014 soccer, NBA, NFL, UFC, F1 schedules + live playback",
+    "name": "Stream",
+    "version": 1,
+    "fileSize": 52428,
+    "internalName": "Stream",
+    "url": "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds/Stream.cs3",
+    "description": "Stream: free live sports streams from streampk.net \u2014 soccer, NBA, NFL, UFC, F1 schedules + live playback",
     "authors": [
       "botol"
     ],
@@ -386,7 +386,7 @@
     "tvTypes": [
       "Live"
     ],
-    "iconUrl": "https://raw.githubusercontent.com/botol/ShortStream/refs/heads/main/StreamPK/logo.webp",
+    "iconUrl": "https://raw.githubusercontent.com/botol/ShortStream/refs/heads/main/Stream/logo.webp",
     "apiVersion": 1
   }
 ]
