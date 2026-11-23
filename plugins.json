@@ -19,25 +19,6 @@
     "name": "AdultDeepFakes"
   },
   {
-    "iconUrl": "https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://animeidhentai.com&size=256",
-    "apiVersion": 1,
-    "repositoryUrl": "https://github.com/angahjee1994/testrepo",
-    "fileSize": 12275,
-    "status": 1,
-    "language": "en",
-    "authors": [
-      "KillerDogeEmpire"
-    ],
-    "tvTypes": [
-      "NSFW"
-    ],
-    "version": 1,
-    "internalName": "AnimeIdHentai",
-    "description": "Watch Anime From Hentai.pro",
-    "url": "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds/AnimeIdHentai.cs3",
-    "name": "AnimeIdHentai"
-  },
-  {
     "iconUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/BokepIndoh/logo.png",
     "apiVersion": 1,
     "repositoryUrl": "https://github.com/angahjee1994/testrepo",
@@ -57,48 +38,6 @@
     "name": "XMalayPorn"
   },
   {
-    "iconUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/Cinemacity/logo.png",
-    "jarFileSize": 112595,
-    "apiVersion": 1,
-    "repositoryUrl": "https://github.com/angahjee1994/testrepo",
-    "fileSize": 32745,
-    "status": 1,
-    "language": "en",
-    "authors": [
-      "Phisher98"
-    ],
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "version": 1,
-    "internalName": "Cinemacity",
-    "jarUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds/Cinemacity.jar",
-    "description": "Watch Movies & TvSeries (Multi-Lang/Audio)",
-    "url": "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds/Cinemacity.cs3",
-    "name": "Cinemacity"
-  },
-  {
-    "iconUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/DisneyPlus/logo.png",
-    "apiVersion": 1,
-    "repositoryUrl": "https://github.com/angahjee1994/testrepo",
-    "fileSize": 34612,
-    "status": 1,
-    "language": "en",
-    "authors": [
-      "botol"
-    ],
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "version": 1,
-    "internalName": "DisneyPlus",
-    "description": "Disney+ Hotstar Contents in Multiple Languages",
-    "url": "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds/DisneyPlus.cs3",
-    "name": "DisneyPlus"
-  },
-  {
     "iconUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/Dramabox/logo.png",
     "apiVersion": 1,
     "repositoryUrl": "https://github.com/angahjee1994/testrepo",
@@ -116,45 +55,6 @@
     "description": "Streaming Drama Pendek",
     "url": "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds/Dramabox.cs3",
     "name": "Dramabox"
-  },
-  {
-    "iconUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/FourKHDHub/logo.png",
-    "apiVersion": 1,
-    "repositoryUrl": "https://github.com/angahjee1994/testrepo",
-    "fileSize": 67308,
-    "status": 1,
-    "language": "en",
-    "authors": [
-      "Phisher98"
-    ],
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "version": 1,
-    "internalName": "FourKHDHub",
-    "description": "4K Movies",
-    "url": "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds/FourKHDHub.cs3",
-    "name": "FourKHDHub"
-  },
-  {
-    "iconUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/HiAnime/logo.png",
-    "apiVersion": 1,
-    "repositoryUrl": "https://github.com/angahjee1994/testrepo",
-    "fileSize": 54317,
-    "status": 1,
-    "language": "en",
-    "authors": [
-      "Stormunblessed, KillerDogeEmpire,RowdyRushya,Phisher98"
-    ],
-    "tvTypes": [
-      "Anime",
-      "OVA"
-    ],
-    "version": 1,
-    "internalName": "HiAnime",
-    "url": "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds/HiAnime.cs3",
-    "name": "HiAnime"
   },
   {
     "iconUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/Hot51/logo.png",
@@ -256,25 +156,6 @@
     "name": "loklok"
   },
   {
-    "iconUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/Melolo/logo.png",
-    "apiVersion": 1,
-    "repositoryUrl": "https://github.com/angahjee1994/testrepo",
-    "fileSize": 26377,
-    "status": 1,
-    "language": "en",
-    "authors": [
-      "botol"
-    ],
-    "tvTypes": [
-      "AsianDrama"
-    ],
-    "version": 1,
-    "internalName": "Melolo",
-    "description": "Streaming Drama Melolo",
-    "url": "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds/Melolo.cs3",
-    "name": "Melolo"
-  },
-  {
     "iconUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/MissAV/logo.png",
     "apiVersion": 1,
     "repositoryUrl": "https://github.com/angahjee1994/testrepo",
@@ -337,85 +218,6 @@
     "name": "Pencurimovie"
   },
   {
-    "iconUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/PornHub/logo.png",
-    "apiVersion": 1,
-    "repositoryUrl": "https://github.com/angahjee1994/testrepo",
-    "fileSize": 16260,
-    "status": 1,
-    "language": "en",
-    "authors": [
-      "kraptor"
-    ],
-    "tvTypes": [
-      "NSFW"
-    ],
-    "version": 1,
-    "internalName": "PornHub",
-    "description": "Welcome to Pornhub.com, home of the best hardcore free porn videos with the hottest adult stars. Get full length scenes from your favorite porn studios 24/7!",
-    "url": "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds/PornHub.cs3",
-    "name": "PornHub"
-  },
-  {
-    "iconUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/PornWatch/logo.png",
-    "apiVersion": 1,
-    "repositoryUrl": "https://github.com/angahjee1994/testrepo",
-    "fileSize": 30470,
-    "status": 1,
-    "language": "en",
-    "authors": [
-      "Kraptor"
-    ],
-    "tvTypes": [
-      "NSFW"
-    ],
-    "version": 1,
-    "internalName": "PornWatch",
-    "description": "PornWatch - Porn Watch Online Free. Biggest Porn Movies Online Database. Watch and Download Full Porn Movie DVD in High Definition Quality. Latest Collection of Porn Movies DVD Free",
-    "url": "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds/PornWatch.cs3",
-    "name": "PornWatch"
-  },
-  {
-    "iconUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/PrimeVideo/logo.png",
-    "apiVersion": 1,
-    "repositoryUrl": "https://github.com/angahjee1994/testrepo",
-    "fileSize": 34744,
-    "status": 1,
-    "language": "en",
-    "authors": [
-      "botol"
-    ],
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "version": 1,
-    "internalName": "PrimeVideo",
-    "description": "PrimeVideo Contents in Multiple Languages",
-    "url": "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds/PrimeVideo.cs3",
-    "name": "PrimeVideo"
-  },
-  {
-    "iconUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/Samehadaku/logo.png",
-    "apiVersion": 1,
-    "repositoryUrl": "https://github.com/angahjee1994/testrepo",
-    "fileSize": 16804,
-    "status": 1,
-    "language": "id",
-    "authors": [
-      "Duro92",
-      "CodeSanzz"
-    ],
-    "tvTypes": [
-      "AnimeMovie",
-      "OVA",
-      "Anime"
-    ],
-    "version": 1,
-    "internalName": "Samehadaku",
-    "url": "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds/Samehadaku.cs3",
-    "name": "Samehadaku"
-  },
-  {
     "iconUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/ShortStream/logo.png",
     "apiVersion": 1,
     "repositoryUrl": "https://github.com/angahjee1994/testrepo",
@@ -433,27 +235,6 @@
     "description": "Short Drama all in one",
     "url": "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds/ShortStream.cs3",
     "name": "ShortStream"
-  },
-  {
-    "iconUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/Showbox/logo.png",
-    "apiVersion": 1,
-    "repositoryUrl": "https://github.com/angahjee1994/testrepo",
-    "fileSize": 82694,
-    "status": 1,
-    "language": "en",
-    "authors": [
-      "Blatzar"
-    ],
-    "tvTypes": [
-      "AsianDrama",
-      "Anime",
-      "TvSeries",
-      "Movie"
-    ],
-    "version": 1,
-    "internalName": "Showbox",
-    "url": "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds/Showbox.cs3",
-    "name": "Showbox"
   },
   {
     "iconUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/TeraboxVirals/logo.png",
