@@ -221,7 +221,7 @@
     "iconUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/ShortStream/logo.png",
     "apiVersion": 1,
     "repositoryUrl": "https://github.com/angahjee1994/testrepo",
-    "fileSize": 105291,
+    "fileSize": 42391,
     "status": 1,
     "language": "ms",
     "authors": [
@@ -351,24 +351,6 @@
       "TvSeries"
     ],
     "iconUrl": "https://raw.githubusercontent.com/angahjee1994/testrepo/refs/heads/main/AstroGo/logo.png",
-    "apiVersion": 1
-  },
-  {
-    "name": "MikroDrama",
-    "version": 1,
-    "fileSize": 37129,
-    "internalName": "MikroDrama",
-    "url": "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds/MikroDrama.cs3",
-    "description": "MikroDrama sample: vertical short dramas from dramenmikro.com \u2014 static SSR lists + ticketed /api/play streams",
-    "authors": [
-      "botol"
-    ],
-    "language": "en",
-    "status": 1,
-    "tvTypes": [
-      "AsianDrama"
-    ],
-    "iconUrl": "https://dramenmikro.com/simge.svg",
     "apiVersion": 1
   }
 ]
