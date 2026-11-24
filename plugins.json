@@ -388,5 +388,22 @@
     ],
     "iconUrl": "https://raw.githubusercontent.com/botol/ShortStream/refs/heads/main/Stream/logo.webp",
     "apiVersion": 1
+  },
+  {
+    "name": "BotolOtt",
+    "version": 3,
+    "fileSize": 31608,
+    "internalName": "BotolOtt",
+    "url": "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds/BotolOtt.cs3",
+    "description": "botol ott: M3U live TV with Kodi ClearKey DRM + TV-guide detail art",
+    "authors": [
+      "botol"
+    ],
+    "language": "en",
+    "status": 1,
+    "tvTypes": [
+      "Live"
+    ],
+    "apiVersion": 1
   }
 ]
