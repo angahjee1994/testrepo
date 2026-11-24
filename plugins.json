@@ -371,23 +371,6 @@
     "apiVersion": 1
   },
   {
-    "name": "BotolOtt",
-    "version": 4,
-    "fileSize": 35739,
-    "internalName": "BotolOtt",
-    "url": "https://raw.githubusercontent.com/angahjee1994/testrepo/Builds/BotolOtt.cs3",
-    "description": "botol ott: M3U live TV with Kodi ClearKey DRM + TV-guide detail art",
-    "authors": [
-      "botol"
-    ],
-    "language": "en",
-    "status": 1,
-    "tvTypes": [
-      "Live"
-    ],
-    "apiVersion": 1
-  },
-  {
     "name": "AstroGo",
     "version": 1,
     "fileSize": 70417,
